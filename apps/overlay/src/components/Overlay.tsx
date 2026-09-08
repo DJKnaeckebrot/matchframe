@@ -13,16 +13,18 @@ export function Overlay() {
   const state = useRealtimeStore((store) => store.state)
   const theme = useRealtimeStore((store) => store.theme)
   const overlay = useRealtimeStore((store) => store.overlay)
-  const branding = applyOverlayConfig(
-    parseOverlayBranding(typeof window === "undefined" ? "" : window.location.search),
-    overlay
-  )
+  const search = typeof window === "undefined" ? "" : window.location.search
+  const branding = applyOverlayConfig(parseOverlayBranding(search), overlay)
   const show = state ? overlayShow(state, branding) : null
+  const preview = new URLSearchParams(search).has("preview")
 
   return (
     <div
       className="pointer-events-none relative h-full w-full overflow-hidden text-(--mf-text)"
-      style={themeToCssVars(theme) as CSSProperties}
+      style={{
+        ...(themeToCssVars(theme) as CSSProperties),
+        ...(preview ? { background: "var(--mf-background)" } : {}),
+      }}
       data-overlay-phase={show?.phase}
     >
       <ConnectionIndicator />

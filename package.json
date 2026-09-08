@@ -12,7 +12,8 @@
     "test": "bun test",
     "fixture:gsi": "bun run scripts/fixture-gsi.ts",
     "portraits:import": "bun run scripts/import-portraits.ts",
-    "capture:gsi": "bun run scripts/capture-gsi.ts"
+    "capture:gsi": "bun run scripts/capture-gsi.ts",
+    "capture:readme": "bun run scripts/capture-readme-screenshots.ts"
   },
   "devDependencies": {
     "prettier": "^3.8.3",

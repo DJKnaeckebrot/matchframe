@@ -6,8 +6,26 @@ import { PlayersPage } from "@/pages/Players.tsx"
 
 type Page = "overlay" | "players" | "appearance"
 
+const PAGES: readonly Page[] = ["overlay", "players", "appearance"]
+
+function pageFromSearch(): Page {
+  const value = new URLSearchParams(window.location.search).get("page")
+  return PAGES.find((page) => page === value) ?? "overlay"
+}
+
 export function App() {
-  const [page, setPage] = useState<Page>("overlay")
+  const [page, setPage] = useState<Page>(pageFromSearch)
+
+  function openPage(next: Page) {
+    setPage(next)
+    const url = new URL(window.location.href)
+    if (next === "overlay") {
+      url.searchParams.delete("page")
+    } else {
+      url.searchParams.set("page", next)
+    }
+    window.history.replaceState(null, "", url)
+  }
 
   return (
     <div className="flex min-h-svh bg-background text-foreground">
@@ -16,13 +34,13 @@ export function App() {
           MATCHFRAME
         </div>
         <nav className="mt-8 flex flex-col gap-1" aria-label="Dashboard">
-          <NavItem active={page === "overlay"} onClick={() => setPage("overlay")}>
+          <NavItem active={page === "overlay"} onClick={() => openPage("overlay")}>
             Overlay
           </NavItem>
-          <NavItem active={page === "players"} onClick={() => setPage("players")}>
+          <NavItem active={page === "players"} onClick={() => openPage("players")}>
             Players
           </NavItem>
-          <NavItem active={page === "appearance"} onClick={() => setPage("appearance")}>
+          <NavItem active={page === "appearance"} onClick={() => openPage("appearance")}>
             Appearance
           </NavItem>
         </nav>
