@@ -20,3 +20,4 @@ export type GameEvent =
   | { type: "bomb_planted" }
   | { type: "bomb_dropped" }
   | { type: "bomb_picked_up" }
+  | { type: "map_ended"; mapName: string; teamId?: string }

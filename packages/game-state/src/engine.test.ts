@@ -57,6 +57,8 @@ function snapshot(options: {
   players?: readonly PlayerState[]
   round?: number
   roundPhase?: GameState["round"]["phase"]
+  mapPhase?: GameState["map"]["phase"]
+  mapName?: string
   winTeam?: Side | null
   winReason?: RoundWinReason
   timeRemaining?: number
@@ -69,7 +71,12 @@ function snapshot(options: {
     options.players ?? [...roster(CT_ROSTER, "ct", "CT"), ...roster(T_ROSTER, "t", "T")]
   return {
     timestamp: options.timestamp ?? 1,
-    map: { name: "de_inferno", phase: "live", round: options.round ?? 1, roundHistory: [] },
+    map: {
+      name: options.mapName ?? "de_inferno",
+      phase: options.mapPhase ?? "live",
+      round: options.round ?? 1,
+      roundHistory: [],
+    },
     round: {
       phase: options.roundPhase ?? "live",
       winTeam: options.winTeam ?? null,
@@ -410,6 +417,282 @@ describe("createGameStateEngine", () => {
       },
     ])
     expect(ended.state.teams[0]?.id).toBe("northwind")
+  })
+
+  test("awards a series win on gameover when GSI omits series wins", () => {
+    const engine = createGameStateEngine()
+    const teams: TeamState[] = [
+      { id: "northwind", name: "Northwind", side: "CT", score: 13, seriesWins: 0 },
+      { id: "redline", name: "Redline", side: "T", score: 9, seriesWins: 0 },
+    ]
+    const players = [
+      ...roster(CT_ROSTER, "northwind", "CT"),
+      ...roster(T_ROSTER, "redline", "T"),
+    ]
+    engine.apply(snapshot({ teams, players }))
+    const ended = engine.apply(
+      snapshot({
+        timestamp: 2,
+        mapPhase: "gameover",
+        roundPhase: "over",
+        winTeam: "CT",
+        teams,
+        players,
+      })
+    )
+
+    expect(ended.state.teams.map((team) => [team.id, team.seriesWins])).toEqual([
+      ["northwind", 1],
+      ["redline", 0],
+    ])
+    expect(ended.events).toContainEqual({
+      type: "map_ended",
+      mapName: "de_inferno",
+      teamId: "northwind",
+    })
+  })
+
+  test("does not double-count a map GSI already awarded", () => {
+    const engine = createGameStateEngine()
+    const players = [
+      ...roster(CT_ROSTER, "northwind", "CT"),
+      ...roster(T_ROSTER, "redline", "T"),
+    ]
+    engine.apply(
+      snapshot({
+        teams: [
+          { id: "northwind", name: "Northwind", side: "CT", score: 12, seriesWins: 0 },
+          { id: "redline", name: "Redline", side: "T", score: 9, seriesWins: 0 },
+        ],
+        players,
+      })
+    )
+    const ended = engine.apply(
+      snapshot({
+        timestamp: 2,
+        mapPhase: "gameover",
+        teams: [
+          { id: "northwind", name: "Northwind", side: "CT", score: 13, seriesWins: 1 },
+          { id: "redline", name: "Redline", side: "T", score: 9, seriesWins: 0 },
+        ],
+        players,
+      })
+    )
+
+    expect(ended.state.teams.map((team) => team.seriesWins)).toEqual([1, 0])
+  })
+
+  test("does not increment again while the map stays gameover", () => {
+    const engine = createGameStateEngine()
+    const teams: TeamState[] = [
+      { id: "northwind", name: "Northwind", side: "CT", score: 13, seriesWins: 0 },
+      { id: "redline", name: "Redline", side: "T", score: 9, seriesWins: 0 },
+    ]
+    const players = [
+      ...roster(CT_ROSTER, "northwind", "CT"),
+      ...roster(T_ROSTER, "redline", "T"),
+    ]
+    engine.apply(snapshot({ teams, players }))
+    engine.apply(snapshot({ timestamp: 2, mapPhase: "gameover", teams, players }))
+    const stillOver = engine.apply(
+      snapshot({ timestamp: 3, mapPhase: "gameover", teams, players })
+    )
+
+    expect(stillOver.state.teams.map((team) => team.seriesWins)).toEqual([1, 0])
+    expect(stillOver.events.filter((event) => event.type === "map_ended")).toEqual([])
+  })
+
+  test("carries detected series wins onto the next map when GSI resets to zero", () => {
+    const engine = createGameStateEngine()
+    const liveTeams: TeamState[] = [
+      { id: "northwind", name: "Northwind", side: "CT", score: 13, seriesWins: 0 },
+      { id: "redline", name: "Redline", side: "T", score: 9, seriesWins: 0 },
+    ]
+    const players = [
+      ...roster(CT_ROSTER, "northwind", "CT"),
+      ...roster(T_ROSTER, "redline", "T"),
+    ]
+    engine.apply(snapshot({ teams: liveTeams, players }))
+    engine.apply(
+      snapshot({ timestamp: 2, mapPhase: "gameover", teams: liveTeams, players })
+    )
+    const nextMap = engine.apply(
+      snapshot({
+        timestamp: 3,
+        mapName: "de_mirage",
+        mapPhase: "warmup",
+        round: 0,
+        teams: [
+          { id: "northwind", name: "Northwind", side: "CT", score: 0, seriesWins: 0 },
+          { id: "redline", name: "Redline", side: "T", score: 0, seriesWins: 0 },
+        ],
+        players,
+      })
+    )
+
+    expect(nextMap.state.teams.map((team) => [team.id, team.seriesWins])).toEqual([
+      ["northwind", 1],
+      ["redline", 0],
+    ])
+  })
+
+  test("second map win increments the carried series score", () => {
+    const engine = createGameStateEngine()
+    const players = [
+      ...roster(CT_ROSTER, "northwind", "CT"),
+      ...roster(T_ROSTER, "redline", "T"),
+    ]
+    engine.apply(
+      snapshot({
+        teams: [
+          { id: "northwind", name: "Northwind", side: "CT", score: 13, seriesWins: 0 },
+          { id: "redline", name: "Redline", side: "T", score: 9, seriesWins: 0 },
+        ],
+        players,
+      })
+    )
+    engine.apply(
+      snapshot({
+        timestamp: 2,
+        mapPhase: "gameover",
+        teams: [
+          { id: "northwind", name: "Northwind", side: "CT", score: 13, seriesWins: 0 },
+          { id: "redline", name: "Redline", side: "T", score: 9, seriesWins: 0 },
+        ],
+        players,
+      })
+    )
+    engine.apply(
+      snapshot({
+        timestamp: 3,
+        mapName: "de_mirage",
+        mapPhase: "warmup",
+        teams: [
+          { id: "northwind", name: "Northwind", side: "CT", score: 0, seriesWins: 0 },
+          { id: "redline", name: "Redline", side: "T", score: 0, seriesWins: 0 },
+        ],
+        players,
+      })
+    )
+    const second = engine.apply(
+      snapshot({
+        timestamp: 4,
+        mapName: "de_mirage",
+        mapPhase: "gameover",
+        teams: [
+          { id: "northwind", name: "Northwind", side: "CT", score: 9, seriesWins: 0 },
+          { id: "redline", name: "Redline", side: "T", score: 13, seriesWins: 0 },
+        ],
+        players,
+      })
+    )
+
+    expect(second.state.teams.map((team) => [team.id, team.seriesWins])).toEqual([
+      ["northwind", 1],
+      ["redline", 1],
+    ])
+  })
+
+  test("does not award a series win on a drawn map", () => {
+    const engine = createGameStateEngine()
+    const teams: TeamState[] = [
+      { id: "northwind", name: "Northwind", side: "CT", score: 15, seriesWins: 0 },
+      { id: "redline", name: "Redline", side: "T", score: 15, seriesWins: 0 },
+    ]
+    const players = [
+      ...roster(CT_ROSTER, "northwind", "CT"),
+      ...roster(T_ROSTER, "redline", "T"),
+    ]
+    engine.apply(snapshot({ teams, players }))
+    const ended = engine.apply(
+      snapshot({ timestamp: 2, mapPhase: "gameover", teams, players })
+    )
+
+    expect(ended.state.teams.map((team) => team.seriesWins)).toEqual([0, 0])
+    expect(ended.events).toContainEqual({ type: "map_ended", mapName: "de_inferno" })
+  })
+
+  test("map win follows the logical team after a side switch", () => {
+    const engine = createGameStateEngine()
+    engine.apply(
+      snapshot({
+        teams: [
+          { id: "northwind", name: "Northwind", side: "CT", score: 8, seriesWins: 0 },
+          { id: "redline", name: "Redline", side: "T", score: 6, seriesWins: 0 },
+        ],
+        players: [
+          ...roster(CT_ROSTER, "northwind", "CT"),
+          ...roster(T_ROSTER, "redline", "T"),
+        ],
+      })
+    )
+    engine.apply(
+      snapshot({
+        timestamp: 2,
+        teams: [
+          { id: "redline", name: "Redline", side: "CT", score: 6, seriesWins: 0 },
+          { id: "northwind", name: "Northwind", side: "T", score: 8, seriesWins: 0 },
+        ],
+        players: [
+          ...roster(T_ROSTER, "redline", "CT"),
+          ...roster(CT_ROSTER, "northwind", "T"),
+        ],
+      })
+    )
+    const ended = engine.apply(
+      snapshot({
+        timestamp: 3,
+        mapPhase: "gameover",
+        teams: [
+          { id: "redline", name: "Redline", side: "CT", score: 9, seriesWins: 0 },
+          { id: "northwind", name: "Northwind", side: "T", score: 13, seriesWins: 0 },
+        ],
+        players: [
+          ...roster(T_ROSTER, "redline", "CT"),
+          ...roster(CT_ROSTER, "northwind", "T"),
+        ],
+      })
+    )
+
+    expect(ended.state.teams.map((team) => [team.id, team.seriesWins])).toEqual([
+      ["northwind", 1],
+      ["redline", 0],
+    ])
+    expect(ended.events).toContainEqual({
+      type: "map_ended",
+      mapName: "de_inferno",
+      teamId: "northwind",
+    })
+  })
+
+  test("trusts GSI series wins when they increase on gameover", () => {
+    const engine = createGameStateEngine()
+    const players = [
+      ...roster(CT_ROSTER, "northwind", "CT"),
+      ...roster(T_ROSTER, "redline", "T"),
+    ]
+    engine.apply(
+      snapshot({
+        teams: [
+          { id: "northwind", name: "Northwind", side: "CT", score: 8, seriesWins: 1 },
+          { id: "redline", name: "Redline", side: "T", score: 6, seriesWins: 0 },
+        ],
+        players,
+      })
+    )
+    const ended = engine.apply(
+      snapshot({
+        timestamp: 2,
+        mapPhase: "gameover",
+        teams: [
+          { id: "northwind", name: "Northwind", side: "CT", score: 13, seriesWins: 2 },
+          { id: "redline", name: "Redline", side: "T", score: 9, seriesWins: 0 },
+        ],
+        players,
+      })
+    )
+
+    expect(ended.state.teams.map((team) => team.seriesWins)).toEqual([2, 0])
   })
 
   test("round result state clears when the next freeze begins", () => {

@@ -1,6 +1,6 @@
 import type { GameEvent } from "./events"
 import { assignTeamIdentity } from "./identity"
-import type { BombState, BombStatus, GameState, PlayerState } from "./types"
+import type { BombState, BombStatus, GameState, PlayerState, TeamState } from "./types"
 
 export type ApplyResult = {
   state: GameState
@@ -19,7 +19,8 @@ export function createGameStateEngine(): GameStateEngine {
   return {
     apply(snapshot: GameState): ApplyResult {
       const identified = assignTeamIdentity(previous, snapshot)
-      const state = captureBombProgress(previous, identified)
+      const withBomb = captureBombProgress(previous, identified)
+      const state = captureSeriesWins(previous, withBomb)
       const events = previous === null ? [] : deriveEvents(previous, state)
       previous = state
       return { state, events }
@@ -94,6 +95,79 @@ function captureBombProgress(previous: GameState | null, next: GameState): GameS
   return { ...next, bomb: captured }
 }
 
+/**
+ * GSI `matches_won_this_series` is missing in scrims. Carry detected map wins
+ * by logical team id until GSI reports a series, then trust GSI.
+ *
+ * ponytail: same-roster next series keeps the count until process restart.
+ * Upgrade: dashboard reset.
+ */
+function captureSeriesWins(previous: GameState | null, next: GameState): GameState {
+  const teams = mergeSeriesWins(previous, next.teams)
+  if (previous === null || previous.map.phase === "gameover" || next.map.phase !== "gameover") {
+    return teams === next.teams ? next : { ...next, teams }
+  }
+
+  const winner = mapWinner(teams)
+  if (!winner || seriesAlreadyCounted(previous.teams, teams)) {
+    return teams === next.teams ? next : { ...next, teams }
+  }
+
+  return {
+    ...next,
+    teams: teams.map((team) =>
+      team.id === winner.id ? { ...team, seriesWins: team.seriesWins + 1 } : team
+    ),
+  }
+}
+
+function mergeSeriesWins(
+  previous: GameState | null,
+  teams: readonly TeamState[]
+): readonly TeamState[] {
+  if (previous === null || teams.some((team) => team.seriesWins > 0)) {
+    return teams
+  }
+  let changed = false
+  const merged = teams.map((team) => {
+    const carried = previous.teams.find((entry) => entry.id === team.id)?.seriesWins ?? 0
+    if (carried <= team.seriesWins) {
+      return team
+    }
+    changed = true
+    return { ...team, seriesWins: carried }
+  })
+  return changed ? merged : teams
+}
+
+function seriesAlreadyCounted(
+  previous: readonly TeamState[],
+  next: readonly TeamState[]
+): boolean {
+  return next.some((team) => {
+    const before = previous.find((entry) => entry.id === team.id)?.seriesWins ?? 0
+    return team.seriesWins > before
+  })
+}
+
+function mapWinner(teams: readonly TeamState[]): TeamState | undefined {
+  const lead = teams[0]
+  if (!lead || teams.length < 2) {
+    return undefined
+  }
+  let best = lead
+  let unique = true
+  for (const team of teams.slice(1)) {
+    if (team.score > best.score) {
+      best = team
+      unique = true
+    } else if (team.score === best.score) {
+      unique = false
+    }
+  }
+  return unique ? best : undefined
+}
+
 function stripCapturedProgress(bomb: BombState): BombState {
   const next: BombState = { state: bomb.state }
   if (bomb.carrierSteamId !== undefined) {
@@ -116,6 +190,15 @@ function deriveEvents(previous: GameState, next: GameState): GameEvent[] {
       winTeam: next.round.winTeam,
       ...(winner ? { teamId: winner.id } : {}),
       ...(next.round.winReason ? { winReason: next.round.winReason } : {}),
+    })
+  }
+
+  if (previous.map.phase !== "gameover" && next.map.phase === "gameover") {
+    const mapWinnerTeam = mapWinner(next.teams)
+    events.push({
+      type: "map_ended",
+      mapName: next.map.name,
+      ...(mapWinnerTeam ? { teamId: mapWinnerTeam.id } : {}),
     })
   }
 

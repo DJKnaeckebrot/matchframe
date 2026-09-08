@@ -26,6 +26,10 @@ describe("server messages", () => {
       { type: "event" as const, data: { type: "bomb_planted" as const } },
       {
         type: "event" as const,
+        data: { type: "map_ended" as const, mapName: "de_inferno", teamId: "team-1" },
+      },
+      {
+        type: "event" as const,
         data: {
           type: "round_ended" as const,
           round: 14,

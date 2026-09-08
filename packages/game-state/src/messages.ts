@@ -133,6 +133,15 @@ function parseGameEvent(value: unknown): GameEvent | null {
     case "bomb_dropped":
     case "bomb_picked_up":
       return { type: value.type }
+    case "map_ended":
+      if (typeof value.mapName !== "string") {
+        return null
+      }
+      return {
+        type: "map_ended",
+        mapName: value.mapName,
+        ...(typeof value.teamId === "string" ? { teamId: value.teamId } : {}),
+      }
     default:
       return null
   }
