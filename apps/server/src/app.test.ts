@@ -5,10 +5,12 @@ import { afterEach, describe, expect, test } from "bun:test"
 import { createGameStateEngine, parseServerMessage } from "@workspace/game-state"
 import type { GameState } from "@workspace/game-state"
 import { createGsiStateManager } from "@workspace/gsi"
+import { emptyPlayerPresentationConfig } from "@workspace/presentation"
 import { defaultTheme } from "@workspace/theme"
 import { websocket } from "hono/bun"
 
 import { createApp } from "./app"
+import { createFilePlayerStore } from "./config/player-store"
 import { createFileThemeStore } from "./config/theme-store"
 import { createRealtimeHub } from "./hub"
 
@@ -22,6 +24,7 @@ function testApp(dir: string) {
   const store: { current: GameState | null } = { current: null }
   const hub = createRealtimeHub()
   const themeStore = createFileThemeStore(dir)
+  const playerStore = createFilePlayerStore(dir)
   const app = createApp({
     engine: createGameStateEngine(),
     gsi: createGsiStateManager(),
@@ -30,9 +33,10 @@ function testApp(dir: string) {
       store.current = state
     },
     themeStore,
+    playerStore,
     hub,
   })
-  return { app, hub, themeStore }
+  return { app, hub, themeStore, playerStore }
 }
 
 const servers: Array<{ stop: () => void }> = []
@@ -105,7 +109,7 @@ describe("theme config", () => {
 })
 
 describe("realtime theme", () => {
-  test("a new client receives connection then theme", async () => {
+  test("a new client receives connection, theme, then presentation", async () => {
     const { app } = testApp(await tempDir())
     const server = Bun.serve({
       port: 0,
@@ -114,9 +118,10 @@ describe("realtime theme", () => {
     })
     servers.push(server)
 
-    const messages = await collectWsMessages(`ws://127.0.0.1:${server.port}/ws`, 2)
-    expect(messages.map((message) => message.type)).toEqual(["connection", "theme"])
+    const messages = await collectWsMessages(`ws://127.0.0.1:${server.port}/ws`, 3)
+    expect(messages.map((message) => message.type)).toEqual(["connection", "theme", "presentation"])
     expect(messages[1]).toEqual({ type: "theme", data: defaultTheme })
+    expect(messages[2]).toEqual({ type: "presentation", data: emptyPlayerPresentationConfig })
   })
 
   test("theme update is broadcast to connected clients", async () => {
@@ -138,7 +143,7 @@ describe("realtime theme", () => {
       received.push(parseServerMessage(typeof event.data === "string" ? event.data : null))
     }
     await opened
-    await waitFor(() => received.length >= 2)
+    await waitFor(() => received.length >= 3)
 
     const next = { ...defaultTheme, accent: "#112233" }
     const response = await app.request("/api/config/theme", {
@@ -168,8 +173,8 @@ describe("realtime theme", () => {
     })
     servers.push(server)
 
-    const messages = await collectWsMessages(`ws://127.0.0.1:${server.port}/ws`, 3)
-    expect(messages.map((message) => message.type)).toEqual(["connection", "theme", "snapshot"])
+    const messages = await collectWsMessages(`ws://127.0.0.1:${server.port}/ws`, 4)
+    expect(messages.map((message) => message.type)).toEqual(["connection", "theme", "presentation", "snapshot"])
   })
 
   test("partial GSI posts merge instead of replacing roster", async () => {
@@ -246,6 +251,177 @@ describe("realtime theme", () => {
     }
   })
 })
+
+describe("player presentation config", () => {
+  const steamId = "76561198000000001"
+  const entry = {
+    displayName: "Nova",
+    portrait: { type: "operator" as const, value: "ct_default_01" },
+  }
+
+  test("GET returns an empty map when no config file exists", async () => {
+    const { app } = testApp(await tempDir())
+    const response = await app.request("/api/config/players")
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({})
+  })
+
+  test("PUT upserts one player and reloads from disk", async () => {
+    const dir = await tempDir()
+    const { app } = testApp(dir)
+    const response = await app.request(`/api/config/players/${steamId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(entry),
+    })
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ [steamId]: entry })
+    expect(JSON.parse(await readFile(join(dir, "players.json"), "utf8"))).toEqual({
+      [steamId]: entry,
+    })
+
+    const { app: restarted } = testApp(dir)
+    const loaded = await restarted.request("/api/config/players")
+    expect(await loaded.json()).toEqual({ [steamId]: entry })
+  })
+
+  test("PUT rejects unknown operators and remote portrait URLs", async () => {
+    const { app } = testApp(await tempDir())
+    const unknown = await app.request(`/api/config/players/${steamId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ portrait: { type: "operator", value: "ct_sas" } }),
+    })
+    expect(unknown.status).toBe(400)
+
+    const remote = await app.request(`/api/config/players/${steamId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        portrait: { type: "custom", value: "https://cdn.example/nova.png" },
+      }),
+    })
+    expect(remote.status).toBe(400)
+  })
+
+  test("DELETE clears a player and empty PUT is the same as delete", async () => {
+    const { app } = testApp(await tempDir())
+    await app.request(`/api/config/players/${steamId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(entry),
+    })
+    const cleared = await app.request(`/api/config/players/${steamId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    })
+    expect(await cleared.json()).toEqual({})
+
+    await app.request(`/api/config/players/${steamId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(entry),
+    })
+    const deleted = await app.request(`/api/config/players/${steamId}`, { method: "DELETE" })
+    expect(deleted.status).toBe(200)
+    expect(await deleted.json()).toEqual({})
+  })
+
+  test("malformed config file falls back without crashing", async () => {
+    const dir = await tempDir()
+    await Bun.write(join(dir, "players.json"), "{not json")
+    const warnings: string[] = []
+    const original = console.warn
+    console.warn = (...args: unknown[]) => {
+      warnings.push(args.map(String).join(" "))
+    }
+    try {
+      const { app } = testApp(dir)
+      const response = await app.request("/api/config/players")
+      expect(await response.json()).toEqual({})
+    } finally {
+      console.warn = original
+    }
+    expect(warnings.some((line) => line.includes("malformed player presentation"))).toBe(true)
+  })
+
+  test("skips a bad entry and keeps valid neighbors", async () => {
+    const dir = await tempDir()
+    await Bun.write(
+      join(dir, "players.json"),
+      JSON.stringify({
+        [steamId]: entry,
+        bad: { portrait: { type: "operator", value: "nope" } },
+      })
+    )
+    const warnings: string[] = []
+    const original = console.warn
+    console.warn = (...args: unknown[]) => {
+      warnings.push(args.map(String).join(" "))
+    }
+    try {
+      const { app } = testApp(dir)
+      expect(await (await app.request("/api/config/players")).json()).toEqual({ [steamId]: entry })
+    } finally {
+      console.warn = original
+    }
+    expect(warnings.some((line) => line.includes("malformed player presentation entries"))).toBe(
+      true
+    )
+  })
+})
+
+describe("realtime presentation", () => {
+  test("player presentation update is broadcast to connected clients", async () => {
+    const { app } = testApp(await tempDir())
+    const server = Bun.serve({
+      port: 0,
+      fetch: (req, server) => app.fetch(req, server),
+      websocket,
+    })
+    servers.push(server)
+
+    const received: unknown[] = []
+    const ws = new WebSocket(`ws://127.0.0.1:${server.port}/ws`)
+    const opened = new Promise<void>((resolve, reject) => {
+      ws.onopen = () => resolve()
+      ws.onerror = () => reject(new Error("websocket error"))
+    })
+    ws.onmessage = (event) => {
+      received.push(parseServerMessage(typeof event.data === "string" ? event.data : null))
+    }
+    await opened
+    await waitFor(() => received.length >= 3)
+
+    const steamId = "76561198000000001"
+    const response = await app.request(`/api/config/players/${steamId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ portrait: { type: "operator", value: "t_default_02" } }),
+    })
+    expect(response.status).toBe(200)
+    await waitFor(() =>
+      received.some(
+        (message) =>
+          isPresentation(message) &&
+          message.data[steamId]?.portrait?.value === "t_default_02"
+      )
+    )
+    ws.close()
+  })
+})
+
+function isPresentation(
+  message: unknown
+): message is { type: "presentation"; data: Record<string, { portrait?: { value: string } }> } {
+  return (
+    typeof message === "object" &&
+    message !== null &&
+    "type" in message &&
+    message.type === "presentation"
+  )
+}
 
 function isTheme(
   message: unknown

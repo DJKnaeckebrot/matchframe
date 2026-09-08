@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test"
+import { emptyPlayerPresentationConfig } from "@workspace/presentation"
 import { defaultTheme } from "@workspace/theme"
 
 import type { GameState } from "./types"
@@ -16,7 +17,7 @@ const sampleState: GameState = {
 }
 
 describe("server messages", () => {
-  test("round-trips connection, snapshot, event, and theme", () => {
+  test("round-trips connection, snapshot, event, theme, and presentation", () => {
     const messages = [
       { type: "connection" as const, data: { connected: true } },
       { type: "snapshot" as const, data: sampleState },
@@ -33,6 +34,16 @@ describe("server messages", () => {
         },
       },
       { type: "theme" as const, data: defaultTheme },
+      { type: "presentation" as const, data: emptyPlayerPresentationConfig },
+      {
+        type: "presentation" as const,
+        data: {
+          "76561198000000001": {
+            displayName: "Nova",
+            portrait: { type: "operator" as const, value: "ct_default_01" },
+          },
+        },
+      },
     ]
 
     for (const message of messages) {
@@ -49,5 +60,6 @@ describe("server messages", () => {
     expect(parseServerMessage({ type: "unknown" })).toBeNull()
     expect(parseServerMessage({ type: "event", data: { type: "player_died" } })).toBeNull()
     expect(parseServerMessage({ type: "theme", data: { accent: "nope" } })).toBeNull()
+    expect(parseServerMessage({ type: "presentation", data: { a: { portrait: { type: "operator", value: "nope" } } } })).toBeNull()
   })
 })

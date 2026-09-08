@@ -109,6 +109,7 @@ export type RoundDisplayState = {
   winTeam: Side | null
   winnerTeamId?: string
   winnerName?: string
+  winReason?: RoundWinReason
   timeoutSide?: Side
 }
 
@@ -199,6 +200,9 @@ function overDisplay(
   if (winner) {
     display.winnerTeamId = winner.id
     display.winnerName = winner.name
+  }
+  if (state.round.winReason) {
+    display.winReason = state.round.winReason
   }
   return display
 }

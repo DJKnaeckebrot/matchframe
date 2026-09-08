@@ -1,4 +1,8 @@
 import type { GameEvent, GameState, ServerMessage } from "@workspace/game-state"
+import {
+  emptyPlayerPresentationConfig,
+  type PlayerPresentationConfig,
+} from "@workspace/presentation"
 import { defaultTheme } from "@workspace/theme"
 import type { MatchframeTheme } from "@workspace/theme"
 import { create } from "zustand"
@@ -12,6 +16,7 @@ type RealtimeStore = {
   gameConnected: boolean
   state: GameState | null
   theme: MatchframeTheme
+  presentation: PlayerPresentationConfig
   recentEvents: GameEvent[]
   setWsStatus: (wsStatus: WsStatus) => void
   applyMessage: (message: ServerMessage) => void
@@ -22,6 +27,7 @@ export const useRealtimeStore = create<RealtimeStore>((set) => ({
   gameConnected: false,
   state: null,
   theme: defaultTheme,
+  presentation: emptyPlayerPresentationConfig,
   recentEvents: [],
   setWsStatus: (wsStatus) => set({ wsStatus }),
   applyMessage: (message) => {
@@ -39,6 +45,10 @@ export const useRealtimeStore = create<RealtimeStore>((set) => ({
     }
     if (message.type === "theme") {
       set({ theme: message.data })
+      return
+    }
+    if (message.type === "presentation") {
+      set({ presentation: message.data })
       return
     }
     set((current) => ({

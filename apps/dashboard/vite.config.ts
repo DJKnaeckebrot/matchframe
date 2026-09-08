@@ -9,6 +9,14 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      "@workspace/game-state": path.resolve(
+        __dirname,
+        "../../packages/game-state/src/index.ts"
+      ),
+      "@workspace/presentation": path.resolve(
+        __dirname,
+        "../../packages/presentation/src/index.ts"
+      ),
     },
   },
   server: {

@@ -4,6 +4,7 @@ import { createGsiStateManager, sanitizeGsiCapture } from "@workspace/gsi"
 import { websocket } from "hono/bun"
 
 import { createApp } from "./app"
+import { createFilePlayerStore } from "./config/player-store"
 import { createFileThemeStore } from "./config/theme-store"
 import { createRealtimeHub } from "./hub"
 import { gameStateStore } from "./store"
@@ -41,6 +42,7 @@ const engine = createGameStateEngine()
 const gsi = createGsiStateManager()
 const hub = createRealtimeHub()
 const themeStore = createFileThemeStore(dataDir())
+const playerStore = createFilePlayerStore(dataDir())
 const onGsiCapture = gsiCaptureWriter()
 
 const app = createApp({
@@ -49,6 +51,7 @@ const app = createApp({
   getState: () => gameStateStore.get(),
   setState: (state) => gameStateStore.set(state),
   themeStore,
+  playerStore,
   hub,
   ...(onGsiCapture ? { onGsiCapture } : {}),
 })
@@ -64,3 +67,4 @@ Bun.serve({
 console.log(`Broadcast server running at http://localhost:${port}`)
 console.log(`GSI endpoint: http://localhost:${port}/api/gsi`)
 console.log(`WebSocket: ws://localhost:${port}/ws`)
+

@@ -44,9 +44,11 @@ Example:
 type ServerMessage =
   | { type: "snapshot"; data: GameState }
   | { type: "event"; data: GameEvent }
-  | { type: "connection"; data: ConnectionState };
+  | { type: "connection"; data: ConnectionState }
+  | { type: "theme"; data: MatchframeTheme }
+  | { type: "presentation"; data: PlayerPresentationConfig };
 
-On WebSocket connection, send a full snapshot.
+On WebSocket connection, send a full snapshot (and current theme / presentation config).
 
 Do not prematurely optimize realtime communication with:
 - protobuf

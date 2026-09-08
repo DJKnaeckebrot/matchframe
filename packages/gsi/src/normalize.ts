@@ -151,7 +151,9 @@ function normalizePlayer(
     deaths: player.match_stats?.deaths ?? 0,
     equipment: equipmentFromWeapons(weapons, {
       hasHelmet: player.state?.helmet ?? false,
-      hasDefuseKit: player.state?.defusekit === true,
+      // GSI omits defusekit when false; the raw merge can keep a CT-half true
+      // after the player is T. Kits are CT-only.
+      hasDefuseKit: side === "CT" && player.state?.defusekit === true,
       hasBomb: bombCarrierSteamId === steamId,
     }),
   }

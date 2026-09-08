@@ -234,6 +234,34 @@ describe("normalizeGsiPayload", () => {
     })
   })
 
+  test("T players never keep a defuse kit, even when GSI still reports one", () => {
+    const parsed = parseGsiPayload({
+      allplayers: {
+        t1: {
+          name: "Viper",
+          team: "T",
+          state: { health: 100, helmet: true, defusekit: true, armor: 100, money: 800 },
+        },
+        ct1: {
+          name: "Nova",
+          team: "CT",
+          state: { health: 100, helmet: true, defusekit: true, armor: 100, money: 800 },
+        },
+      },
+    })
+    expect(parsed.success).toBe(true)
+    if (!parsed.success) {
+      return
+    }
+    const state = normalizeGsiPayload(parsed.data)
+    expect(state.players.find((player) => player.name === "Viper")?.equipment.hasDefuseKit).toBe(
+      false
+    )
+    expect(state.players.find((player) => player.name === "Nova")?.equipment.hasDefuseKit).toBe(
+      true
+    )
+  })
+
   test("parses player position and forward; invalid vectors stay undefined", () => {
     const parsed = parseGsiPayload({
       allplayers: {

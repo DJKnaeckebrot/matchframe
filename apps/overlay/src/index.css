@@ -13,6 +13,12 @@ body,
   font-feature-settings: "tnum" 1;
 }
 
+.mf-display {
+  font-family: Bahnschrift, "Arial Narrow", "Helvetica Neue Condensed", "Segoe UI", sans-serif;
+  font-stretch: condensed;
+  font-weight: 600;
+}
+
 @keyframes mf-planted-pulse {
   0%,
   100% {

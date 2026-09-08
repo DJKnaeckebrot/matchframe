@@ -18,6 +18,8 @@ This starts the dashboard, overlay, and broadcast server together.
 | Broadcast server | http://localhost:3131 |
 | GSI endpoint | `POST http://localhost:3131/api/gsi` |
 | Theme | `GET` / `PUT http://localhost:3131/api/config/theme` |
+| Players | `GET http://localhost:3131/api/config/players` |
+| Player | `PUT` / `DELETE http://localhost:3131/api/config/players/:steamId` |
 | WebSocket | `ws://localhost:3131/ws` |
 
 Point an OBS Browser Source at the overlay URL when you are ready to composite it over gameplay. Keep the source at 1920×1080 with a transparent background.
@@ -41,9 +43,11 @@ The tactical radar uses `packages/maps` for Anubis overview metadata and a repla
 
 The overlay connects automatically. Override the server with `VITE_REALTIME_URL` (default `ws://localhost:3131/ws`).
 
-The dashboard reads and writes overlay colors on the broadcast server (`http://localhost:3131`, override with `VITE_API_URL`). Use the Vite app at http://localhost:5173 — a `vite preview` tab on port 4173 is a static build and will miss `/api` unless the server is reachable.
+The dashboard talks to `/api` on its own origin; Vite proxies that to the broadcast server. Override with `VITE_API_URL` only if the dashboard must call the server directly. Use the Vite app at http://localhost:5173 — a `vite preview` tab on port 4173 still needs the server reachable for `/api`.
 
-Appearance colors are edited in the dashboard and applied to the running overlay over the same WebSocket.
+Appearance colors and player portraits are edited in the dashboard and applied to the running overlay over the same WebSocket. Player presentation is keyed by Steam ID and stored in `players.json` next to `theme.json`.
+
+Player portraits resolve stable ids (`ct_default_01`, `neutral`, …) through `getPortraitAsset`. The current pack is Matchframe-owned silhouettes in `apps/overlay/src/assets/portraits/matchframe`. Drop extracted CS2 operator art into `cs2-reference/` for local comparison only — Valve character assets are not Matchframe's to redistribute.
 
 ### Preview without CS2
 
@@ -97,7 +101,7 @@ Round clocks and pause/timeout presentation require `phase_countdowns` in the CS
 
 ### Workspace package reloads
 
-`apps/server` uses `bun --watch`. Bun still warns that files under `packages/` sit outside the server project directory and will not be watched. After changing `packages/game-state`, `packages/gsi`, or `packages/maps`, stop and re-run `bun run dev` from a fresh process, then refresh the overlay.
+`apps/server` uses `bun --watch`. Bun still warns that files under `packages/` sit outside the server project directory and will not be watched. After changing `packages/game-state`, `packages/gsi`, `packages/maps`, `packages/theme`, or `packages/presentation`, stop and re-run `bun run dev` from a fresh process, then refresh the overlay.
 
 ```bash
 curl -s http://localhost:3131/health

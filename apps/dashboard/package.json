@@ -12,6 +12,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@workspace/game-state": "workspace:*",
+    "@workspace/presentation": "workspace:*",
     "@workspace/theme": "workspace:*",
     "@workspace/ui": "workspace:*",
     "@tanstack/react-query": "^5.90.2",

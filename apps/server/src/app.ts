@@ -4,11 +4,16 @@ import {
   parseGsiPayload,
   type GsiStateManager,
 } from "@workspace/gsi"
+import {
+  playerPresentationSchema,
+  steamIdSchema,
+} from "@workspace/presentation"
 import { matchframeThemeSchema } from "@workspace/theme"
 import { Hono } from "hono"
 import { cors } from "hono/cors"
 import { upgradeWebSocket } from "hono/bun"
 
+import type { PlayerStore } from "./config/player-store"
 import type { ThemeStore } from "./config/theme-store"
 import type { RealtimeHub } from "./hub"
 
@@ -18,6 +23,7 @@ export type ServerAppDeps = {
   getState: () => GameState | null
   setState: (state: GameState) => void
   themeStore: ThemeStore
+  playerStore: PlayerStore
   hub: RealtimeHub
   onGsiCapture?: (merged: unknown) => void
 }
@@ -29,7 +35,7 @@ export function createApp(deps: ServerAppDeps): Hono {
     "/api/*",
     cors({
       origin: "*",
-      allowMethods: ["GET", "PUT", "POST", "OPTIONS"],
+      allowMethods: ["GET", "PUT", "POST", "DELETE", "OPTIONS"],
       allowHeaders: ["Content-Type"],
     })
   )
@@ -113,6 +119,69 @@ export function createApp(deps: ServerAppDeps): Hono {
     return c.json(theme)
   })
 
+  app.get("/api/config/players", (c) => c.json(deps.playerStore.get()))
+
+  app.put("/api/config/players/:steamId", async (c) => {
+    const steamId = steamIdSchema.safeParse(c.req.param("steamId"))
+    if (!steamId.success) {
+      return c.json(
+        {
+          error: "Invalid Steam ID",
+          details: steamId.error.issues.map((issue) => ({
+            path: issue.path.join("."),
+            message: issue.message,
+          })),
+        },
+        400
+      )
+    }
+
+    let body: unknown
+    try {
+      body = await c.req.json()
+    } catch {
+      return c.json({ error: "Invalid JSON", details: [] }, 400)
+    }
+
+    const parsed = playerPresentationSchema.safeParse(body)
+    if (!parsed.success) {
+      return c.json(
+        {
+          error: "Invalid player presentation",
+          details: parsed.error.issues.map((issue) => ({
+            path: issue.path.join("."),
+            message: issue.message,
+          })),
+        },
+        400
+      )
+    }
+
+    const config = await deps.playerStore.upsert(steamId.data, parsed.data)
+    deps.hub.broadcast({ type: "presentation", data: config })
+    return c.json(config)
+  })
+
+  app.delete("/api/config/players/:steamId", async (c) => {
+    const steamId = steamIdSchema.safeParse(c.req.param("steamId"))
+    if (!steamId.success) {
+      return c.json(
+        {
+          error: "Invalid Steam ID",
+          details: steamId.error.issues.map((issue) => ({
+            path: issue.path.join("."),
+            message: issue.message,
+          })),
+        },
+        400
+      )
+    }
+
+    const config = await deps.playerStore.remove(steamId.data)
+    deps.hub.broadcast({ type: "presentation", data: config })
+    return c.json(config)
+  })
+
   app.get(
     "/ws",
     upgradeWebSocket(() => ({
@@ -124,6 +193,7 @@ export function createApp(deps: ServerAppDeps): Hono {
           data: { connected: state !== null },
         })
         deps.hub.sendMessage(ws, { type: "theme", data: deps.themeStore.get() })
+        deps.hub.sendMessage(ws, { type: "presentation", data: deps.playerStore.get() })
         if (state) {
           deps.hub.sendMessage(ws, { type: "snapshot", data: state })
         }

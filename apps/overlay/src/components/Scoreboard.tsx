@@ -11,6 +11,11 @@ import {
 } from "@workspace/game-state"
 
 import {
+  formatWinReason,
+  type BrandingSlot,
+  type OverlayShow,
+} from "../broadcast/presentation"
+import {
   snapshotFromBomb,
   useObjectivePresentation,
   type ObjectivePresentation,
@@ -23,7 +28,9 @@ import {
 } from "../hud/format"
 import { ObjectiveIcon } from "../icons"
 
-export function Scoreboard({ state }: { state: GameState }) {
+const ROSTER_PIPS = 5
+
+export function Scoreboard({ state, show }: { state: GameState; show: OverlayShow }) {
   const left = state.teams[0]
   const right = state.teams[1]
   const presented = useObjectivePresentation(snapshotFromBomb(state.bomb))
@@ -38,11 +45,12 @@ export function Scoreboard({ state }: { state: GameState }) {
   const showBars = leftProgress.kind !== "none" || rightProgress.kind !== "none"
 
   return (
-    <div>
-      <header className="grid grid-cols-[1fr_auto_1fr] items-stretch gap-x-7 gap-y-1 px-1">
-        <TeamBlock team={left} align="left" />
-        <MatchContext state={state} left={left} right={right} />
-        <TeamBlock team={right} align="right" />
+    <header className="bg-(--mf-surface)/92">
+      <MetaStrip slots={show.slots} mapName={state.map.name} />
+      <div className="grid grid-cols-[1fr_168px_1fr] items-stretch">
+        <TeamBlock team={left} align="left" alive={left ? getLogicalTeamAliveCount(state, left.id) : 0} />
+        <CenterWell state={state} presented={presented} result={show.chrome.result} />
+        <TeamBlock team={right} align="right" alive={right ? getLogicalTeamAliveCount(state, right.id) : 0} />
         {showBars ? (
           <>
             <ObjectiveSlot progress={leftProgress} align="left" />
@@ -50,107 +58,60 @@ export function Scoreboard({ state }: { state: GameState }) {
             <ObjectiveSlot progress={rightProgress} align="right" />
           </>
         ) : null}
-      </header>
-      <RoundResultBanner state={state} />
+      </div>
+    </header>
+  )
+}
+
+function MetaStrip({ slots, mapName }: { slots: readonly BrandingSlot[]; mapName: string }) {
+  return (
+    <div className="flex h-[22px] items-center justify-between gap-4 border-b border-(--mf-text)/10 px-3">
+      <div className="flex min-w-0 items-center gap-0">
+        {slots.map((slot, index) => (
+          <span key={slot.id} className="flex items-center">
+            {index > 0 ? (
+              <span className="mx-2.5 text-(--mf-text)/25" aria-hidden="true">
+                ·
+              </span>
+            ) : null}
+            <BrandingMark slot={slot} />
+          </span>
+        ))}
+      </div>
+      <span className="shrink-0 text-[10px] tracking-[0.18em] text-(--mf-text-muted) uppercase">
+        {mapDisplayName(mapName)}
+      </span>
     </div>
   )
 }
 
-function MatchContext({
-  state,
-  left,
-  right,
-}: {
-  state: GameState
-  left: TeamState | undefined
-  right: TeamState | undefined
-}) {
-  const display = getRoundDisplayState(state)
-  const planted = display.kind === "bomb"
-  const leftAlive = left ? getLogicalTeamAliveCount(state, left.id) : 0
-  const rightAlive = right ? getLogicalTeamAliveCount(state, right.id) : 0
-  const detail = planted ? `R${display.round}` : roundDetail(display)
-
+function BrandingMark({ slot }: { slot: BrandingSlot }) {
   return (
-    <div className="flex min-w-52 flex-col items-center justify-center bg-(--mf-surface) px-5 py-2">
-      <div className="text-[17px] font-semibold tracking-[0.14em] text-(--mf-text) uppercase">
-        {mapDisplayName(display.mapName)}
-      </div>
-      <div
-        className={`mt-0.5 flex items-center gap-1.5 text-[13px] font-semibold tracking-[0.12em] uppercase ${
-          planted ? "text-(--mf-t)" : "text-(--mf-text)"
-        }`}
-      >
-        {planted ? <ObjectiveIcon type="bomb" decorative /> : null}
-        <span className={planted ? "mf-planted-pulse" : undefined}>
-          {formatRoundHeadline(display.kind, display.round, display.timeoutSide)}
+    <span className="flex items-center gap-1.5">
+      {slot.imageUrl ? (
+        <img
+          src={slot.imageUrl}
+          alt={slot.text ? "" : slot.id}
+          className="h-3.5 max-w-16 object-contain object-left"
+        />
+      ) : null}
+      {slot.text ? (
+        <span className="truncate text-[10px] tracking-[0.18em] text-(--mf-text)/80 uppercase">
+          {slot.text}
         </span>
-      </div>
-      <div className="mt-1.5 flex items-baseline gap-3.5">
-        <AliveCount team={left} count={leftAlive} />
-        <span className="min-w-12 text-center text-[16px] font-semibold tracking-wide whitespace-nowrap tabular-nums text-(--mf-text)">
-          {detail}
-        </span>
-        <AliveCount team={right} count={rightAlive} />
-      </div>
-    </div>
-  )
-}
-
-function roundDetail(display: RoundDisplayState): string {
-  if (display.kind === "over") {
-    if (display.winnerName) {
-      return `${display.winnerName.toUpperCase()} WIN`
-    }
-    if (display.winTeam) {
-      return `${display.winTeam} WIN`
-    }
-    return "OVER"
-  }
-  if (display.timeRemaining !== undefined) {
-    return formatClock(display.timeRemaining)
-  }
-  return "•"
-}
-
-function AliveCount({ team, count }: { team: TeamState | undefined; count: number }) {
-  const color = team?.side === "CT" ? "var(--mf-ct)" : "var(--mf-t)"
-  return (
-    <span className="text-[15px] font-semibold tabular-nums" style={{ color }}>
-      {count}
+      ) : null}
     </span>
-  )
-}
-
-function RoundResultBanner({ state }: { state: GameState }) {
-  const display = getRoundDisplayState(state)
-  if (display.kind !== "over" || !display.winTeam) {
-    return null
-  }
-
-  const label = display.winnerName
-    ? `${display.winnerName.toUpperCase()} WINS THE ROUND`
-    : `${display.winTeam} WIN`
-  const color = display.winTeam === "CT" ? "var(--mf-ct)" : "var(--mf-t)"
-
-  return (
-    <div className="mt-3 flex justify-center">
-      <div className="flex items-center gap-3 bg-(--mf-surface) px-4 py-1.5">
-        <span className="h-3.5 w-1 shrink-0" style={{ background: color }} />
-        <span className="text-[13px] font-semibold tracking-[0.16em] text-(--mf-text) uppercase">
-          {label}
-        </span>
-      </div>
-    </div>
   )
 }
 
 function TeamBlock({
   team,
   align,
+  alive,
 }: {
   team: TeamState | undefined
   align: "left" | "right"
+  alive: number
 }) {
   if (!team) {
     return <div />
@@ -160,23 +121,124 @@ function TeamBlock({
   const mirrored = align === "right"
 
   return (
+    <div className={`flex min-w-0 items-center ${mirrored ? "flex-row-reverse" : ""}`}>
+      <div className="h-full w-[3px] self-stretch" style={{ background: sideColor }} />
+      <div
+        className={`flex min-w-0 flex-1 items-center gap-3 py-2 ${
+          mirrored ? "flex-row-reverse pr-3 pl-4" : "pr-4 pl-3"
+        }`}
+      >
+        <div className={`min-w-0 flex-1 ${mirrored ? "text-right" : ""}`}>
+          <div className="text-[10px] tracking-[0.22em] uppercase" style={{ color: sideColor }}>
+            {team.side}
+          </div>
+          <div className="truncate text-[20px] font-semibold tracking-wide text-(--mf-text) uppercase">
+            {team.name}
+          </div>
+          <AlivePips sideColor={sideColor} alive={alive} mirrored={mirrored} />
+        </div>
+        <div className="mf-display text-[44px] leading-none tabular-nums text-(--mf-text)">
+          {team.score}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function AlivePips({
+  sideColor,
+  alive,
+  mirrored,
+}: {
+  sideColor: string
+  alive: number
+  mirrored: boolean
+}) {
+  return (
     <div
-      className={`flex items-center gap-5 bg-(--mf-surface) ${
-        mirrored ? "flex-row-reverse" : ""
+      className={`mt-1 flex gap-1 ${mirrored ? "justify-end" : ""}`}
+      aria-label={`${alive} alive`}
+    >
+      {Array.from({ length: ROSTER_PIPS }, (_, index) => (
+        <span
+          key={index}
+          className="h-1.5 w-1.5"
+          style={{ background: index < alive ? sideColor : "color-mix(in srgb, var(--mf-text) 22%, transparent)" }}
+        />
+      ))}
+    </div>
+  )
+}
+
+function CenterWell({
+  state,
+  presented,
+  result,
+}: {
+  state: GameState
+  presented: ObjectivePresentation
+  result: boolean
+}) {
+  const display = getRoundDisplayState(state)
+  if (result && display.kind === "over") {
+    return <WinnerWell display={display} />
+  }
+
+  const planted = display.kind === "bomb"
+  const bombRemaining = presented.bomb?.remaining
+  const clock = planted
+    ? bombRemaining === undefined
+      ? "—"
+      : formatRemaining(bombRemaining)
+    : display.timeRemaining !== undefined
+      ? formatClock(display.timeRemaining)
+      : "•"
+  const headline = planted
+    ? formatRoundHeadline("bomb", display.round)
+    : formatRoundHeadline(display.kind, display.round, display.timeoutSide)
+
+  return (
+    <div
+      className={`flex flex-col items-center justify-center px-2 py-1.5 ${
+        planted ? "bg-(--mf-t)/18" : "bg-(--mf-background)/55"
       }`}
     >
-      <div className="h-full w-1 self-stretch" style={{ background: sideColor }} />
-      <div className={`flex min-w-0 flex-1 flex-col py-3 ${mirrored ? "items-end pr-5" : "pl-1.5 pr-5"}`}>
-        <div className="text-[12px] tracking-[0.2em] uppercase" style={{ color: sideColor }}>
-          {team.side}
-        </div>
-        <div className="truncate text-[25px] font-semibold tracking-wide text-(--mf-text) uppercase">
-          {team.name}
-        </div>
+      <div
+        className={`flex items-center gap-1 text-[10px] font-semibold tracking-[0.16em] uppercase ${
+          planted ? "text-(--mf-t)" : "text-(--mf-text-muted)"
+        }`}
+      >
+        {planted ? <ObjectiveIcon type="bomb" decorative /> : null}
+        <span className={planted ? "mf-planted-pulse" : undefined}>{headline}</span>
       </div>
-      <div className="px-5 text-[48px] leading-none font-semibold tabular-nums text-(--mf-text)">
-        {team.score}
+      <div
+        className={`mf-display mt-0.5 text-[28px] leading-none tabular-nums ${
+          planted ? "text-(--mf-t)" : "text-(--mf-text)"
+        }`}
+      >
+        {clock}
       </div>
+    </div>
+  )
+}
+
+function WinnerWell({ display }: { display: RoundDisplayState }) {
+  const color = display.winTeam === "CT" ? "var(--mf-ct)" : "var(--mf-t)"
+  const reason = formatWinReason(display.winReason)
+  const name = display.winnerName ?? display.winTeam ?? "—"
+
+  return (
+    <div
+      className="flex flex-col items-center justify-center px-2 py-1.5 text-(--mf-text)"
+      style={{ background: `color-mix(in srgb, ${color} 78%, var(--mf-background))` }}
+    >
+      <div className="text-[9px] font-semibold tracking-[0.2em] uppercase opacity-80">
+        {reason ?? `ROUND ${display.round}`}
+      </div>
+      <div className="mf-display max-w-full truncate text-[22px] leading-none tracking-wide uppercase">
+        {name}
+      </div>
+      <div className="text-[9px] font-semibold tracking-[0.18em] uppercase">Wins</div>
     </div>
   )
 }
@@ -189,7 +251,7 @@ function ObjectiveSlot({
   align: "left" | "right"
 }) {
   if (progress.kind === "none") {
-    return <div className="h-4" />
+    return <div className="h-3.5" />
   }
   return <ObjectiveBar progress={progress} align={align} />
 }
@@ -209,9 +271,7 @@ function ObjectiveBar({
   const mirrored = align === "right"
 
   return (
-    <div
-      className={`flex h-4 items-center gap-2 ${mirrored ? "flex-row-reverse" : ""}`}
-    >
+    <div className={`flex h-3.5 items-center gap-2 px-3 pb-1 ${mirrored ? "flex-row-reverse" : ""}`}>
       <span
         className="flex items-center gap-1.5 text-[10px] font-semibold tracking-[0.14em] uppercase tabular-nums whitespace-nowrap"
         style={{ color }}

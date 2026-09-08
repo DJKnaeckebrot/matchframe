@@ -406,4 +406,26 @@ describe("sequential GSI ingest", () => {
     expect(playerById(state, CT)?.position).toEqual({ x: 100, y: 200, z: 16 })
     expect(playerById(state, T)).toBeUndefined()
   })
+
+  test("stale defusekit after a side switch does not show a kit on T", () => {
+    const gsi = createGsiStateManager()
+    const engine = createGameStateEngine()
+    ingest(gsi, engine, initialPayload)
+    const { state } = ingest(gsi, engine, {
+      allplayers: {
+        [CT]: { team: "T" },
+        [T]: { team: "CT" },
+      },
+    })
+
+    const raw = gsi.getState() as {
+      allplayers?: Record<string, { state?: { defusekit?: boolean }; team?: string }>
+    }
+    expect(raw.allplayers?.[CT]?.team).toBe("T")
+    expect(raw.allplayers?.[CT]?.state?.defusekit).toBe(true)
+    expect(playerById(state, CT)?.side).toBe("T")
+    expect(playerById(state, CT)?.equipment.hasDefuseKit).toBe(false)
+    expect(playerById(state, T)?.side).toBe("CT")
+    expect(playerById(state, T)?.equipment.hasDefuseKit).toBe(false)
+  })
 })

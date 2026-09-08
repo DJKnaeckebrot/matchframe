@@ -1,12 +1,10 @@
 import type { PlayerState, WeaponState } from "@workspace/game-state"
 
-import {
-  formatMoney,
-  mainWeapon,
-  weaponShortLabel,
-} from "../hud/format"
+import { formatMoney, mainWeapon, weaponShortLabel } from "../hud/format"
 import { EquipmentIcon, LoadoutIcons, WeaponIcon } from "../icons"
+import { useOverlayPortrait, usePlayerDisplayName } from "../portraits/use-portrait"
 import { HeartMark } from "./hud-marks"
+import { PlayerPortrait } from "./PlayerPortrait"
 
 export function FocusedPlayer({
   player,
@@ -22,67 +20,48 @@ export function FocusedPlayer({
   const dead = !player.alive
   const weapon = mainWeapon(player)
   const active = player.equipment.activeWeapon ?? player.equipment.primary
+  const portrait = useOverlayPortrait(player, number)
+  const displayName = usePlayerDisplayName(player)
 
   return (
     <section
-      className={`flex w-full flex-col overflow-hidden bg-(--mf-background)/85 ${
-        dead ? "grayscale opacity-70" : ""
-      }`}
+      className={`flex w-full flex-col overflow-hidden bg-(--mf-background)/88 ${dead ? "grayscale opacity-70" : ""}`}
     >
       <div className="h-0.5 shrink-0" style={{ background: accent }} />
       <div
         className="relative h-[168px] overflow-hidden"
-        style={{
-          background: `linear-gradient(165deg, color-mix(in srgb, ${accent} 50%, transparent) 0%, var(--mf-background) 55%)`,
-        }}
+        style={{ background: `color-mix(in srgb, ${accent} 20%, var(--mf-background))` }}
       >
-        <span className="absolute inset-0 flex items-center justify-center text-[88px] leading-none font-semibold text-(--mf-text)/20 tabular-nums">
-          {number ?? ""}
-        </span>
-        <div className="absolute top-2 right-2 left-2 text-(--mf-text)">
-          <LoadoutIcons player={player} />
+        <PlayerPortrait portrait={portrait} accent={accent} className="absolute inset-0 z-0" />
+        <div className="absolute inset-x-0 bottom-0 z-10 bg-black/55 px-2 py-1.5">
+          <span className="text-[9px] tracking-[0.22em] text-(--mf-text-muted) uppercase">Observed</span>
+          <span className="block truncate text-[15px] font-semibold tracking-wide text-(--mf-text) uppercase">
+            {displayName}
+          </span>
+          {teamName ? (
+            <span className="block truncate text-[10px] tracking-[0.14em] text-(--mf-text)/70 uppercase">
+              {teamName}
+            </span>
+          ) : null}
         </div>
-        {weapon ? (
-          <span className="absolute inset-x-2 bottom-2 flex justify-center text-(--mf-text)">
-            <WeaponIcon
-              weaponId={weapon.id}
-              label={weaponShortLabel(weapon)}
-              size="lg"
-              decorative
-            />
-          </span>
-        ) : null}
       </div>
-      <div
-        className="flex items-center gap-2 px-2.5 py-1.5"
-        style={{ background: `color-mix(in srgb, ${accent} 35%, var(--mf-surface))` }}
-      >
-        {number !== undefined ? (
-          <span
-            className="flex size-6 shrink-0 items-center justify-center text-[13px] font-bold tabular-nums"
-            style={{ background: accent, color: "#111418" }}
-          >
-            {number}
-          </span>
-        ) : null}
-        <span className="truncate text-[15px] font-semibold tracking-wide text-(--mf-text) uppercase">
-          {player.name || player.steamId}
-        </span>
-        {teamName ? (
-          <span className="ml-auto shrink-0 text-[10px] tracking-[0.18em] text-(--mf-text)/80 uppercase">
-            {teamName}
-          </span>
-        ) : null}
+      <div className="flex items-end justify-between gap-1 px-2 pt-1.5">
+        {weapon ? (
+          <WeaponIcon weaponId={weapon.id} label={weaponShortLabel(weapon)} size="lg" decorative />
+        ) : (
+          <span />
+        )}
+        <Ammo weapon={active} />
+      </div>
+      <div className="flex justify-end px-2 pt-1 text-(--mf-text)">
+        <LoadoutIcons player={player} align="right" />
       </div>
       {player.alive ? (
-        <div className="flex items-center gap-1.5 px-2.5 py-1.5">
+        <div className="flex items-center gap-1.5 px-2 py-1.5">
           <HeartMark size="size-3.5" />
           <span className="text-[15px] font-semibold tabular-nums">{player.health}</span>
-          <div className="h-2 min-w-0 flex-1 bg-(--mf-text)/15">
-            <div
-              className="h-full"
-              style={{ width: `${player.health}%`, background: healthColor }}
-            />
+          <div className="h-1.5 min-w-0 flex-1 bg-(--mf-text)/15">
+            <div className="h-full" style={{ width: `${player.health}%`, background: healthColor }} />
           </div>
           {player.equipment.hasHelmet ? (
             <EquipmentIcon type="helmet" decorative />
@@ -91,9 +70,11 @@ export function FocusedPlayer({
           ) : null}
         </div>
       ) : (
-        <div className="h-8" />
+        <div className="px-2 py-1.5 text-[10px] tracking-[0.14em] text-(--mf-text-muted) uppercase">
+          Dead
+        </div>
       )}
-      <div className="flex items-center gap-3 bg-black/35 px-2.5 py-1.5 text-[12px] tabular-nums text-(--mf-text-muted)">
+      <div className="flex items-center gap-3 bg-black/35 px-2 py-1.5 text-[12px] tabular-nums text-(--mf-text-muted)">
         <span>
           <span className="text-[10px] tracking-wider">K </span>
           {player.kills}
@@ -102,30 +83,22 @@ export function FocusedPlayer({
           <span className="text-[10px] tracking-wider">D </span>
           {player.deaths}
         </span>
-        <span className="text-(--mf-text)">{formatMoney(player.money)}</span>
-        <Ammo className="ml-auto" weapon={active} />
+        <span className="ml-auto text-(--mf-text)">{formatMoney(player.money)}</span>
       </div>
     </section>
   )
 }
 
-function Ammo({
-  weapon,
-  className,
-}: {
-  weapon: WeaponState | undefined
-  className?: string
-}) {
+function Ammo({ weapon }: { weapon: WeaponState | undefined }) {
   if (!weapon || weapon.ammoClip === undefined) {
-    return <span className={className} />
+    return null
   }
   return (
-    <span className={`tabular-nums ${className ?? ""}`}>
-      <span className="font-semibold text-(--mf-text)">{weapon.ammoClip}</span>
+    <span className="mf-display shrink-0 text-[18px] leading-none tabular-nums">
+      <span className="text-(--mf-text)">{weapon.ammoClip}</span>
       {weapon.ammoReserve !== undefined ? (
-        <span>/{weapon.ammoReserve}</span>
+        <span className="text-[13px] text-(--mf-text-muted)">/{weapon.ammoReserve}</span>
       ) : null}
     </span>
   )
 }
-

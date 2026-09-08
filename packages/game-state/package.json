@@ -11,7 +11,8 @@
     "test": "bun test"
   },
   "dependencies": {
-    "@workspace/theme": "workspace:*"
+    "@workspace/theme": "workspace:*",
+    "@workspace/presentation": "workspace:*"
   },
   "devDependencies": {
     "@types/bun": "^1.4.2",

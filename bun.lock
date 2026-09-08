@@ -16,6 +16,8 @@
       "version": "0.0.1",
       "dependencies": {
         "@tanstack/react-query": "^5.90.2",
+        "@workspace/game-state": "workspace:*",
+        "@workspace/presentation": "workspace:*",
         "@workspace/theme": "workspace:*",
         "@workspace/ui": "workspace:*",
         "lucide-react": "^1.42.0",
@@ -44,6 +46,7 @@
       "dependencies": {
         "@workspace/game-state": "workspace:*",
         "@workspace/maps": "workspace:*",
+        "@workspace/presentation": "workspace:*",
         "@workspace/theme": "workspace:*",
         "react": "^19.2.8",
         "react-dom": "^19.2.8",
@@ -66,6 +69,7 @@
       "dependencies": {
         "@workspace/game-state": "workspace:*",
         "@workspace/gsi": "workspace:*",
+        "@workspace/presentation": "workspace:*",
         "@workspace/theme": "workspace:*",
         "hono": "^4.9.6",
       },
@@ -78,6 +82,7 @@
       "name": "@workspace/game-state",
       "version": "0.0.0",
       "dependencies": {
+        "@workspace/presentation": "workspace:*",
         "@workspace/theme": "workspace:*",
       },
       "devDependencies": {
@@ -101,6 +106,17 @@
     "packages/maps": {
       "name": "@workspace/maps",
       "version": "0.0.0",
+      "devDependencies": {
+        "@types/bun": "^1.4.2",
+        "typescript": "~6",
+      },
+    },
+    "packages/presentation": {
+      "name": "@workspace/presentation",
+      "version": "0.0.0",
+      "dependencies": {
+        "zod": "^4.4.3",
+      },
       "devDependencies": {
         "@types/bun": "^1.4.2",
         "typescript": "~6",
@@ -505,6 +521,8 @@
     "@workspace/gsi": ["@workspace/gsi@workspace:packages/gsi"],
 
     "@workspace/maps": ["@workspace/maps@workspace:packages/maps"],
+
+    "@workspace/presentation": ["@workspace/presentation@workspace:packages/presentation"],
 
     "@workspace/theme": ["@workspace/theme@workspace:packages/theme"],
 

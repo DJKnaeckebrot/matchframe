@@ -32,5 +32,9 @@ dist-ssr
 # runtime config
 data/
 
+# optional local Valve operator extracts — not redistributable Matchframe art
+apps/overlay/src/assets/portraits/cs2-reference/**
+!apps/overlay/src/assets/portraits/cs2-reference/README.md
+
 # typescript
 *.tsbuildinfo

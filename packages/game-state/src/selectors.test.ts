@@ -187,6 +187,7 @@ describe("getRoundDisplayState", () => {
       winTeam: "CT",
       winnerTeamId: "northwind",
       winnerName: "Northwind",
+      winReason: "elimination",
     })
   })
 

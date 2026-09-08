@@ -9,6 +9,10 @@ export default defineConfig({
     alias: {
       "@": path.resolve(__dirname, "./src"),
       "@workspace/maps": path.resolve(__dirname, "../../packages/maps/src/index.ts"),
+      "@workspace/presentation": path.resolve(
+        __dirname,
+        "../../packages/presentation/src/index.ts"
+      ),
     },
   },
   server: {

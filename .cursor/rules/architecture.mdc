@@ -35,6 +35,7 @@ Packages:
 - `packages/game-state`: game-independent normalized state and events
 - `packages/maps`: map metadata, world→radar transform, facing helpers
 - `packages/theme`: shared theme types and tokens
+- `packages/presentation`: player presentation config, portrait resolver, operator registry
 - `packages/ui`: shared dashboard UI components
 - `packages/database`: persistence
 - `packages/config`: shared configuration
@@ -48,6 +49,9 @@ Keep packages independent of applications.
 - Hono
 - database code
 - CS2-specific GSI structures
+
+Player presentation (portraits, display-name overrides) is configuration, not GameState.
+It rides on `ServerMessage` as `{ type: "presentation" }` the same way theme does.
 
 `packages/gsi` may depend on `game-state`, but `game-state` must never depend on `gsi`.
 

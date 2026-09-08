@@ -1,5 +1,6 @@
 import type { GameState, PlayerState, Side, TeamState } from "@workspace/game-state"
 
+import type { OverlayShow } from "../broadcast/presentation"
 import {
   formatMoney,
   focusedPlayer,
@@ -9,10 +10,13 @@ import {
   weaponShortLabel,
 } from "../hud/format"
 import { EquipmentIcon, LoadoutIcons, WeaponIcon } from "../icons"
+import { useOverlayPortrait, usePlayerDisplayName } from "../portraits/use-portrait"
 import { FocusedPlayer } from "./FocusedPlayer"
 import { CrosshairMark, HeartMark, SkullMark } from "./hud-marks"
+import { InterstitialCard } from "./InterstitialCard"
+import { PlayerPortrait } from "./PlayerPortrait"
 
-export function TeamView({ state }: { state: GameState }) {
+export function TeamView({ state, show }: { state: GameState; show: OverlayShow }) {
   const left = state.teams[0]
   const right = state.teams[1]
   const focused = focusedPlayer(state)
@@ -26,25 +30,26 @@ export function TeamView({ state }: { state: GameState }) {
         team={left}
         players={state.players}
         observedSteamId={focused?.steamId}
+        align="left"
       />
       <div className="flex w-[248px] shrink-0 flex-col items-center">
-        {focused ? (
+        {show.chrome.interstitial && show.interstitial ? (
+          <InterstitialCard card={show.interstitial} />
+        ) : show.chrome.focused && focused ? (
           <FocusedPlayer
             player={focused}
             teamName={focusedTeam?.name}
             number={rosterNumber(state.players, focused.teamId, focused.steamId)}
           />
         ) : (
-          <div className="h-[268px]" />
+          <div className="h-[220px]" />
         )}
-        <p className="mt-2 text-[11px] font-semibold tracking-[0.42em] text-(--mf-text-muted)">
-          MATCHFRAME
-        </p>
       </div>
       <TeamStrip
         team={right}
         players={state.players}
         observedSteamId={focused?.steamId}
+        align="right"
       />
     </div>
   )
@@ -54,10 +59,12 @@ function TeamStrip({
   team,
   players,
   observedSteamId,
+  align,
 }: {
   team: TeamState | undefined
   players: readonly PlayerState[]
   observedSteamId: string | undefined
+  align: "left" | "right"
 }) {
   if (!team) {
     return <div className="min-w-0 flex-1" />
@@ -73,6 +80,7 @@ function TeamStrip({
           side={team.side}
           number={index + 1}
           observed={player?.steamId === observedSteamId}
+          align={align}
         />
       ))}
     </ul>
@@ -84,11 +92,13 @@ function PlayerCard({
   side,
   number,
   observed,
+  align,
 }: {
   player: PlayerState | null
   side: Side
   number: number
   observed: boolean
+  align: "left" | "right"
 }) {
   const accent = side === "CT" ? "var(--mf-ct)" : "var(--mf-t)"
   const empty = !player
@@ -96,31 +106,33 @@ function PlayerCard({
   const health = player?.health ?? 0
   const healthColor = health <= 20 ? "var(--mf-danger)" : accent
   const weapon = player ? mainWeapon(player) : undefined
+  const portrait = useOverlayPortrait(player, number)
+  const displayName = usePlayerDisplayName(player)
+  const mirrored = align === "right"
 
   return (
     <li
       className={`flex min-w-0 flex-1 flex-col overflow-hidden bg-(--mf-background)/80 ${
         empty ? "opacity-35" : dead ? "grayscale opacity-70" : ""
-      } ${observed ? "outline -outline-offset-2" : ""}`}
-      style={observed ? { outlineColor: accent } : undefined}
+      }`}
     >
       <div className="h-0.5 shrink-0" style={{ background: empty ? "transparent" : accent }} />
       <div
-        className="relative h-[156px] overflow-hidden"
+        className="relative h-[128px] overflow-hidden"
         style={{
-          background: `linear-gradient(165deg, color-mix(in srgb, ${accent} 42%, transparent) 0%, var(--mf-background) 52%)`,
+          background: empty
+            ? "transparent"
+            : `color-mix(in srgb, ${accent} 20%, var(--mf-background))`,
         }}
       >
         {player ? (
           <>
-            <span className="absolute inset-0 flex items-center justify-center text-[72px] leading-none font-semibold text-(--mf-text)/20 tabular-nums">
-              {number}
-            </span>
-            <div className="absolute top-1.5 right-1.5 left-1.5 text-(--mf-text)">
-              <LoadoutIcons player={player} size="sm" />
+            <PlayerPortrait portrait={portrait} accent={accent} className="absolute inset-0 z-0" />
+            <div className={`absolute top-1.5 z-10 ${mirrored ? "right-1.5" : "left-1.5"} text-(--mf-text)`}>
+              <LoadoutIcons player={player} size="sm" align={mirrored ? "right" : "left"} />
             </div>
             {weapon ? (
-              <span className="absolute inset-x-1.5 bottom-1.5 flex justify-center text-(--mf-text)">
+              <span className="absolute inset-x-0 bottom-0 z-10 flex h-6 items-center justify-center bg-black/35 text-(--mf-text)">
                 <WeaponIcon
                   weaponId={weapon.id}
                   label={weaponShortLabel(weapon)}
@@ -131,15 +143,16 @@ function PlayerCard({
           </>
         ) : null}
       </div>
-      <div className="flex min-h-6 items-baseline justify-between gap-1 px-1.5 py-1">
-        <span className="truncate text-[13px] font-semibold text-(--mf-text)">
-          {player ? player.name || player.steamId : "—"}
-        </span>
-        <span
-          className="flex size-5 shrink-0 items-center justify-center text-[12px] font-bold tabular-nums"
-          style={{ background: empty ? "var(--mf-surface-elevated)" : accent, color: "#111418" }}
-        >
-          {number}
+      <div
+        className={`flex min-h-7 items-center px-1.5 py-1 ${mirrored ? "flex-row-reverse" : ""}`}
+        style={
+          observed
+            ? { background: `color-mix(in srgb, ${accent} 40%, var(--mf-surface))` }
+            : undefined
+        }
+      >
+        <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-(--mf-text)">
+          {displayName}
         </span>
       </div>
       <div className="flex min-h-[22px] items-center gap-1 px-1.5 pb-1">
@@ -156,6 +169,8 @@ function PlayerCard({
               <EquipmentIcon type="armor" decorative />
             ) : null}
           </>
+        ) : player ? (
+          <span className="text-[10px] tracking-[0.14em] text-(--mf-text-muted) uppercase">Dead</span>
         ) : null}
       </div>
       <div className="flex items-center gap-2 bg-black/35 px-1.5 py-1 text-[11px] tabular-nums text-(--mf-text-muted)">
@@ -174,4 +189,3 @@ function PlayerCard({
     </li>
   )
 }
-
