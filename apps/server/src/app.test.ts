@@ -167,6 +167,77 @@ describe("overlay config", () => {
     const body = (await response.json()) as { error: string }
     expect(body.error).toBe("Invalid overlay config")
   })
+
+  test("PUT map wins seeds the live series score", async () => {
+    const { app } = testApp(await tempDir())
+    const payload = await Bun.file(liveFixturePath).json()
+    const posted = await app.request("/api/gsi", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    })
+    expect(posted.status).toBe(204)
+
+    const response = await app.request("/api/config/overlay", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ series: "BO3", leftWins: 1, rightWins: 0 }),
+    })
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ series: "BO3", leftWins: 1, rightWins: 0 })
+
+    const state = (await (await app.request("/api/state")).json()) as {
+      connected: boolean
+      state: { teams: Array<{ seriesWins: number }> }
+    }
+    expect(state.state.teams.map((team) => team.seriesWins)).toEqual([1, 0])
+
+    const namesOnly = await app.request("/api/config/overlay", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ series: "BO3", leftName: "FaZe", leftWins: 1, rightWins: 0 }),
+    })
+    expect(namesOnly.status).toBe(200)
+    const unchanged = (await (await app.request("/api/state")).json()) as {
+      state: { teams: Array<{ seriesWins: number }> }
+    }
+    expect(unchanged.state.teams.map((team) => team.seriesWins)).toEqual([1, 0])
+
+    const reset = await app.request("/api/config/overlay", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ series: "BO3", leftWins: 0, rightWins: 0 }),
+    })
+    expect(reset.status).toBe(200)
+    const cleared = (await (await app.request("/api/state")).json()) as {
+      state: { teams: Array<{ seriesWins: number }> }
+    }
+    expect(cleared.state.teams.map((team) => team.seriesWins)).toEqual([0, 0])
+  })
+
+  test("stored map wins seed the first GSI snapshot after restart", async () => {
+    const dir = await tempDir()
+    const { app } = testApp(dir)
+    const saved = await app.request("/api/config/overlay", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ series: "BO3", leftWins: 1, rightWins: 0 }),
+    })
+    expect(saved.status).toBe(200)
+
+    const { app: restarted } = testApp(dir)
+    const payload = await Bun.file(liveFixturePath).json()
+    const posted = await restarted.request("/api/gsi", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    })
+    expect(posted.status).toBe(204)
+    const state = (await (await restarted.request("/api/state")).json()) as {
+      state: { teams: Array<{ seriesWins: number }> }
+    }
+    expect(state.state.teams.map((team) => team.seriesWins)).toEqual([1, 0])
+  })
 })
 
 describe("realtime theme", () => {

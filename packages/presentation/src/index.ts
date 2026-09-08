@@ -38,10 +38,13 @@ export {
   compactOverlayConfig,
   defaultOverlayConfig,
   overlayConfigSchema,
+  overlaySeriesWins,
+  overlaySeriesWinsChanged,
   overlayTeamName,
   SERIES_LABELS,
+  seriesWinsNeeded,
 } from "./overlay-config"
-export type { OverlayConfig, OverlayTeamSlot, SeriesLabel } from "./overlay-config"
+export type { OverlayConfig, OverlaySeriesWins, OverlayTeamSlot, SeriesLabel } from "./overlay-config"
 
 export {
   portraitCrop,

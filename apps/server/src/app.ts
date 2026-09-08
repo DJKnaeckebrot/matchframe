@@ -6,6 +6,8 @@ import {
 } from "@workspace/gsi"
 import {
   overlayConfigSchema,
+  overlaySeriesWins,
+  overlaySeriesWinsChanged,
   playerPresentationSchema,
   steamIdSchema,
 } from "@workspace/presentation"
@@ -35,6 +37,7 @@ export type ServerAppDeps = {
 
 export function createApp(deps: ServerAppDeps): Hono {
   const app = new Hono()
+  seedStoredSeriesWins(deps)
 
   app.use(
     "/api/*",
@@ -148,8 +151,17 @@ export function createApp(deps: ServerAppDeps): Hono {
       )
     }
 
+    const previous = deps.overlayStore.get()
     const overlay = await deps.overlayStore.set(parsed.data)
     deps.hub.broadcast({ type: "overlay", data: overlay })
+    if (overlaySeriesWinsChanged(previous, overlay)) {
+      const wins = overlaySeriesWins(overlay) ?? { left: 0, right: 0 }
+      const state = deps.engine.seedSeriesWins(wins.left, wins.right)
+      if (state) {
+        deps.setState(state)
+        deps.hub.broadcast({ type: "snapshot", data: state })
+      }
+    }
     return c.json(overlay)
   })
 
@@ -259,4 +271,15 @@ export function createApp(deps: ServerAppDeps): Hono {
   )
 
   return app
+}
+
+function seedStoredSeriesWins(deps: ServerAppDeps): void {
+  const wins = overlaySeriesWins(deps.overlayStore.get())
+  if (!wins || (wins.left === 0 && wins.right === 0)) {
+    return
+  }
+  const state = deps.engine.seedSeriesWins(wins.left, wins.right)
+  if (state) {
+    deps.setState(state)
+  }
 }

@@ -2,7 +2,8 @@ import { describe, expect, test } from "bun:test"
 
 import { THEME_CSS_VARS, themeToCssVars } from "./css"
 import { defaultTheme } from "./default"
-import { matchframeThemeSchema } from "./schema"
+import { THEME_PRESETS } from "./presets"
+import { matchframeThemeSchema, themesEqual } from "./schema"
 
 describe("matchframeThemeSchema", () => {
   test("accepts the default theme", () => {
@@ -40,6 +41,41 @@ describe("matchframeThemeSchema", () => {
       terrorist: "hsl(22, 49%, 46%)",
     })
     expect(parsed.success).toBe(true)
+  })
+})
+
+describe("THEME_PRESETS", () => {
+  test("every preset is a valid theme", () => {
+    for (const preset of THEME_PRESETS) {
+      const parsed = matchframeThemeSchema.safeParse(preset.theme)
+      expect(parsed.success).toBe(true)
+    }
+  })
+
+  test("ids are unique", () => {
+    const ids = THEME_PRESETS.map((preset) => preset.id)
+    expect(new Set(ids).size).toBe(ids.length)
+  })
+
+  test("Nightwatch is the default theme", () => {
+    const nightwatch = THEME_PRESETS.find((preset) => preset.id === "nightwatch")
+    expect(nightwatch?.theme).toEqual(defaultTheme)
+  })
+
+  test("palettes differ from each other", () => {
+    const themes = THEME_PRESETS.map((preset) => preset.theme)
+    expect(
+      themes.every((theme, index) =>
+        themes.slice(index + 1).every((other) => !themesEqual(theme, other)),
+      ),
+    ).toBe(true)
+  })
+})
+
+describe("themesEqual", () => {
+  test("compares every token", () => {
+    expect(themesEqual(defaultTheme, { ...defaultTheme })).toBe(true)
+    expect(themesEqual(defaultTheme, { ...defaultTheme, accent: "#000000" })).toBe(false)
   })
 })
 

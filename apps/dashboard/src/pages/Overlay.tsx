@@ -2,10 +2,13 @@ import { useEffect, useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import {
   compactOverlayConfig,
+  overlayTeamName,
   SERIES_LABELS,
+  seriesWinsNeeded,
   type OverlayConfig,
   type SeriesLabel,
 } from "@workspace/presentation"
+import { Button } from "@workspace/ui/components/button"
 import { Input } from "@workspace/ui/components/input"
 import { Label } from "@workspace/ui/components/label"
 
@@ -37,6 +40,7 @@ export function OverlayPage() {
     mutationFn: saveOverlayConfig,
     onSuccess: (overlay) => {
       queryClient.setQueryData(["overlay-config"], overlay)
+      void queryClient.invalidateQueries({ queryKey: ["game-state"] })
     },
   })
 
@@ -64,8 +68,34 @@ export function OverlayPage() {
     return null
   }, [overlayQuery.isError, mutation.isError, mutation.isSuccess])
 
+  const winsNeeded = selected ? seriesWinsNeeded(selected) : 0
+  const leftWins = stateQuery.data?.teams[0]?.seriesWins ?? overlayQuery.data?.leftWins ?? 0
+  const rightWins = stateQuery.data?.teams[1]?.seriesWins ?? overlayQuery.data?.rightWins ?? 0
+  const leftLabel = overlayTeamName(
+    { leftName, rightName },
+    "left",
+    leftLive || "Left"
+  )
+  const rightLabel = overlayTeamName(
+    { leftName, rightName },
+    "right",
+    rightLive || "Right"
+  )
+
   function save(next: OverlayConfig) {
     mutation.mutate(compactOverlayConfig(next))
+  }
+
+  function config(overrides: Partial<OverlayConfig> = {}): OverlayConfig {
+    const overlay = overlayQuery.data
+    return {
+      series: selected ?? "BO1",
+      leftName,
+      rightName,
+      ...(overlay?.leftWins !== undefined ? { leftWins: overlay.leftWins } : {}),
+      ...(overlay?.rightWins !== undefined ? { rightWins: overlay.rightWins } : {}),
+      ...overrides,
+    }
   }
 
   return (
@@ -99,12 +129,12 @@ export function OverlayPage() {
                     disabled={mutation.isPending}
                     onClick={() => {
                       if (selected !== series) {
-                        save({ series, leftName, rightName })
+                        save(config({ series }))
                       }
                     }}
                     className={`flex flex-col gap-3 border px-3 py-4 text-left transition-colors ${
                       active
-                        ? "border-foreground bg-foreground text-background"
+                        ? "border-foreground text-foreground"
                         : "border-border text-muted-foreground hover:border-foreground/40 hover:text-foreground"
                     }`}
                   >
@@ -134,7 +164,7 @@ export function OverlayPage() {
                   if (leftName.trim() === (overlayQuery.data?.leftName ?? "")) {
                     return
                   }
-                  save({ series: selected ?? "BO1", leftName, rightName })
+                  save(config())
                 }}
               />
               <TeamNameField
@@ -148,11 +178,49 @@ export function OverlayPage() {
                   if (rightName.trim() === (overlayQuery.data?.rightName ?? "")) {
                     return
                   }
-                  save({ series: selected ?? "BO1", leftName, rightName })
+                  save(config())
                 }}
               />
             </div>
           </section>
+
+          {winsNeeded > 0 ? (
+            <section className="flex flex-col gap-3">
+              <div className="flex items-baseline justify-between gap-3">
+                <h2 className="text-sm font-medium">Maps won</h2>
+                {leftWins > 0 || rightWins > 0 ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    disabled={mutation.isPending}
+                    onClick={() => save(config({ leftWins: 0, rightWins: 0 }))}
+                  >
+                    Reset
+                  </Button>
+                ) : null}
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Auto-fills from the match. Click a mark to correct it.
+              </p>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <MapWinsField
+                  label={leftLabel}
+                  wins={leftWins}
+                  max={winsNeeded}
+                  disabled={mutation.isPending}
+                  onChange={(wins) => save(config({ leftWins: wins, rightWins }))}
+                />
+                <MapWinsField
+                  label={rightLabel}
+                  wins={rightWins}
+                  max={winsNeeded}
+                  disabled={mutation.isPending}
+                  onChange={(wins) => save(config({ leftWins, rightWins: wins }))}
+                />
+              </div>
+            </section>
+          ) : null}
         </>
       )}
 
@@ -205,8 +273,59 @@ function TeamNameField({
   )
 }
 
+function MapWinsField({
+  label,
+  wins,
+  max,
+  disabled,
+  onChange,
+}: {
+  label: string
+  wins: number
+  max: number
+  disabled: boolean
+  onChange: (wins: number) => void
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-baseline justify-between gap-2">
+        <p className="truncate text-sm font-medium">{label}</p>
+        <p className="text-sm tabular-nums text-muted-foreground">
+          {wins} / {max}
+        </p>
+      </div>
+      <div className="flex gap-1" role="group" aria-label={`${label} maps won`}>
+        {Array.from({ length: max }, (_, index) => {
+          const filled = index < wins
+          const value = index + 1
+          return (
+            <button
+              key={index}
+              type="button"
+              aria-pressed={filled}
+              aria-label={`${value} ${value === 1 ? "map" : "maps"}`}
+              disabled={disabled}
+              onClick={() => onChange(wins === value ? index : value)}
+              className="flex h-11 min-w-11 flex-1 items-center justify-center border border-border transition-colors hover:border-foreground/40 disabled:opacity-50"
+            >
+              <span
+                className="h-1 w-6"
+                style={{
+                  background: filled
+                    ? "var(--foreground)"
+                    : "color-mix(in srgb, var(--foreground) 22%, transparent)",
+                }}
+              />
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 function SeriesMarks({ series, active }: { series: SeriesLabel; active: boolean }) {
-  const winsNeeded = series === "BO1" ? 0 : (Number(series.slice(2)) + 1) / 2
+  const winsNeeded = seriesWinsNeeded(series)
   if (winsNeeded === 0) {
     return <span className="text-[11px] tracking-[0.14em] uppercase">No map marks</span>
   }

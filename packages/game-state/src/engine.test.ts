@@ -695,6 +695,72 @@ describe("createGameStateEngine", () => {
     expect(ended.state.teams.map((team) => team.seriesWins)).toEqual([2, 0])
   })
 
+  test("seedSeriesWins overwrites live map wins", () => {
+    const engine = createGameStateEngine()
+    engine.apply(
+      snapshot({
+        teams: [
+          { id: "northwind", name: "Northwind", side: "CT", score: 8, seriesWins: 0 },
+          { id: "redline", name: "Redline", side: "T", score: 6, seriesWins: 0 },
+        ],
+        players: [
+          ...roster(CT_ROSTER, "northwind", "CT"),
+          ...roster(T_ROSTER, "redline", "T"),
+        ],
+      })
+    )
+    const seeded = engine.seedSeriesWins(1, 0)
+    expect(seeded?.teams.map((team) => team.seriesWins)).toEqual([1, 0])
+
+    const next = engine.apply(
+      snapshot({
+        timestamp: 2,
+        teams: [
+          { id: "northwind", name: "Northwind", side: "CT", score: 8, seriesWins: 0 },
+          { id: "redline", name: "Redline", side: "T", score: 6, seriesWins: 0 },
+        ],
+        players: [
+          ...roster(CT_ROSTER, "northwind", "CT"),
+          ...roster(T_ROSTER, "redline", "T"),
+        ],
+      })
+    )
+    expect(next.state.teams.map((team) => team.seriesWins)).toEqual([1, 0])
+  })
+
+  test("seedSeriesWins before the first snapshot applies on ingest", () => {
+    const engine = createGameStateEngine()
+    expect(engine.seedSeriesWins(0, 1)).toBeNull()
+    const first = engine.apply(
+      snapshot({
+        teams: [
+          { id: "northwind", name: "Northwind", side: "CT", score: 0, seriesWins: 0 },
+          { id: "redline", name: "Redline", side: "T", score: 0, seriesWins: 0 },
+        ],
+        players: [
+          ...roster(CT_ROSTER, "northwind", "CT"),
+          ...roster(T_ROSTER, "redline", "T"),
+        ],
+      })
+    )
+    expect(first.state.teams.map((team) => team.seriesWins)).toEqual([0, 1])
+  })
+
+  test("seedSeriesWins 0-0 clears carried map wins", () => {
+    const engine = createGameStateEngine()
+    const teams: TeamState[] = [
+      { id: "northwind", name: "Northwind", side: "CT", score: 13, seriesWins: 0 },
+      { id: "redline", name: "Redline", side: "T", score: 9, seriesWins: 0 },
+    ]
+    const players = [
+      ...roster(CT_ROSTER, "northwind", "CT"),
+      ...roster(T_ROSTER, "redline", "T"),
+    ]
+    engine.apply(snapshot({ teams, players }))
+    engine.apply(snapshot({ timestamp: 2, mapPhase: "gameover", teams, players }))
+    expect(engine.seedSeriesWins(0, 0)?.teams.map((team) => team.seriesWins)).toEqual([0, 0])
+  })
+
   test("round result state clears when the next freeze begins", () => {
     const engine = createGameStateEngine()
     engine.apply(snapshot({ round: 14, roundPhase: "live" }))

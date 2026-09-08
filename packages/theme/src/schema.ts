@@ -38,6 +38,10 @@ export const THEME_TOKENS: readonly ThemeToken[] = [
   "danger",
 ]
 
+export function themesEqual(a: MatchframeTheme, b: MatchframeTheme): boolean {
+  return THEME_TOKENS.every((token) => a[token] === b[token])
+}
+
 export const THEME_TOKEN_LABELS: Record<ThemeToken, string> = {
   background: "Background",
   surface: "Surface",

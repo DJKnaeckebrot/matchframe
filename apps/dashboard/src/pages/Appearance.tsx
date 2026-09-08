@@ -1,7 +1,13 @@
 import { useEffect, useMemo, useState } from "react"
 import type { CSSProperties } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { cssColorSchema, matchframeThemeSchema, themeToCssVars } from "@workspace/theme"
+import {
+  cssColorSchema,
+  matchframeThemeSchema,
+  THEME_PRESETS,
+  themeToCssVars,
+  themesEqual,
+} from "@workspace/theme"
 import { Button } from "@workspace/ui/components/button"
 import { Input } from "@workspace/ui/components/input"
 import { Label } from "@workspace/ui/components/label"
@@ -64,12 +70,10 @@ export function AppearancePage() {
       <header className="flex flex-col gap-1">
         <h1 className="text-lg font-medium">Appearance</h1>
         <p className="text-sm text-muted-foreground">
-          These colors update the live overlay. Apply when the palette is ready — the
+          Pick a palette, then tune tokens if tonight needs it. Apply when ready — the
           overlay changes without a reload.
         </p>
       </header>
-
-      <ThemePreview theme={draft} />
 
       {query.isLoading ? (
         <p className="text-sm text-muted-foreground">Loading overlay colors…</p>
@@ -83,6 +87,47 @@ export function AppearancePage() {
             }
           }}
         >
+          <section className="flex flex-col gap-3">
+            <h2 className="text-sm font-medium">Palette</h2>
+            <div
+              className="grid grid-cols-1 gap-2 sm:grid-cols-3"
+              role="radiogroup"
+              aria-label="Palette"
+            >
+              {THEME_PRESETS.map((preset) => {
+                const active = themesEqual(draft, preset.theme)
+                return (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={active}
+                    onClick={() => setDraft(preset.theme)}
+                    className={`flex flex-col gap-3 border px-3 py-4 text-left transition-colors ${
+                      active
+                        ? "border-foreground text-foreground"
+                        : "border-border text-muted-foreground hover:border-foreground/40 hover:text-foreground"
+                    }`}
+                  >
+                    <span className="text-[11px] tracking-[0.22em]">{preset.label}</span>
+                    <span className="text-sm font-medium text-inherit">{preset.description}</span>
+                    <span className="flex gap-1" aria-hidden="true">
+                      {(["accent", "ct", "terrorist"] as const).map((token) => (
+                        <span
+                          key={token}
+                          className="h-3 flex-1"
+                          style={{ background: preset.theme[token] }}
+                        />
+                      ))}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          </section>
+
+          <ThemePreview theme={draft} />
+
           <div className="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2">
             {THEME_TOKENS.map((token) => (
               <ColorField
@@ -171,10 +216,6 @@ function ColorField({
       </div>
     </div>
   )
-}
-
-function themesEqual(a: MatchframeTheme, b: MatchframeTheme): boolean {
-  return THEME_TOKENS.every((token) => a[token] === b[token])
 }
 
 function toColorInputValue(value: string): string {

@@ -9,21 +9,37 @@ export type ApplyResult = {
 
 export type GameStateEngine = {
   apply(snapshot: GameState): ApplyResult
+  seedSeriesWins(left: number, right: number): GameState | null
 }
 
 const PLANTED_SEQUENCE = new Set<BombStatus>(["planted", "defusing", "exploding"])
 
 export function createGameStateEngine(): GameStateEngine {
   let previous: GameState | null = null
+  let pendingSeriesWins: readonly [number, number] | null = null
 
   return {
     apply(snapshot: GameState): ApplyResult {
       const identified = assignTeamIdentity(previous, snapshot)
       const withBomb = captureBombProgress(previous, identified)
-      const state = captureSeriesWins(previous, withBomb)
+      let state = captureSeriesWins(previous, withBomb)
+      if (pendingSeriesWins) {
+        state = applySeriesWins(state, pendingSeriesWins[0], pendingSeriesWins[1])
+        pendingSeriesWins = null
+      }
       const events = previous === null ? [] : deriveEvents(previous, state)
       previous = state
       return { state, events }
+    },
+    seedSeriesWins(left: number, right: number): GameState | null {
+      const wins = [clampSeriesWins(left), clampSeriesWins(right)] as const
+      if (previous === null) {
+        pendingSeriesWins = wins
+        return null
+      }
+      pendingSeriesWins = null
+      previous = applySeriesWins(previous, wins[0], wins[1])
+      return previous
     },
   }
 }
@@ -99,8 +115,8 @@ function captureBombProgress(previous: GameState | null, next: GameState): GameS
  * GSI `matches_won_this_series` is missing in scrims. Carry detected map wins
  * by logical team id until GSI reports a series, then trust GSI.
  *
- * ponytail: same-roster next series keeps the count until process restart.
- * Upgrade: dashboard reset.
+ * ponytail: same-roster next series keeps the count until dashboard reset
+ * or process restart.
  */
 function captureSeriesWins(previous: GameState | null, next: GameState): GameState {
   const teams = mergeSeriesWins(previous, next.teams)
@@ -148,6 +164,21 @@ function seriesAlreadyCounted(
     const before = previous.find((entry) => entry.id === team.id)?.seriesWins ?? 0
     return team.seriesWins > before
   })
+}
+
+function applySeriesWins(state: GameState, left: number, right: number): GameState {
+  const teams = state.teams.map((team, index) => {
+    const seriesWins = index === 0 ? left : index === 1 ? right : team.seriesWins
+    return seriesWins === team.seriesWins ? team : { ...team, seriesWins }
+  })
+  return teams.every((team, index) => team === state.teams[index]) ? state : { ...state, teams }
+}
+
+function clampSeriesWins(value: number): number {
+  if (!Number.isFinite(value) || value < 0) {
+    return 0
+  }
+  return Math.min(4, Math.trunc(value))
 }
 
 function mapWinner(teams: readonly TeamState[]): TeamState | undefined {
