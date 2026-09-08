@@ -8,7 +8,8 @@
     "lint": "turbo lint",
     "format": "turbo format",
     "typecheck": "turbo typecheck",
-    "test": "bun test"
+    "test": "bun test",
+    "fixture:gsi": "bun run scripts/fixture-gsi.ts"
   },
   "devDependencies": {
     "prettier": "^3.8.3",

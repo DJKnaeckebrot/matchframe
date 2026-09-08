@@ -12,7 +12,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@workspace/theme": "workspace:*",
     "@workspace/ui": "workspace:*",
+    "@tanstack/react-query": "^5.90.2",
     "lucide-react": "^1.42.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6"

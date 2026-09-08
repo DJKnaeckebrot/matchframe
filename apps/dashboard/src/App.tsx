@@ -1,19 +1,21 @@
-import { Button } from "@workspace/ui/components/button"
+import { AppearancePage } from "@/pages/Appearance.tsx"
 
 export function App() {
   return (
-    <div className="flex min-h-svh p-6">
-      <div className="flex max-w-md min-w-0 flex-col gap-4 text-sm leading-loose">
-        <div>
-          <h1 className="font-medium">Project ready!</h1>
-          <p>You may now add components and start building.</p>
-          <p>We&apos;ve already added the button component for you.</p>
-          <Button className="mt-2">Button</Button>
+    <div className="flex min-h-svh bg-background text-foreground">
+      <aside className="flex w-52 shrink-0 flex-col border-r border-border px-4 py-5">
+        <div className="text-[11px] tracking-[0.28em] text-muted-foreground">
+          MATCHFRAME
         </div>
-        <div className="text-muted-foreground font-mono text-xs">
-          (Press <kbd>d</kbd> to toggle dark mode)
-        </div>
-      </div>
+        <nav className="mt-8" aria-label="Dashboard">
+          <span className="block border-l-2 border-foreground pl-3 text-sm font-medium">
+            Appearance
+          </span>
+        </nav>
+      </aside>
+      <main className="min-w-0 flex-1 px-8 py-6">
+        <AppearancePage />
+      </main>
     </div>
   )
 }

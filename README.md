@@ -9,22 +9,41 @@ bun install
 bun run dev
 ```
 
-This starts the dashboard (Vite) and the broadcast server together. The server listens on port 3131.
+This starts the dashboard, overlay, and broadcast server together.
 
-```
-Broadcast server running at http://localhost:3131
-GSI endpoint: http://localhost:3131/api/gsi
+| App | URL |
+| --- | --- |
+| Dashboard | http://localhost:5173 |
+| Overlay (OBS browser source) | http://localhost:5174 |
+| Broadcast server | http://localhost:3131 |
+| GSI endpoint | `POST http://localhost:3131/api/gsi` |
+| Theme | `GET` / `PUT http://localhost:3131/api/config/theme` |
+| WebSocket | `ws://localhost:3131/ws` |
+
+Point an OBS Browser Source at the overlay URL when you are ready to composite it over gameplay. Keep the source at 1920×1080 with a transparent background.
+
+The overlay connects automatically. Override the server with `VITE_REALTIME_URL` (default `ws://localhost:3131/ws`).
+
+Appearance colors are edited in the dashboard and applied to the running overlay over the same WebSocket.
+
+### Preview without CS2
+
+Post a GSI fixture to the running server:
+
+```bash
+bun run fixture:gsi
+bun run fixture:gsi healthy
+bun run fixture:gsi damaged
+bun run fixture:gsi dead
+bun run fixture:gsi sides-switched
+bun run fixture:gsi equipment
+bun run fixture:gsi observer
 ```
 
-Post the included GSI fixture, then read back normalized state:
+`live` is the default. Apply `live` first, then `sides-switched`, to preview a halftime swap without moving logical teams.
 
 ```bash
 curl -s http://localhost:3131/health
-
-curl -s -X POST http://localhost:3131/api/gsi \
-  -H "Content-Type: application/json" \
-  --data-binary @packages/gsi/fixtures/inferno-live.json
-
 curl -s http://localhost:3131/api/state
 ```
 

@@ -1,17 +1,17 @@
 import type {
-  BombPlantState,
   BombState,
+  BombStatus,
   GameState,
   MapPhase,
   PlayerState,
   RoundPhase,
   Side,
   TeamState,
-  WeaponEquipState,
-  WeaponState,
+  Vector3,
 } from "@workspace/game-state"
 
-import type { GsiPayload, GsiPlayer, GsiTeam, GsiWeapon } from "./schema"
+import type { GsiPayload, GsiPlayer, GsiTeam } from "./schema"
+import { equipmentFromWeapons, normalizeWeapon } from "./weapons"
 
 function asSide(value: string | undefined): Side | null {
   if (value === "CT" || value === "T") {
@@ -39,14 +39,7 @@ function asRoundPhase(value: string | undefined): RoundPhase {
   return "unknown"
 }
 
-function asWeaponState(value: string | undefined): WeaponEquipState {
-  if (value === "holstered" || value === "active") {
-    return value
-  }
-  return "unknown"
-}
-
-function asBombState(value: string | undefined): BombPlantState {
+function asBombState(value: string | undefined): BombStatus {
   if (
     value === "carried" ||
     value === "dropped" ||
@@ -60,7 +53,7 @@ function asBombState(value: string | undefined): BombPlantState {
   return "unknown"
 }
 
-function toCountdown(value: number | string | undefined): number | null {
+function toCountdown(value: number | string | undefined): number | undefined {
   if (typeof value === "number" && Number.isFinite(value)) {
     return value
   }
@@ -70,7 +63,26 @@ function toCountdown(value: number | string | undefined): number | null {
       return parsed
     }
   }
-  return null
+  return undefined
+}
+
+function parsePosition(value: string | undefined): Vector3 | undefined {
+  if (!value) {
+    return undefined
+  }
+  const parts = value.split(",").map((part) => Number(part.trim()))
+  const [x, y, z] = parts
+  if (
+    x === undefined ||
+    y === undefined ||
+    z === undefined ||
+    !Number.isFinite(x) ||
+    !Number.isFinite(y) ||
+    !Number.isFinite(z)
+  ) {
+    return undefined
+  }
+  return { x, y, z }
 }
 
 // ponytail: ids are name slugs (else side slots). Persist identity across
@@ -97,23 +109,11 @@ function normalizeTeam(team: GsiTeam | undefined, side: Side): TeamState {
   }
 }
 
-function normalizeWeapon(weapon: GsiWeapon): WeaponState | null {
-  if (!weapon.name) {
-    return null
-  }
-  return {
-    name: weapon.name,
-    type: weapon.type ?? "",
-    state: asWeaponState(weapon.state),
-    ammoClip: weapon.ammo_clip ?? 0,
-    ammoReserve: weapon.ammo_reserve ?? 0,
-  }
-}
-
 function normalizePlayer(
   steamId: string,
   player: GsiPlayer,
-  teamIdBySide: Record<Side, string>
+  teamIdBySide: Record<Side, string>,
+  bombCarrierSteamId: string | undefined
 ): PlayerState | null {
   const side = asSide(player.team)
   if (!side) {
@@ -121,7 +121,7 @@ function normalizePlayer(
   }
 
   const health = player.state?.health ?? 0
-  const weapons: WeaponState[] = []
+  const weapons = []
   if (player.weapons) {
     for (const weapon of Object.values(player.weapons)) {
       const normalized = normalizeWeapon(weapon)
@@ -139,12 +139,15 @@ function normalizePlayer(
     alive: health > 0,
     health,
     armor: player.state?.armor ?? 0,
-    helmet: player.state?.helmet ?? false,
     money: player.state?.money ?? 0,
     kills: player.match_stats?.kills ?? 0,
     assists: player.match_stats?.assists ?? 0,
     deaths: player.match_stats?.deaths ?? 0,
-    weapons,
+    equipment: equipmentFromWeapons(weapons, {
+      hasHelmet: player.state?.helmet ?? false,
+      hasDefuseKit: player.state?.defusekit === true,
+      hasBomb: bombCarrierSteamId === steamId,
+    }),
   }
 }
 
@@ -152,22 +155,40 @@ function normalizeBomb(payload: GsiPayload): BombState | null {
   if (!payload.bomb) {
     return null
   }
-  return {
-    state: asBombState(payload.bomb.state),
-    playerSteamId: payload.bomb.player ?? null,
-    countdown: toCountdown(payload.bomb.countdown),
+
+  const state = asBombState(payload.bomb.state)
+  const bomb: BombState = { state }
+  if (state === "carried" && payload.bomb.player) {
+    bomb.carrierSteamId = payload.bomb.player
   }
+  const position = parsePosition(payload.bomb.position)
+  if (position) {
+    bomb.position = position
+  }
+  const countdown = toCountdown(payload.bomb.countdown)
+  if (countdown !== undefined) {
+    bomb.countdown = countdown
+  }
+  return bomb
 }
 
 export function normalizeGsiPayload(payload: GsiPayload): GameState {
   const ct = normalizeTeam(payload.map?.team_ct, "CT")
   const t = normalizeTeam(payload.map?.team_t, "T")
   const teamIdBySide: Record<Side, string> = { CT: ct.id, T: t.id }
+  const bomb = normalizeBomb(payload)
+  const bombCarrierSteamId =
+    bomb?.state === "carried" ? bomb.carrierSteamId : undefined
 
   const players: PlayerState[] = []
   if (payload.allplayers) {
     for (const [steamId, player] of Object.entries(payload.allplayers)) {
-      const normalized = normalizePlayer(steamId, player, teamIdBySide)
+      const normalized = normalizePlayer(
+        steamId,
+        player,
+        teamIdBySide,
+        bombCarrierSteamId
+      )
       if (normalized) {
         players.push(normalized)
       }
@@ -188,8 +209,8 @@ export function normalizeGsiPayload(payload: GsiPayload): GameState {
     teams: [ct, t],
     players,
     observer: {
-      steamId: payload.player?.steamid ?? null,
+      playerSteamId: payload.player?.steamid ?? null,
     },
-    bomb: normalizeBomb(payload),
+    bomb,
   }
 }

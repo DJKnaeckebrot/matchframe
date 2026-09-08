@@ -29,5 +29,8 @@ dist-ssr
 *.sln
 *.sw?
 
+# runtime config
+data/
+
 # typescript
 *.tsbuildinfo

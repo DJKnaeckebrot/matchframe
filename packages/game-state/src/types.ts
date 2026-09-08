@@ -9,9 +9,19 @@ export type MapPhase =
 
 export type RoundPhase = "freezetime" | "live" | "over" | "unknown"
 
-export type WeaponEquipState = "holstered" | "active" | "unknown"
+export type WeaponType =
+  | "rifle"
+  | "sniper"
+  | "smg"
+  | "shotgun"
+  | "machinegun"
+  | "pistol"
+  | "knife"
+  | "grenade"
+  | "bomb"
+  | "unknown"
 
-export type BombPlantState =
+export type BombStatus =
   | "carried"
   | "dropped"
   | "planted"
@@ -19,6 +29,12 @@ export type BombPlantState =
   | "exploding"
   | "exploded"
   | "unknown"
+
+export type Vector3 = {
+  x: number
+  y: number
+  z: number
+}
 
 export type MapState = {
   name: string
@@ -39,11 +55,28 @@ export type TeamState = {
 }
 
 export type WeaponState = {
+  id: string
   name: string
-  type: string
-  state: WeaponEquipState
-  ammoClip: number
-  ammoReserve: number
+  type: WeaponType
+  active: boolean
+  ammoClip?: number
+  ammoReserve?: number
+}
+
+export type GrenadeState = {
+  id: string
+  count: number
+}
+
+export type PlayerEquipment = {
+  primary?: WeaponState
+  secondary?: WeaponState
+  knife?: WeaponState
+  grenades: readonly GrenadeState[]
+  activeWeapon?: WeaponState
+  hasHelmet: boolean
+  hasDefuseKit: boolean
+  hasBomb: boolean
 }
 
 export type PlayerState = {
@@ -54,22 +87,22 @@ export type PlayerState = {
   alive: boolean
   health: number
   armor: number
-  helmet: boolean
   money: number
   kills: number
   assists: number
   deaths: number
-  weapons: readonly WeaponState[]
+  equipment: PlayerEquipment
 }
 
 export type ObserverState = {
-  steamId: string | null
+  playerSteamId: string | null
 }
 
 export type BombState = {
-  state: BombPlantState
-  playerSteamId: string | null
-  countdown: number | null
+  state: BombStatus
+  carrierSteamId?: string
+  position?: Vector3
+  countdown?: number
 }
 
 export type GameState = {

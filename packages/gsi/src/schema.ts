@@ -13,6 +13,7 @@ const gsiPlayerStateSchema = z.object({
   armor: z.number().optional(),
   helmet: z.boolean().optional(),
   money: z.number().optional(),
+  defusekit: z.boolean().optional(),
 })
 
 const gsiMatchStatsSchema = z.object({
@@ -51,6 +52,7 @@ const gsiRoundSchema = z.object({
 const gsiBombSchema = z.object({
   state: z.string().optional(),
   player: z.string().optional(),
+  position: z.string().optional(),
   countdown: z.union([z.number(), z.string()]).optional(),
 })
 
