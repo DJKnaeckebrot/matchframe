@@ -1,0 +1,242 @@
+{
+  "provider": {
+    "name": "Counter-Strike 2",
+    "appid": 730,
+    "version": 14007,
+    "steamid": "76561198000000001",
+    "timestamp": 1710000000
+  },
+  "map": {
+    "mode": "competitive",
+    "name": "de_inferno",
+    "phase": "live",
+    "round": 14,
+    "team_ct": {
+      "name": "Northwind",
+      "score": 8,
+      "consecutive_round_losses": 1,
+      "timeouts_remaining": 1,
+      "matches_won_this_series": 0
+    },
+    "team_t": {
+      "name": "Redline",
+      "score": 6,
+      "consecutive_round_losses": 0,
+      "timeouts_remaining": 1,
+      "matches_won_this_series": 0
+    }
+  },
+  "round": {
+    "phase": "live"
+  },
+  "player": {
+    "steamid": "76561198000000001",
+    "name": "Nova",
+    "observer_slot": 1,
+    "team": "CT",
+    "activity": "playing",
+    "state": {
+      "health": 100,
+      "armor": 100,
+      "helmet": true,
+      "money": 2700,
+      "round_kills": 0,
+      "round_killhs": 0,
+      "equip_value": 4900
+    },
+    "match_stats": {
+      "kills": 12,
+      "assists": 3,
+      "deaths": 8,
+      "mvps": 2,
+      "score": 28
+    }
+  },
+  "allplayers": {
+    "76561198000000001": {
+      "name": "Nova",
+      "observer_slot": 1,
+      "team": "CT",
+      "state": {
+        "health": 100,
+        "armor": 100,
+        "helmet": true,
+        "money": 2700
+      },
+      "match_stats": {
+        "kills": 12,
+        "assists": 3,
+        "deaths": 8
+      },
+      "weapons": {
+        "weapon_0": {
+          "name": "weapon_knife",
+          "paintkit": "default",
+          "type": "Knife",
+          "state": "holstered"
+        },
+        "weapon_1": {
+          "name": "weapon_usp_silencer",
+          "paintkit": "default",
+          "type": "Pistol",
+          "ammo_clip": 12,
+          "ammo_clip_max": 12,
+          "ammo_reserve": 24,
+          "state": "holstered"
+        },
+        "weapon_2": {
+          "name": "weapon_m4a1",
+          "paintkit": "default",
+          "type": "Rifle",
+          "ammo_clip": 25,
+          "ammo_clip_max": 25,
+          "ammo_reserve": 90,
+          "state": "active"
+        }
+      }
+    },
+    "76561198000000002": {
+      "name": "Ember",
+      "observer_slot": 2,
+      "team": "CT",
+      "state": {
+        "health": 87,
+        "armor": 50,
+        "helmet": false,
+        "money": 1500
+      },
+      "match_stats": {
+        "kills": 7,
+        "assists": 5,
+        "deaths": 9
+      },
+      "weapons": {
+        "weapon_0": {
+          "name": "weapon_knife",
+          "type": "Knife",
+          "state": "holstered"
+        },
+        "weapon_1": {
+          "name": "weapon_hkp2000",
+          "type": "Pistol",
+          "ammo_clip": 13,
+          "ammo_reserve": 52,
+          "state": "active"
+        }
+      }
+    },
+    "76561198000000003": {
+      "name": "Drift",
+      "observer_slot": 3,
+      "team": "CT",
+      "state": {
+        "health": 100,
+        "armor": 100,
+        "helmet": true,
+        "money": 5400
+      },
+      "match_stats": {
+        "kills": 9,
+        "assists": 2,
+        "deaths": 6
+      },
+      "weapons": {
+        "weapon_0": {
+          "name": "weapon_awp",
+          "type": "SniperRifle",
+          "ammo_clip": 5,
+          "ammo_reserve": 30,
+          "state": "active"
+        }
+      }
+    },
+    "76561198000000004": {
+      "name": "Viper",
+      "observer_slot": 6,
+      "team": "T",
+      "state": {
+        "health": 100,
+        "armor": 100,
+        "helmet": true,
+        "money": 3750
+      },
+      "match_stats": {
+        "kills": 11,
+        "assists": 1,
+        "deaths": 7
+      },
+      "weapons": {
+        "weapon_0": {
+          "name": "weapon_knife_t",
+          "type": "Knife",
+          "state": "holstered"
+        },
+        "weapon_1": {
+          "name": "weapon_glock",
+          "type": "Pistol",
+          "ammo_clip": 20,
+          "ammo_reserve": 120,
+          "state": "holstered"
+        },
+        "weapon_2": {
+          "name": "weapon_ak47",
+          "type": "Rifle",
+          "ammo_clip": 30,
+          "ammo_reserve": 90,
+          "state": "active"
+        },
+        "weapon_3": {
+          "name": "weapon_c4",
+          "type": "C4",
+          "state": "holstered"
+        }
+      }
+    },
+    "76561198000000005": {
+      "name": "Ghost",
+      "observer_slot": 7,
+      "team": "T",
+      "state": {
+        "health": 12,
+        "armor": 0,
+        "helmet": false,
+        "money": 200
+      },
+      "match_stats": {
+        "kills": 4,
+        "assists": 6,
+        "deaths": 11
+      },
+      "weapons": {
+        "weapon_0": {
+          "name": "weapon_glock",
+          "type": "Pistol",
+          "ammo_clip": 8,
+          "ammo_reserve": 120,
+          "state": "active"
+        }
+      }
+    },
+    "76561198000000006": {
+      "name": "Sable",
+      "observer_slot": 8,
+      "team": "T",
+      "state": {
+        "health": 0,
+        "armor": 0,
+        "helmet": false,
+        "money": 2100
+      },
+      "match_stats": {
+        "kills": 6,
+        "assists": 4,
+        "deaths": 10
+      },
+      "weapons": {}
+    }
+  },
+  "bomb": {
+    "state": "carried",
+    "player": "76561198000000004"
+  }
+}

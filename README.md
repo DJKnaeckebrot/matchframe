@@ -1,21 +1,47 @@
-# shadcn/ui monorepo template
+# Matchframe
 
-This is a Vite monorepo template with shadcn/ui.
+Open-source CS2 esports broadcast overlays. Local-first: CS2 GSI in, normalized game state out.
 
-## Adding components
-
-To add components to your app, run the following command at the root of your `web` app:
+## Development
 
 ```bash
-pnpm dlx shadcn@latest add button -c apps/web
+bun install
+bun run dev
 ```
 
-This will place the ui components in the `packages/ui/src/components` directory.
+This starts the dashboard (Vite) and the broadcast server together. The server listens on port 3131.
 
-## Using components
+```
+Broadcast server running at http://localhost:3131
+GSI endpoint: http://localhost:3131/api/gsi
+```
 
-To use the components in your app, import them from the `ui` package.
+Post the included GSI fixture, then read back normalized state:
+
+```bash
+curl -s http://localhost:3131/health
+
+curl -s -X POST http://localhost:3131/api/gsi \
+  -H "Content-Type: application/json" \
+  --data-binary @packages/gsi/fixtures/inferno-live.json
+
+curl -s http://localhost:3131/api/state
+```
+
+```bash
+bun test
+bun run typecheck
+bun run build
+```
+
+## Adding dashboard components
+
+```bash
+bunx shadcn@latest add button -c apps/dashboard
+```
+
+Import from the shared UI package:
 
 ```tsx
-import { Button } from "@workspace/ui/components/button";
+import { Button } from "@workspace/ui/components/button"
 ```
