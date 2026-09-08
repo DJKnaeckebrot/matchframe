@@ -62,6 +62,8 @@ const initialPayload = {
       state: { health: 100, armor: 100, helmet: true, money: 2700, defusekit: true },
       match_stats: { kills: 12, assists: 3, deaths: 8 },
       weapons: novaWeapons,
+      position: "100, 200, 16",
+      forward: "0, 1, 0",
     },
     [T]: {
       name: "Viper",
@@ -69,9 +71,11 @@ const initialPayload = {
       state: { health: 80, armor: 50, helmet: true, money: 200 },
       match_stats: { kills: 9, assists: 1, deaths: 10 },
       weapons: viperWeapons,
+      position: "300, 400, 16",
+      forward: "1, 0, 0",
     },
   },
-  bomb: { state: "carried", player: T },
+  bomb: { state: "carried", player: T, position: "300, 400, 16" },
   grenades: {
     "291": { owner: CT, type: "smoke", lifetime: "10.5" },
   },
@@ -105,7 +109,13 @@ describe("sequential GSI ingest", () => {
     expect(state.teams.map((team) => team.score)).toEqual([8, 6])
     expect(state.players).toHaveLength(2)
     expect(state.observer.playerSteamId).toBe(CT)
-    expect(state.bomb).toEqual({ state: "carried", carrierSteamId: T })
+    expect(state.bomb).toEqual({
+      state: "carried",
+      carrierSteamId: T,
+      position: { x: 300, y: 400, z: 16 },
+    })
+    expect(playerById(state, CT)?.position).toEqual({ x: 100, y: 200, z: 16 })
+    expect(playerById(state, T)?.forward).toEqual({ x: 1, y: 0, z: 0 })
 
     const nova = playerById(state, CT)
     expect(nova).toMatchObject({
@@ -193,7 +203,12 @@ describe("sequential GSI ingest", () => {
     expect(state.teams.map((team) => team.score)).toEqual([8, 6])
     expect(state.players).toHaveLength(2)
     expect(playerById(state, CT)?.equipment.primary?.id).toBe("m4a4")
-    expect(state.bomb).toEqual({ state: "carried", carrierSteamId: T })
+    expect(playerById(state, CT)?.position).toEqual({ x: 100, y: 200, z: 16 })
+    expect(state.bomb).toEqual({
+      state: "carried",
+      carrierSteamId: T,
+      position: { x: 300, y: 400, z: 16 },
+    })
   })
 
   test("present allplayers without a steam id removes that player without player_died", () => {
@@ -284,6 +299,7 @@ describe("sequential GSI ingest", () => {
     expect(state.bomb).toEqual({
       state: "defusing",
       defuserSteamId: CT,
+      position: { x: 300, y: 400, z: 16 },
       countdown: 28.4,
       countdownDuration: 28.4,
       defuseCountdown: 4.2,
@@ -347,5 +363,47 @@ describe("sequential GSI ingest", () => {
     expect(raw).not.toHaveProperty("added")
     expect(JSON.stringify(state)).not.toContain("secret")
     expect(playerById(state, CT)?.health).toBe(10)
+  })
+
+  test("one-player position update keeps the sibling player's position", () => {
+    const gsi = createGsiStateManager()
+    const engine = createGameStateEngine()
+    ingest(gsi, engine, initialPayload)
+    const { state } = ingest(gsi, engine, {
+      allplayers: {
+        [CT]: { position: "150, 200, 16" },
+        [T]: {},
+      },
+    })
+
+    expect(playerById(state, CT)?.position).toEqual({ x: 150, y: 200, z: 16 })
+    expect(playerById(state, CT)?.forward).toEqual({ x: 0, y: 1, z: 0 })
+    expect(playerById(state, T)?.position).toEqual({ x: 300, y: 400, z: 16 })
+    expect(playerById(state, T)?.forward).toEqual({ x: 1, y: 0, z: 0 })
+  })
+
+  test("omitted allplayers keeps every player position", () => {
+    const gsi = createGsiStateManager()
+    const engine = createGameStateEngine()
+    ingest(gsi, engine, initialPayload)
+    const { state } = ingest(gsi, engine, { provider: { timestamp: 1003 } })
+
+    expect(playerById(state, CT)?.position).toEqual({ x: 100, y: 200, z: 16 })
+    expect(playerById(state, T)?.position).toEqual({ x: 300, y: 400, z: 16 })
+  })
+
+  test("present allplayers without a steam id drops that player's position with the player", () => {
+    const gsi = createGsiStateManager()
+    const engine = createGameStateEngine()
+    ingest(gsi, engine, initialPayload)
+    const { state } = ingest(gsi, engine, {
+      allplayers: {
+        [CT]: { position: "100, 200, 16" },
+      },
+    })
+
+    expect(state.players.map((player) => player.steamId)).toEqual([CT])
+    expect(playerById(state, CT)?.position).toEqual({ x: 100, y: 200, z: 16 })
+    expect(playerById(state, T)).toBeUndefined()
   })
 })

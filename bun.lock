@@ -43,6 +43,7 @@
       "version": "0.0.1",
       "dependencies": {
         "@workspace/game-state": "workspace:*",
+        "@workspace/maps": "workspace:*",
         "@workspace/theme": "workspace:*",
         "react": "^19.2.8",
         "react-dom": "^19.2.8",
@@ -94,6 +95,14 @@
       },
       "devDependencies": {
         "@types/bun": "^1.2.21",
+        "typescript": "~6",
+      },
+    },
+    "packages/maps": {
+      "name": "@workspace/maps",
+      "version": "0.0.0",
+      "devDependencies": {
+        "@types/bun": "^1.4.2",
         "typescript": "~6",
       },
     },
@@ -494,6 +503,8 @@
     "@workspace/game-state": ["@workspace/game-state@workspace:packages/game-state"],
 
     "@workspace/gsi": ["@workspace/gsi@workspace:packages/gsi"],
+
+    "@workspace/maps": ["@workspace/maps@workspace:packages/maps"],
 
     "@workspace/theme": ["@workspace/theme@workspace:packages/theme"],
 

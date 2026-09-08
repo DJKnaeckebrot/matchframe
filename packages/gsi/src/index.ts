@@ -4,6 +4,7 @@ export type { ParseGsiFailure, ParseGsiResult, ParseGsiSuccess } from "./parse"
 export { normalizeGsiPayload } from "./normalize"
 export { createGsiStateManager } from "./manager"
 export type { GsiStateManager } from "./manager"
+export { sanitizeGsiCapture } from "./capture"
 export {
   GSI_FIXTURE_VARIANTS,
   loadGsiFixture,

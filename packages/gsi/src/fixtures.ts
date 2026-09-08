@@ -21,6 +21,10 @@ export const GSI_FIXTURE_VARIANTS = [
   "round-ct-win",
   "round-t-win",
   "round-over-bomb-defused",
+  "radar-anubis",
+  "radar-anubis-moved",
+  "radar-anubis-bomb-dropped",
+  "radar-anubis-bomb-planted",
 ] as const
 
 export type GsiFixtureVariant = (typeof GSI_FIXTURE_VARIANTS)[number]
@@ -94,9 +98,30 @@ type GsiDemoPlayer = {
     deaths?: number
   }
   weapons?: Record<string, GsiDemoWeapon>
+  position?: string
+  forward?: string
 }
 
 function applyVariant(payload: GsiDemo, variant: GsiFixtureVariant): void {
+  if (variant === "radar-anubis") {
+    applyAnubisRadar(payload)
+    return
+  }
+  if (variant === "radar-anubis-moved") {
+    applyAnubisRadar(payload)
+    moveNovaEast(payload)
+    return
+  }
+  if (variant === "radar-anubis-bomb-dropped") {
+    applyAnubisRadar(payload)
+    dropBombAtTSpawn(payload)
+    return
+  }
+  if (variant === "radar-anubis-bomb-planted") {
+    applyAnubisRadar(payload)
+    plantBombAtCtSpawn(payload)
+    return
+  }
   if (variant === "live" || variant === "equipment") {
     return
   }
@@ -558,4 +583,66 @@ function setVitals(
     armor: vitals.armor,
     helmet: vitals.helmet,
   }
+}
+
+/**
+ * Positions are inverted from CS2 `de_anubis.txt` overview spawn markers
+ * (CTSpawn 0.61,0.22 / TSpawn 0.58,0.93) with Valve pos_x/pos_y/scale.
+ * Not a live-demo capture. Z is unused by the 2D radar and set to 0.
+ */
+const ANUBIS = {
+  posX: -2796,
+  posY: 3328,
+  scale: 5.22,
+  size: 1024,
+} as const
+
+function anubisWorld(radarX: number, radarY: number): string {
+  const x = ANUBIS.posX + radarX * ANUBIS.scale * ANUBIS.size
+  const y = ANUBIS.posY - radarY * ANUBIS.scale * ANUBIS.size
+  return `${x}, ${y}, 0`
+}
+
+function applyAnubisRadar(payload: GsiDemo): void {
+  payload.map = { ...payload.map, name: "de_anubis" }
+  const allplayers = payload.allplayers ?? {}
+  const east = 40 / ANUBIS.size
+  const south = 40 / ANUBIS.size
+  place(allplayers["76561198000000001"], anubisWorld(0.61, 0.22), "0, 1, 0")
+  place(allplayers["76561198000000002"], anubisWorld(0.61 + east, 0.22), "1, 0, 0")
+  place(allplayers["76561198000000003"], anubisWorld(0.61, 0.22 + south), "0, -1, 0")
+  place(allplayers["76561198000000004"], anubisWorld(0.58, 0.93), "0, 1, 0")
+  place(allplayers["76561198000000005"], anubisWorld(0.58 + east, 0.93), "-1, 0, 0")
+  place(allplayers["76561198000000006"], anubisWorld(0.58, 0.93 - south), "0, -1, 0")
+}
+
+function moveNovaEast(payload: GsiDemo): void {
+  const nova = payload.allplayers?.["76561198000000001"]
+  if (!nova) {
+    return
+  }
+  place(nova, anubisWorld(0.71, 0.22), nova.forward ?? "0, 1, 0")
+}
+
+function dropBombAtTSpawn(payload: GsiDemo): void {
+  payload.bomb = { state: "dropped", position: anubisWorld(0.58, 0.93) }
+}
+
+function plantBombAtCtSpawn(payload: GsiDemo): void {
+  payload.round = { ...payload.round, phase: "live", bomb: "planted" }
+  delete payload.round.win_team
+  payload.phase_countdowns = { phase: "bomb", phase_ends_in: "28.4" }
+  payload.bomb = { state: "planted", countdown: "28.4", position: anubisWorld(0.61, 0.22) }
+}
+
+function place(
+  player: GsiDemoPlayer | undefined,
+  position: string,
+  forward: string
+): void {
+  if (!player) {
+    return
+  }
+  player.position = position
+  player.forward = forward
 }

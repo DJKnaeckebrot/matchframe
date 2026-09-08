@@ -234,6 +234,48 @@ describe("normalizeGsiPayload", () => {
     })
   })
 
+  test("parses player position and forward; invalid vectors stay undefined", () => {
+    const parsed = parseGsiPayload({
+      allplayers: {
+        ct1: {
+          name: "Nova",
+          team: "CT",
+          state: { health: 100 },
+          position: "-2796, 3328, 16",
+          forward: "0, 1, 0.05",
+        },
+        t1: {
+          name: "Viper",
+          team: "T",
+          state: { health: 100 },
+          position: "not-a-vector",
+          forward: "1, 0",
+        },
+        t2: {
+          name: "Ghost",
+          team: "T",
+          state: { health: 100 },
+        },
+      },
+    })
+    expect(parsed.success).toBe(true)
+    if (!parsed.success) {
+      return
+    }
+
+    const state = normalizeGsiPayload(parsed.data)
+    const nova = state.players.find((player) => player.name === "Nova")
+    const viper = state.players.find((player) => player.name === "Viper")
+    const ghost = state.players.find((player) => player.name === "Ghost")
+
+    expect(nova?.position).toEqual({ x: -2796, y: 3328, z: 16 })
+    expect(nova?.forward).toEqual({ x: 0, y: 1, z: 0.05 })
+    expect(viper?.position).toBeUndefined()
+    expect(viper?.forward).toBeUndefined()
+    expect(ghost?.position).toBeUndefined()
+    expect(ghost?.forward).toBeUndefined()
+  })
+
   test("planted bomb is not treated as still carried", () => {
     const parsed = parseGsiPayload({
       allplayers: {

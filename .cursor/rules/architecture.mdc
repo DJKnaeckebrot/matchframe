@@ -33,6 +33,7 @@ Apps:
 Packages:
 - `packages/gsi`: raw CS2 GSI schemas, parsing and Valve-specific logic
 - `packages/game-state`: game-independent normalized state and events
+- `packages/maps`: map metadata, world→radar transform, facing helpers
 - `packages/theme`: shared theme types and tokens
 - `packages/ui`: shared dashboard UI components
 - `packages/database`: persistence
@@ -50,6 +51,8 @@ Keep packages independent of applications.
 
 `packages/gsi` may depend on `game-state`, but `game-state` must never depend on `gsi`.
 
+`packages/maps` must not depend on React, Hono, or `packages/gsi`. `packages/game-state` must not depend on `packages/maps` or radar artwork.
+
 The overlay must never consume raw CS2 GSI payloads.
 
 Correct flow:
@@ -60,6 +63,8 @@ CS2 GSI
 → state engine
 → WebSocket
 → overlay
+
+Map metadata and world→radar math live in `packages/maps`. Do not implement Valve overview formulas in React.
 
 Do not bypass this architecture.
 

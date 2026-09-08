@@ -110,6 +110,10 @@ export type PlayerState = {
   assists: number
   deaths: number
   equipment: PlayerEquipment
+  /** World position. Omitted when GSI did not send a valid vector. */
+  position?: Vector3
+  /** World facing direction. Omitted when GSI did not send a valid vector. */
+  forward?: Vector3
 }
 
 export type ObserverState = {

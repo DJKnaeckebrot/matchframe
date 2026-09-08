@@ -1,6 +1,6 @@
 import { join } from "node:path"
 import { createGameStateEngine } from "@workspace/game-state"
-import { createGsiStateManager } from "@workspace/gsi"
+import { createGsiStateManager, sanitizeGsiCapture } from "@workspace/gsi"
 import { websocket } from "hono/bun"
 
 import { createApp } from "./app"
@@ -23,10 +23,25 @@ function dataDir(): string {
   return process.env.MATCHFRAME_DATA_DIR ?? join(process.cwd(), "data")
 }
 
+function gsiCaptureWriter(): ((merged: unknown) => void) | undefined {
+  if (!process.env.MATCHFRAME_GSI_CAPTURE) {
+    return undefined
+  }
+  const path = join(dataDir(), "gsi-capture", "latest.json")
+  return (merged) => {
+    const sanitized = sanitizeGsiCapture(merged)
+    if (!sanitized) {
+      return
+    }
+    void Bun.write(path, JSON.stringify(sanitized, null, 2))
+  }
+}
+
 const engine = createGameStateEngine()
 const gsi = createGsiStateManager()
 const hub = createRealtimeHub()
 const themeStore = createFileThemeStore(dataDir())
+const onGsiCapture = gsiCaptureWriter()
 
 const app = createApp({
   engine,
@@ -35,6 +50,7 @@ const app = createApp({
   setState: (state) => gameStateStore.set(state),
   themeStore,
   hub,
+  ...(onGsiCapture ? { onGsiCapture } : {}),
 })
 
 const port = listenPort()

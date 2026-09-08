@@ -19,6 +19,7 @@ export type ServerAppDeps = {
   setState: (state: GameState) => void
   themeStore: ThemeStore
   hub: RealtimeHub
+  onGsiCapture?: (merged: unknown) => void
 }
 
 export function createApp(deps: ServerAppDeps): Hono {
@@ -58,6 +59,8 @@ export function createApp(deps: ServerAppDeps): Hono {
     } catch {
       return c.json({ error: "Invalid GSI payload", details: [] }, 400)
     }
+
+    deps.onGsiCapture?.(deps.gsi.getState())
 
     const parsed = parseGsiPayload(deps.gsi.getState())
     if (!parsed.success) {

@@ -6,6 +6,7 @@ import { useRealtimeStore } from "../realtime/store"
 import { ConnectionIndicator } from "./ConnectionIndicator"
 import { FocusedPlayer } from "./FocusedPlayer"
 import { PlayerList } from "./PlayerList"
+import { Radar } from "./Radar"
 import { Scoreboard } from "./Scoreboard"
 
 export function Overlay() {
@@ -23,6 +24,7 @@ export function Overlay() {
       <ConnectionIndicator />
       {state ? (
         <>
+          <Radar state={state} />
           <div className="absolute top-8 right-0 left-0 flex justify-center">
             <div className="w-[1040px]">
               <Scoreboard state={state} />

@@ -9,7 +9,8 @@
     "format": "turbo format",
     "typecheck": "turbo typecheck",
     "test": "bun test",
-    "fixture:gsi": "bun run scripts/fixture-gsi.ts"
+    "fixture:gsi": "bun run scripts/fixture-gsi.ts",
+    "capture:gsi": "bun run scripts/capture-gsi.ts"
   },
   "devDependencies": {
     "prettier": "^3.8.3",

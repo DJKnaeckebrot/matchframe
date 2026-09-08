@@ -211,4 +211,44 @@ describe("GSI fixture variants", () => {
     expect(getDisplayRoundNumber(swapped)).toBe(15)
     expect(swapped.teams.find((team) => team.name === "Northwind")?.side).toBe("T")
   })
+
+  test("radar-anubis fixture uses overview spawn positions", async () => {
+    const state = await normalized("radar-anubis")
+    expect(state.map.name).toBe("de_anubis")
+    const nova = state.players.find((player) => player.name === "Nova")
+    const viper = state.players.find((player) => player.name === "Viper")
+    const sable = state.players.find((player) => player.name === "Sable")
+    expect(nova?.position).toEqual({ x: -2796 + 0.61 * 5.22 * 1024, y: 3328 - 0.22 * 5.22 * 1024, z: 0 })
+    expect(nova?.forward).toEqual({ x: 0, y: 1, z: 0 })
+    expect(viper?.position).toEqual({ x: -2796 + 0.58 * 5.22 * 1024, y: 3328 - 0.93 * 5.22 * 1024, z: 0 })
+    expect(sable?.alive).toBe(false)
+    expect(sable?.position).toBeDefined()
+    expect(state.bomb?.state).toBe("carried")
+  })
+
+  test("radar-anubis-moved only shifts Nova east", async () => {
+    const live = await normalized("radar-anubis")
+    const moved = await normalized("radar-anubis-moved")
+    const liveNova = live.players.find((player) => player.name === "Nova")
+    const movedNova = moved.players.find((player) => player.name === "Nova")
+    const liveViper = live.players.find((player) => player.name === "Viper")
+    const movedViper = moved.players.find((player) => player.name === "Viper")
+    expect(movedNova?.position?.x).toBeCloseTo((liveNova?.position?.x ?? 0) + 0.1 * 5.22 * 1024, 5)
+    expect(movedNova?.position?.y).toBe(liveNova?.position?.y)
+    expect(movedViper?.position).toEqual(liveViper?.position)
+  })
+
+  test("radar bomb fixtures expose dropped and planted positions", async () => {
+    const dropped = await normalized("radar-anubis-bomb-dropped")
+    const planted = await normalized("radar-anubis-bomb-planted")
+    expect(dropped.bomb).toMatchObject({
+      state: "dropped",
+      position: { x: -2796 + 0.58 * 5.22 * 1024, y: 3328 - 0.93 * 5.22 * 1024, z: 0 },
+    })
+    expect(planted.bomb).toMatchObject({
+      state: "planted",
+      countdown: 28.4,
+      position: { x: -2796 + 0.61 * 5.22 * 1024, y: 3328 - 0.22 * 5.22 * 1024, z: 0 },
+    })
+  })
 })

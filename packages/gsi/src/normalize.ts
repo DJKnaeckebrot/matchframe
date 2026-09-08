@@ -71,13 +71,14 @@ function toCountdown(value: number | string | undefined): number | undefined {
   return undefined
 }
 
-function parsePosition(value: string | undefined): Vector3 | undefined {
+function parseVector3(value: string | undefined): Vector3 | undefined {
   if (!value) {
     return undefined
   }
   const parts = value.split(",").map((part) => Number(part.trim()))
   const [x, y, z] = parts
   if (
+    parts.length < 3 ||
     x === undefined ||
     y === undefined ||
     z === undefined ||
@@ -136,7 +137,7 @@ function normalizePlayer(
     }
   }
 
-  return {
+  const normalized: PlayerState = {
     steamId,
     name: player.name ?? "",
     teamId: teamIdBySide[side],
@@ -154,6 +155,15 @@ function normalizePlayer(
       hasBomb: bombCarrierSteamId === steamId,
     }),
   }
+  const position = parseVector3(player.position)
+  if (position) {
+    normalized.position = position
+  }
+  const forward = parseVector3(player.forward)
+  if (forward) {
+    normalized.forward = forward
+  }
+  return normalized
 }
 
 function normalizeBomb(payload: GsiPayload): BombState | null {
@@ -169,7 +179,7 @@ function normalizeBomb(payload: GsiPayload): BombState | null {
   if (state === "defusing" && payload.bomb.player) {
     bomb.defuserSteamId = payload.bomb.player
   }
-  const position = parsePosition(payload.bomb.position)
+  const position = parseVector3(payload.bomb.position)
   if (position) {
     bomb.position = position
   }

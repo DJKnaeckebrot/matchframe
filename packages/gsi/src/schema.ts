@@ -29,6 +29,8 @@ const gsiPlayerSchema = z.object({
   state: gsiPlayerStateSchema.optional(),
   match_stats: gsiMatchStatsSchema.optional(),
   weapons: z.record(z.string(), gsiWeaponSchema).optional(),
+  position: z.string().optional(),
+  forward: z.string().optional(),
 })
 
 const gsiTeamSchema = z.object({
