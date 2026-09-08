@@ -1,6 +1,6 @@
 import type { GameState, PlayerState, Side, TeamState } from "@workspace/game-state"
 
-import type { OverlayShow } from "../broadcast/presentation"
+import { teamBroadcastName, type OverlayShow } from "../broadcast/presentation"
 import {
   formatMoney,
   focusedPlayer,
@@ -13,7 +13,6 @@ import { EquipmentIcon, LoadoutIcons, WeaponIcon } from "../icons"
 import { cardLifeClass, cardPortraitLayout } from "../portraits/card-layout"
 import { useOverlayPortraits, usePlayerDisplayName } from "../portraits/use-portrait"
 import { FocusedPlayer } from "./FocusedPlayer"
-import { CrosshairMark, HeartMark, SkullMark } from "./hud-marks"
 import { InterstitialCard } from "./InterstitialCard"
 import { PlayerPortrait } from "./PlayerPortrait"
 
@@ -21,29 +20,26 @@ export function TeamView({ state, show }: { state: GameState; show: OverlayShow 
   const left = state.teams[0]
   const right = state.teams[1]
   const focused = focusedPlayer(state)
-  const focusedTeam = focused
-    ? state.teams.find((team) => team.id === focused.teamId)
-    : undefined
 
   return (
-    <div className="flex items-end gap-3 px-5 pb-4">
+    <div className="flex items-end gap-1 bg-black/45 px-2 pt-1">
       <TeamStrip
         team={left}
         players={state.players}
         observedSteamId={focused?.steamId}
         align="left"
       />
-      <div className="flex w-[248px] shrink-0 flex-col items-center">
+      <div className="flex w-[420px] shrink-0 flex-col items-center">
         {show.chrome.interstitial && show.interstitial ? (
           <InterstitialCard card={show.interstitial} />
         ) : show.chrome.focused && focused ? (
           <FocusedPlayer
             player={focused}
-            teamName={focusedTeam?.name}
+            teamName={teamBroadcastName(state.teams, focused.teamId, show.branding)}
             number={rosterNumber(state.players, focused.teamId, focused.steamId)}
           />
         ) : (
-          <div className="h-[220px]" />
+          <div className="h-[216px]" />
         )}
       </div>
       <TeamStrip
@@ -73,7 +69,7 @@ function TeamStrip({
   const slots = playersForTeam(players, team.id)
 
   return (
-    <ul className="flex min-w-0 flex-1 items-end gap-1.5">
+    <ul className="flex min-w-0 flex-1 items-end gap-0.5">
       {slots.map((player, index) => (
         <PlayerCard
           key={player?.steamId ?? `${team.id}-${index}`}
@@ -105,7 +101,6 @@ function PlayerCard({
   const empty = !player
   const dead = Boolean(player && !player.alive)
   const health = player?.health ?? 0
-  const healthColor = health <= 20 ? "var(--mf-danger)" : accent
   const weapon = player ? mainWeapon(player) : undefined
   const portraits = useOverlayPortraits(player, number)
   const displayName = usePlayerDisplayName(player)
@@ -114,88 +109,67 @@ function PlayerCard({
 
   return (
     <li
-      className={`relative flex min-w-0 flex-1 flex-col overflow-hidden bg-(--mf-background)/70 ${cardLifeClass(empty, dead)}`}
+      className={`relative h-[168px] min-w-0 flex-1 overflow-hidden bg-(--mf-surface)/80 ${cardLifeClass(empty, dead)}`}
     >
-      <div className="h-0.5 shrink-0" style={{ background: empty ? "transparent" : accent }} />
-      {empty ? null : (
-        <div
-          className={`absolute inset-y-0.5 z-30 w-0.5 ${mirrored ? "right-0" : "left-0"}`}
-          style={{ background: accent }}
-        />
-      )}
-      <div className="relative h-[128px] overflow-hidden bg-(--mf-surface-elevated)/80">
-        {player ? (
-          <>
-            <div
-              className="pointer-events-none absolute inset-0 z-0"
-              style={{
-                background: mirrored
-                  ? `linear-gradient(to left, color-mix(in srgb, ${accent} 9%, transparent), transparent 52%)`
-                  : `linear-gradient(to right, color-mix(in srgb, ${accent} 9%, transparent), transparent 52%)`,
-              }}
-            />
-            <PlayerPortrait portraits={portraits} className="z-[1]" />
-            <div className={`absolute top-1 z-20 ${mirrored ? "right-1.5" : "left-1.5"} text-(--mf-text)`}>
-              <LoadoutIcons player={player} size="sm" align={layout.loadoutAlign} />
-            </div>
-            {weapon ? (
-              <span
-                className={`absolute bottom-0.5 z-20 opacity-85 ${mirrored ? "left-1.5" : "right-1.5"}`}
-              >
-                <WeaponIcon
-                  weaponId={weapon.id}
-                  label={weaponShortLabel(weapon)}
-                  size="sm"
-                  decorative
-                />
-              </span>
-            ) : null}
-          </>
-        ) : null}
-      </div>
       <div
-        className="relative z-10 bg-(--mf-surface)/94 px-1.5 py-1"
-        style={
-          observed ? { boxShadow: `inset 0 1px 0 ${accent}` } : undefined
-        }
-      >
-        <div className={`flex min-h-5 items-center ${mirrored ? "flex-row-reverse" : ""}`}>
-          <span className="min-w-0 flex-1 truncate text-[12px] font-semibold text-(--mf-text)">
-            {displayName}
-          </span>
-        </div>
-        <div className="mt-0.5 flex min-h-4 items-center gap-1">
-          {player?.alive ? (
-            <>
-              <HeartMark />
-              <span className="text-[11px] font-semibold tabular-nums">{health}</span>
-              <div className="h-1 min-w-0 flex-1 bg-(--mf-text)/15">
-                <div className="h-full" style={{ width: `${health}%`, background: healthColor }} />
+        className={`absolute inset-x-0 top-0 z-30 ${observed ? "h-1" : "h-px"}`}
+        style={{ background: empty ? "transparent" : accent }}
+      />
+      {player ? (
+        <>
+          <PlayerPortrait portraits={portraits} className="z-[1]" />
+          <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-10 bg-linear-to-b from-black/80 to-transparent" />
+          <div
+            className={`absolute top-1.5 z-20 drop-shadow-[0_1px_2px_rgb(0_0_0_/_0.95)] ${mirrored ? "right-1.5" : "left-1.5"} text-(--mf-text)`}
+          >
+            <LoadoutIcons player={player} size="sm" align={layout.loadoutAlign} />
+          </div>
+          {dead ? (
+            <div className="absolute inset-x-0 bottom-0 z-20 bg-black/85 px-1.5 py-2.5">
+              <span className="mf-display block text-center text-[12px] tracking-[0.18em] text-(--mf-text) uppercase">
+                Dead
+              </span>
+            </div>
+          ) : (
+            <div className="absolute inset-x-0 bottom-0 z-20">
+              <div className="h-3 bg-linear-to-t from-black/85 to-transparent" />
+              <div className="bg-black/85 px-1.5 pb-1">
+                <div className={`flex items-end gap-1 ${mirrored ? "flex-row-reverse" : ""}`}>
+                  <span className="mf-display min-w-0 flex-1 truncate text-[13px] leading-none font-semibold tracking-[0.04em] text-(--mf-text) uppercase">
+                    {displayName}
+                  </span>
+                  {weapon ? (
+                    <span className="mb-px shrink-0">
+                      <WeaponIcon
+                        weaponId={weapon.id}
+                        label={weaponShortLabel(weapon)}
+                        size="sm"
+                        decorative
+                      />
+                    </span>
+                  ) : null}
+                </div>
+                <div className={`mt-1 flex items-center gap-1 ${mirrored ? "flex-row-reverse" : ""}`}>
+                  <span className="mf-display text-[11px] font-semibold tabular-nums text-(--mf-text)">
+                    {health}
+                  </span>
+                  <div className="h-1 min-w-0 flex-1 bg-(--mf-text)/25">
+                    <div className="h-full" style={{ width: `${health}%`, background: accent }} />
+                  </div>
+                  {player.equipment.hasHelmet ? (
+                    <EquipmentIcon type="helmet" decorative />
+                  ) : player.armor > 0 ? (
+                    <EquipmentIcon type="armor" decorative />
+                  ) : null}
+                  <span className="mf-display shrink-0 text-[11px] tabular-nums text-(--mf-text)">
+                    {formatMoney(player.money)}
+                  </span>
+                </div>
               </div>
-              {player.equipment.hasHelmet ? (
-                <EquipmentIcon type="helmet" decorative />
-              ) : player.armor > 0 ? (
-                <EquipmentIcon type="armor" decorative />
-              ) : null}
-            </>
-          ) : player ? (
-            <span className="text-[10px] tracking-[0.14em] text-(--mf-text-muted) uppercase">Dead</span>
-          ) : null}
-        </div>
-        <div className="mt-0.5 flex items-center gap-2 text-[10px] tabular-nums text-(--mf-text-muted)">
-          <span className="flex items-center gap-0.5">
-            <CrosshairMark />
-            {player?.kills ?? ""}
-          </span>
-          <span className="flex items-center gap-0.5">
-            <SkullMark />
-            {player?.deaths ?? ""}
-          </span>
-          <span className="ml-auto text-(--mf-text)">
-            {player ? formatMoney(player.money) : ""}
-          </span>
-        </div>
-      </div>
+            </div>
+          )}
+        </>
+      ) : null}
     </li>
   )
 }

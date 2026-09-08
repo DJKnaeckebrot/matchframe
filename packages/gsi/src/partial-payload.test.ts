@@ -77,7 +77,14 @@ const initialPayload = {
   },
   bomb: { state: "carried", player: T, position: "300, 400, 16" },
   grenades: {
-    "291": { owner: CT, type: "smoke", lifetime: "10.5" },
+    "291": {
+      owner: CT,
+      type: "smoke",
+      position: "100, 200, 16",
+      velocity: "0, 0, 0",
+      lifetime: "10.5",
+      effecttime: "2.4",
+    },
   },
 }
 
@@ -105,7 +112,7 @@ describe("sequential GSI ingest", () => {
     const engine = createGameStateEngine()
     const { state } = ingest(gsi, engine, initialPayload)
 
-    expect(state.map).toEqual({ name: "de_inferno", phase: "live", round: 14 })
+    expect(state.map).toEqual({ name: "de_inferno", phase: "live", round: 14, roundHistory: [] })
     expect(state.teams.map((team) => team.score)).toEqual([8, 6])
     expect(state.players).toHaveLength(2)
     expect(state.observer.playerSteamId).toBe(CT)
@@ -130,6 +137,17 @@ describe("sequential GSI ingest", () => {
     expect(nova?.equipment.grenades).toEqual([{ id: "flash", count: 2 }])
     expect(nova?.equipment.hasDefuseKit).toBe(true)
     expect(playerById(state, T)?.equipment.hasBomb).toBe(true)
+    expect(state.worldGrenades).toEqual([
+      {
+        id: "291",
+        type: "smoke",
+        ownerSteamId: CT,
+        position: { x: 100, y: 200, z: 16 },
+        velocity: { x: 0, y: 0, z: 0 },
+        lifetime: 10.5,
+        effectTime: 2.4,
+      },
+    ])
   })
 
   test("health-only update keeps previous loadout and sibling fields", () => {
@@ -319,7 +337,7 @@ describe("sequential GSI ingest", () => {
       },
     })
 
-    expect(state.map).toEqual({ name: "de_inferno", phase: "live", round: 14 })
+    expect(state.map).toEqual({ name: "de_inferno", phase: "live", round: 14, roundHistory: [] })
     expect(state.teams.map((team) => team.score)).toEqual([8, 6])
     expect(playerById(state, CT)?.health).toBe(90)
   })
@@ -329,18 +347,37 @@ describe("sequential GSI ingest", () => {
     const engine = createGameStateEngine()
     ingest(gsi, engine, initialPayload)
 
-    ingest(gsi, engine, { provider: { timestamp: 1002 } })
+    const omitted = ingest(gsi, engine, { provider: { timestamp: 1002 } })
     const kept = gsi.getState() as { grenades?: Record<string, unknown> }
     expect(kept.grenades).toHaveProperty("291")
+    expect(omitted.state.worldGrenades.map((grenade) => grenade.id)).toEqual(["291"])
 
-    ingest(gsi, engine, {
+    const pruned = ingest(gsi, engine, {
       grenades: {
-        "354": { owner: T, type: "flashbang", lifetime: "1.2" },
+        "354": {
+          owner: T,
+          type: "flashbang",
+          lifetime: "1.2",
+          position: "300, 400, 16",
+        },
       },
     })
-    const pruned = gsi.getState() as { grenades?: Record<string, unknown> }
-    expect(pruned.grenades).not.toHaveProperty("291")
-    expect(pruned.grenades).toHaveProperty("354")
+    const raw = gsi.getState() as { grenades?: Record<string, unknown> }
+    expect(raw.grenades).not.toHaveProperty("291")
+    expect(raw.grenades).toHaveProperty("354")
+    expect(pruned.state.worldGrenades.map((grenade) => grenade.id)).toEqual(["354"])
+    expect(pruned.state.worldGrenades[0]?.type).toBe("flash")
+  })
+
+  test("grenades: {} clears world grenades in GameState", () => {
+    const gsi = createGsiStateManager()
+    const engine = createGameStateEngine()
+    ingest(gsi, engine, initialPayload)
+    const { state } = ingest(gsi, engine, { grenades: {} })
+
+    const raw = gsi.getState() as { grenades?: Record<string, unknown> }
+    expect(raw.grenades).toEqual({})
+    expect(state.worldGrenades).toEqual([])
   })
 
   test("previously, added, and auth never enter merged raw or GameState", () => {

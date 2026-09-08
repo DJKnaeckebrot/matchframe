@@ -1,12 +1,13 @@
 import { useState } from "react"
 
 import { AppearancePage } from "@/pages/Appearance.tsx"
+import { OverlayPage } from "@/pages/Overlay.tsx"
 import { PlayersPage } from "@/pages/Players.tsx"
 
-type Page = "appearance" | "players"
+type Page = "overlay" | "players" | "appearance"
 
 export function App() {
-  const [page, setPage] = useState<Page>("appearance")
+  const [page, setPage] = useState<Page>("overlay")
 
   return (
     <div className="flex min-h-svh bg-background text-foreground">
@@ -15,16 +16,25 @@ export function App() {
           MATCHFRAME
         </div>
         <nav className="mt-8 flex flex-col gap-1" aria-label="Dashboard">
-          <NavItem active={page === "appearance"} onClick={() => setPage("appearance")}>
-            Appearance
+          <NavItem active={page === "overlay"} onClick={() => setPage("overlay")}>
+            Overlay
           </NavItem>
           <NavItem active={page === "players"} onClick={() => setPage("players")}>
             Players
           </NavItem>
+          <NavItem active={page === "appearance"} onClick={() => setPage("appearance")}>
+            Appearance
+          </NavItem>
         </nav>
       </aside>
       <main className="min-w-0 flex-1 px-8 py-6">
-        {page === "appearance" ? <AppearancePage /> : <PlayersPage />}
+        {page === "overlay" ? (
+          <OverlayPage />
+        ) : page === "players" ? (
+          <PlayersPage />
+        ) : (
+          <AppearancePage />
+        )}
       </main>
     </div>
   )

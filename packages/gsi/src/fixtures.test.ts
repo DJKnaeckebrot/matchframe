@@ -36,6 +36,14 @@ describe("GSI fixture variants", () => {
     expect(nova?.side).toBe("T")
   })
 
+  test("series fixture reports map wins on logical teams", async () => {
+    const state = await normalized("series")
+    expect(state.teams.map((team) => [team.name, team.seriesWins])).toEqual([
+      ["Northwind", 1],
+      ["Redline", 0],
+    ])
+  })
+
   test("logical teams keep left/right order after a fixture side switch", async () => {
     const engine = createGameStateEngine()
     const live = engine.apply(await normalized("live"))
@@ -85,6 +93,9 @@ describe("GSI fixture variants", () => {
     expect(state.round.phase).toBe("freezetime")
     expect(state.round.timeRemaining).toBe(12)
     expect(state.players.every((player) => player.alive)).toBe(true)
+    expect(state.map.roundHistory).toHaveLength(14)
+    expect(state.map.roundHistory.filter((entry) => entry.winner === "CT")).toHaveLength(8)
+    expect(state.map.roundHistory.filter((entry) => entry.winner === "T")).toHaveLength(6)
   })
 
   test("4v5 and 1v2 fixtures set alive counts by current side", async () => {
@@ -251,5 +262,37 @@ describe("GSI fixture variants", () => {
       countdown: 28.4,
       position: { x: -2796 + 0.61 * 5.22 * 1024, y: 3328 - 0.22 * 5.22 * 1024, z: 0 },
     })
+  })
+
+  test("radar smoke fixtures expose in-flight, active, two, and cleared collections", async () => {
+    const flight = await normalized("radar-anubis-smoke-flight")
+    expect(flight.worldGrenades).toHaveLength(1)
+    expect(flight.worldGrenades[0]).toMatchObject({
+      id: "401",
+      type: "smoke",
+      ownerSteamId: "76561198000000004",
+      effectTime: 0,
+    })
+    expect(flight.worldGrenades[0]?.velocity).toEqual({ x: 40, y: 280, z: 20 })
+
+    const moved = await normalized("radar-anubis-smoke-flight-moved")
+    expect(moved.worldGrenades[0]?.id).toBe("401")
+    expect(moved.worldGrenades[0]?.position?.y).not.toBe(flight.worldGrenades[0]?.position?.y)
+    expect(moved.worldGrenades[0]?.effectTime).toBe(0)
+
+    const active = await normalized("radar-anubis-smoke-active")
+    expect(active.worldGrenades[0]).toMatchObject({
+      id: "401",
+      type: "smoke",
+      effectTime: 2.1,
+    })
+
+    const two = await normalized("radar-anubis-two-smokes")
+    expect(two.worldGrenades.map((grenade) => grenade.id)).toEqual(["401", "402"])
+    expect(two.worldGrenades.every((grenade) => grenade.type === "smoke")).toBe(true)
+    expect(two.worldGrenades[0]?.position).not.toEqual(two.worldGrenades[1]?.position)
+
+    const removed = await normalized("radar-anubis-smoke-removed")
+    expect(removed.worldGrenades).toEqual([])
   })
 })

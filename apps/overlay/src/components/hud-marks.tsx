@@ -14,10 +14,18 @@ export function CrosshairMark() {
   )
 }
 
-export function SkullMark() {
+export function SkullMark({ size = "size-3" }: { size?: string }) {
   return (
-    <svg viewBox="0 0 16 16" className="size-3 shrink-0 fill-current" aria-hidden="true">
+    <svg viewBox="0 0 16 16" className={`${size} shrink-0 fill-current`} aria-hidden="true">
       <path d="M8 1.4A5.6 5.6 0 0 0 2.4 7c0 2 1.1 3.3 2.2 4.1V14h2.1v-1.2h1.6V14h2.1v-2.9c1.1-.8 2.2-2.1 2.2-4.1A5.6 5.6 0 0 0 8 1.4zM5.7 7.4a1.1 1.1 0 1 1 0-2.2 1.1 1.1 0 0 1 0 2.2zm4.6 0a1.1 1.1 0 1 1 0-2.2 1.1 1.1 0 0 1 0 2.2z" />
+    </svg>
+  )
+}
+
+export function ClockMark({ size = "size-3" }: { size?: string }) {
+  return (
+    <svg viewBox="0 0 16 16" className={`${size} shrink-0 fill-current`} aria-hidden="true">
+      <path d="M8 1.6A6.4 6.4 0 1 0 14.4 8 6.4 6.4 0 0 0 8 1.6zm.65 3.1H7.2v4.3l3.15 1.85.7-1.18-2.4-1.42z" />
     </svg>
   )
 }

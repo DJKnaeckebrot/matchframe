@@ -39,11 +39,7 @@ export function LoadoutIcons({
           <ObjectiveIcon type="bomb" size={size} />
         </span>
       ) : null}
-      {player.equipment.hasDefuseKit ? (
-        <span className="text-(--mf-ct)">
-          <EquipmentIcon type="defuse" size={size} />
-        </span>
-      ) : null}
+      {player.equipment.hasDefuseKit ? <EquipmentIcon type="defuse" size={size} /> : null}
     </span>
   )
 }

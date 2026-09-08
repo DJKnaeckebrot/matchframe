@@ -21,10 +21,21 @@ describe("normalizeGsiPayload", () => {
   test("produces the expected map", async () => {
     const state = normalizeGsiPayload(await parsedFixture())
 
-    expect(state.map).toEqual({
+    expect(state.map).toMatchObject({
       name: "de_inferno",
       phase: "live",
       round: 14,
+    })
+    expect(state.map.roundHistory).toHaveLength(14)
+    expect(state.map.roundHistory[0]).toEqual({
+      round: 1,
+      winner: "CT",
+      reason: "elimination",
+    })
+    expect(state.map.roundHistory[13]).toEqual({
+      round: 14,
+      winner: "CT",
+      reason: "elimination",
     })
   })
 
@@ -32,8 +43,25 @@ describe("normalizeGsiPayload", () => {
     const state = normalizeGsiPayload(await parsedFixture())
 
     expect(state.teams).toEqual([
-      { id: "northwind", name: "Northwind", side: "CT", score: 8 },
-      { id: "redline", name: "Redline", side: "T", score: 6 },
+      { id: "northwind", name: "Northwind", side: "CT", score: 8, seriesWins: 0 },
+      { id: "redline", name: "Redline", side: "T", score: 6, seriesWins: 0 },
+    ])
+  })
+
+  test("copies matches won this series onto logical teams", () => {
+    const parsed = parseGsiPayload({
+      map: {
+        team_ct: { name: "Northwind", score: 8, matches_won_this_series: 1 },
+        team_t: { name: "Redline", score: 6, matches_won_this_series: 2 },
+      },
+    })
+    expect(parsed.success).toBe(true)
+    if (!parsed.success) {
+      return
+    }
+    expect(normalizeGsiPayload(parsed.data).teams.map((team) => [team.name, team.seriesWins])).toEqual([
+      ["Northwind", 1],
+      ["Redline", 2],
     ])
   })
 
@@ -133,16 +161,17 @@ describe("normalizeGsiPayload", () => {
     const state = normalizeGsiPayload(empty.data)
     expect(state).toEqual({
       timestamp: 0,
-      map: { name: "", phase: "unknown", round: 0 },
+      map: { name: "", phase: "unknown", round: 0, roundHistory: [] },
       round: { phase: "unknown", winTeam: null, alive: { ct: 0, t: 0 } },
       teams: [
-        { id: "ct", name: "CT", side: "CT", score: 0 },
-        { id: "t", name: "T", side: "T", score: 0 },
+        { id: "ct", name: "CT", side: "CT", score: 0, seriesWins: 0 },
+        { id: "t", name: "T", side: "T", score: 0, seriesWins: 0 },
       ],
       players: [],
       observer: { playerSteamId: null },
       bomb: null,
       pause: null,
+      worldGrenades: [],
     })
 
     const partial = parseGsiPayload({
@@ -521,6 +550,47 @@ describe("normalizeGsiPayload", () => {
       winReason: "bomb_defused",
       timeRemaining: 6,
     })
+    expect(state.map.roundHistory).toEqual([
+      { round: 15, winner: "CT", reason: "bomb_defused" },
+    ])
+  })
+
+  test("round_wins become a sorted history of sides and reasons", () => {
+    const parsed = parseGsiPayload({
+      map: {
+        round: 3,
+        round_wins: {
+          "2": "t_win_bomb",
+          "1": "ct_win_elimination",
+          "3": "ct_win_time",
+          nope: "ct_win_defuse",
+        },
+      },
+      round: { phase: "live" },
+    })
+    expect(parsed.success).toBe(true)
+    if (!parsed.success) {
+      return
+    }
+    expect(normalizeGsiPayload(parsed.data).map.roundHistory).toEqual([
+      { round: 1, winner: "CT", reason: "elimination" },
+      { round: 2, winner: "T", reason: "bomb_exploded" },
+      { round: 3, winner: "CT", reason: "time_expired" },
+    ])
+  })
+
+  test("round over without round_wins still appends the current winner", () => {
+    const parsed = parseGsiPayload({
+      map: { round: 0 },
+      round: { phase: "over", win_team: "T", bomb: "exploded" },
+    })
+    expect(parsed.success).toBe(true)
+    if (!parsed.success) {
+      return
+    }
+    expect(normalizeGsiPayload(parsed.data).map.roundHistory).toEqual([
+      { round: 1, winner: "T", reason: "bomb_exploded" },
+    ])
   })
 
   test("pause and timeout come from phase_countdowns only", () => {

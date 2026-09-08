@@ -1,6 +1,8 @@
 import type { GameEvent, GameState, ServerMessage } from "@workspace/game-state"
 import {
+  defaultOverlayConfig,
   emptyPlayerPresentationConfig,
+  type OverlayConfig,
   type PlayerPresentationConfig,
 } from "@workspace/presentation"
 import { defaultTheme } from "@workspace/theme"
@@ -17,6 +19,7 @@ type RealtimeStore = {
   state: GameState | null
   theme: MatchframeTheme
   presentation: PlayerPresentationConfig
+  overlay: OverlayConfig
   recentEvents: GameEvent[]
   setWsStatus: (wsStatus: WsStatus) => void
   applyMessage: (message: ServerMessage) => void
@@ -28,6 +31,7 @@ export const useRealtimeStore = create<RealtimeStore>((set) => ({
   state: null,
   theme: defaultTheme,
   presentation: emptyPlayerPresentationConfig,
+  overlay: defaultOverlayConfig,
   recentEvents: [],
   setWsStatus: (wsStatus) => set({ wsStatus }),
   applyMessage: (message) => {
@@ -49,6 +53,10 @@ export const useRealtimeStore = create<RealtimeStore>((set) => ({
     }
     if (message.type === "presentation") {
       set({ presentation: message.data })
+      return
+    }
+    if (message.type === "overlay") {
+      set({ overlay: message.data })
       return
     }
     set((current) => ({

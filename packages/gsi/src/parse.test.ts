@@ -37,6 +37,33 @@ describe("parseGsiPayload", () => {
     expect(result.success).toBe(true)
   })
 
+  test("parses world grenades without dropping known fields", () => {
+    const result = parseGsiPayload({
+      grenades: {
+        "291": {
+          owner: "76561198000000001",
+          type: "smoke",
+          position: "1.0, 2.0, 3.0",
+          velocity: "4, 5, 6",
+          lifetime: "1.2",
+          effecttime: "0.0",
+        },
+      },
+    })
+    expect(result.success).toBe(true)
+    if (!result.success) {
+      return
+    }
+    expect(result.data.grenades?.["291"]).toEqual({
+      owner: "76561198000000001",
+      type: "smoke",
+      position: "1.0, 2.0, 3.0",
+      velocity: "4, 5, 6",
+      lifetime: "1.2",
+      effecttime: "0.0",
+    })
+  })
+
   test("rejects invalid top-level input", () => {
     for (const input of [null, [], "", 42]) {
       const result = parseGsiPayload(input)

@@ -47,11 +47,20 @@ export type Vector3 = {
   z: number
 }
 
+export type RoundHistoryEntry = {
+  /** 1-based display round. */
+  round: number
+  winner: Side
+  reason?: RoundWinReason
+}
+
 export type MapState = {
   name: string
   phase: MapPhase
   /** Zero-based CS2 GSI round index. Use getDisplayRoundNumber for HUD labels. */
   round: number
+  /** Completed rounds on this map, oldest first. */
+  roundHistory: readonly RoundHistoryEntry[]
 }
 
 export type RoundState = {
@@ -70,6 +79,8 @@ export type TeamState = {
   name: string
   side: Side
   score: number
+  /** Maps won in the current series. */
+  seriesWins: number
 }
 
 export type WeaponState = {
@@ -84,6 +95,31 @@ export type WeaponState = {
 export type GrenadeState = {
   id: string
   count: number
+}
+
+/**
+ * World entity, not inventory. Inventory nades stay on PlayerEquipment.
+ *
+ * Flame points (`flames` in raw GSI) are not modeled yet — molotov/incendiary
+ * area effects should not assume a single circle.
+ */
+export type WorldGrenadeType =
+  | "smoke"
+  | "flash"
+  | "he"
+  | "molotov"
+  | "incendiary"
+  | "decoy"
+  | "unknown"
+
+export type WorldGrenadeState = {
+  id: string
+  type: WorldGrenadeType
+  ownerSteamId?: string
+  position: Vector3
+  velocity?: Vector3
+  lifetime?: number
+  effectTime?: number
 }
 
 export type PlayerEquipment = {
@@ -146,4 +182,5 @@ export type GameState = {
   observer: ObserverState
   bomb: BombState | null
   pause: PauseState | null
+  worldGrenades: readonly WorldGrenadeState[]
 }

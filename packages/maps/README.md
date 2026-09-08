@@ -48,5 +48,6 @@ the primary `radar` layer only.
 
 ## Grenades
 
-World grenades are out of scope. Keep adding nade helpers next to
-`worldToRadar` rather than inside overlay JSX.
+World grenades live on `GameState.worldGrenades`. Overlay radar converts their
+world position with `worldToRadar` inside `getRadarGrenades` — not in JSX.
+Molotov flame points are a later slice; do not treat every nade as a circle.

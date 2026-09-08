@@ -37,6 +37,7 @@ const gsiPlayerSchema = z.object({
 const gsiTeamSchema = z.object({
   name: z.string().optional(),
   score: z.number().optional(),
+  matches_won_this_series: z.number().optional(),
 })
 
 const gsiMapSchema = z.object({
@@ -70,6 +71,17 @@ const gsiProviderSchema = z.object({
   timestamp: z.number().optional(),
 })
 
+const gsiGrenadeSchema = z.object({
+  owner: z.string().optional(),
+  position: z.string().optional(),
+  velocity: z.string().optional(),
+  type: z.string().optional(),
+  lifetime: z.union([z.number(), z.string()]).optional(),
+  effecttime: z.union([z.number(), z.string()]).optional(),
+  /** Inferno flame anchors. Parsed so later molotov radar can use them; unused in v2. */
+  flames: z.record(z.string(), z.string()).optional(),
+})
+
 export const gsiPayloadSchema = z.object({
   provider: gsiProviderSchema.optional(),
   map: gsiMapSchema.optional(),
@@ -77,6 +89,7 @@ export const gsiPayloadSchema = z.object({
   player: gsiPlayerSchema.optional(),
   allplayers: z.record(z.string(), gsiPlayerSchema).optional(),
   bomb: gsiBombSchema.optional(),
+  grenades: z.record(z.string(), gsiGrenadeSchema).optional(),
   phase_countdowns: gsiPhaseCountdownsSchema.optional(),
 })
 
@@ -84,3 +97,4 @@ export type GsiPayload = z.infer<typeof gsiPayloadSchema>
 export type GsiPlayer = z.infer<typeof gsiPlayerSchema>
 export type GsiWeapon = z.infer<typeof gsiWeaponSchema>
 export type GsiTeam = z.infer<typeof gsiTeamSchema>
+export type GsiGrenade = z.infer<typeof gsiGrenadeSchema>

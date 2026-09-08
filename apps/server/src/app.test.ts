@@ -5,11 +5,12 @@ import { afterEach, describe, expect, test } from "bun:test"
 import { createGameStateEngine, parseServerMessage } from "@workspace/game-state"
 import type { GameState } from "@workspace/game-state"
 import { createGsiStateManager } from "@workspace/gsi"
-import { emptyPlayerPresentationConfig } from "@workspace/presentation"
+import { defaultOverlayConfig, emptyPlayerPresentationConfig } from "@workspace/presentation"
 import { defaultTheme } from "@workspace/theme"
 import { websocket } from "hono/bun"
 
 import { createApp } from "./app"
+import { createFileOverlayStore } from "./config/overlay-store"
 import { createFilePlayerStore } from "./config/player-store"
 import { createFileThemeStore } from "./config/theme-store"
 import { createRealtimeHub } from "./hub"
@@ -24,6 +25,7 @@ function testApp(dir: string) {
   const store: { current: GameState | null } = { current: null }
   const hub = createRealtimeHub()
   const themeStore = createFileThemeStore(dir)
+  const overlayStore = createFileOverlayStore(dir)
   const playerStore = createFilePlayerStore(dir)
   const app = createApp({
     engine: createGameStateEngine(),
@@ -33,11 +35,12 @@ function testApp(dir: string) {
       store.current = state
     },
     themeStore,
+    overlayStore,
     playerStore,
     portraitDir: join(dir, "portraits"),
     hub,
   })
-  return { app, hub, themeStore, playerStore }
+  return { app, hub, themeStore, overlayStore, playerStore }
 }
 
 const servers: Array<{ stop: () => void }> = []
@@ -109,6 +112,63 @@ describe("theme config", () => {
   })
 })
 
+describe("overlay config", () => {
+  test("GET returns BO1 when no config file exists", async () => {
+    const { app } = testApp(await tempDir())
+    const response = await app.request("/api/config/overlay")
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual(defaultOverlayConfig)
+  })
+
+  test("PUT replaces a valid series and survives restart", async () => {
+    const dir = await tempDir()
+    const { app } = testApp(dir)
+    const next = { series: "BO3" as const }
+
+    const response = await app.request("/api/config/overlay", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(next),
+    })
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual(next)
+    expect(JSON.parse(await readFile(join(dir, "overlay.json"), "utf8"))).toEqual(next)
+
+    const { app: restarted } = testApp(dir)
+    const loaded = await restarted.request("/api/config/overlay")
+    expect(await loaded.json()).toEqual(next)
+  })
+
+  test("PUT stores team display names", async () => {
+    const dir = await tempDir()
+    const { app } = testApp(dir)
+    const next = { series: "BO3" as const, leftName: "FaZe", rightName: "NaVi" }
+
+    const response = await app.request("/api/config/overlay", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...next, leftName: "  FaZe  " }),
+    })
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual(next)
+    expect(JSON.parse(await readFile(join(dir, "overlay.json"), "utf8"))).toEqual(next)
+  })
+
+  test("PUT rejects unknown series lengths", async () => {
+    const { app } = testApp(await tempDir())
+    const response = await app.request("/api/config/overlay", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ series: "BO2" }),
+    })
+    expect(response.status).toBe(400)
+    const body = (await response.json()) as { error: string }
+    expect(body.error).toBe("Invalid overlay config")
+  })
+})
+
 describe("realtime theme", () => {
   test("a new client receives connection, theme, then presentation", async () => {
     const { app } = testApp(await tempDir())
@@ -119,10 +179,16 @@ describe("realtime theme", () => {
     })
     servers.push(server)
 
-    const messages = await collectWsMessages(`ws://127.0.0.1:${server.port}/ws`, 3)
-    expect(messages.map((message) => message.type)).toEqual(["connection", "theme", "presentation"])
+    const messages = await collectWsMessages(`ws://127.0.0.1:${server.port}/ws`, 4)
+    expect(messages.map((message) => message.type)).toEqual([
+      "connection",
+      "theme",
+      "presentation",
+      "overlay",
+    ])
     expect(messages[1]).toEqual({ type: "theme", data: defaultTheme })
     expect(messages[2]).toEqual({ type: "presentation", data: emptyPlayerPresentationConfig })
+    expect(messages[3]).toEqual({ type: "overlay", data: defaultOverlayConfig })
   })
 
   test("theme update is broadcast to connected clients", async () => {
@@ -174,8 +240,14 @@ describe("realtime theme", () => {
     })
     servers.push(server)
 
-    const messages = await collectWsMessages(`ws://127.0.0.1:${server.port}/ws`, 4)
-    expect(messages.map((message) => message.type)).toEqual(["connection", "theme", "presentation", "snapshot"])
+    const messages = await collectWsMessages(`ws://127.0.0.1:${server.port}/ws`, 5)
+    expect(messages.map((message) => message.type)).toEqual([
+      "connection",
+      "theme",
+      "presentation",
+      "overlay",
+      "snapshot",
+    ])
   })
 
   test("partial GSI posts merge instead of replacing roster", async () => {
@@ -442,6 +514,52 @@ describe("realtime presentation", () => {
         (message) =>
           isPresentation(message) &&
           message.data[steamId]?.portrait?.value === "tm_phoenix_variantg"
+      )
+    )
+    ws.close()
+  })
+})
+
+describe("realtime overlay", () => {
+  test("overlay series update is broadcast to connected clients", async () => {
+    const { app } = testApp(await tempDir())
+    const server = Bun.serve({
+      port: 0,
+      fetch: (req, server) => app.fetch(req, server),
+      websocket,
+    })
+    servers.push(server)
+
+    const received: unknown[] = []
+    const ws = new WebSocket(`ws://127.0.0.1:${server.port}/ws`)
+    const opened = new Promise<void>((resolve, reject) => {
+      ws.onopen = () => resolve()
+      ws.onerror = () => reject(new Error("websocket error"))
+    })
+    ws.onmessage = (event) => {
+      received.push(parseServerMessage(typeof event.data === "string" ? event.data : null))
+    }
+    await opened
+    await waitFor(() => received.length >= 4)
+
+    const response = await app.request("/api/config/overlay", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ series: "BO5" }),
+    })
+    expect(response.status).toBe(200)
+    await waitFor(() =>
+      received.some(
+        (message) =>
+          typeof message === "object" &&
+          message !== null &&
+          "type" in message &&
+          message.type === "overlay" &&
+          "data" in message &&
+          typeof message.data === "object" &&
+          message.data !== null &&
+          "series" in message.data &&
+          message.data.series === "BO5"
       )
     )
     ws.close()

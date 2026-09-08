@@ -4,8 +4,10 @@ import type { PortraitCrop } from "@workspace/presentation"
 export type CardAlign = "left" | "right"
 
 /** Bust artwork is scaled past the well so padded inventory renders still read as a player. */
-export const BUST_PORTRAIT_HEIGHT = "135%"
-export const BUST_PORTRAIT_WIDTH = "170%"
+export const BUST_PORTRAIT_HEIGHT = "158%"
+export const BUST_PORTRAIT_WIDTH = "200%"
+/** Shift the bust down so heads sit below grenades instead of clipping the top edge. */
+export const BUST_PORTRAIT_BOTTOM = "-22%"
 
 export function cardPortraitLayout(align: CardAlign): {
   mirrored: boolean
@@ -42,7 +44,7 @@ export function portraitStageBox(crop: PortraitCrop): CSSProperties {
     display: "block",
     position: "absolute",
     left: "50%",
-    bottom: 0,
+    bottom: BUST_PORTRAIT_BOTTOM,
     width: BUST_PORTRAIT_WIDTH,
     height: BUST_PORTRAIT_HEIGHT,
     transform: "translateX(-50%)",

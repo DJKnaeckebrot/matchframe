@@ -33,8 +33,79 @@ body,
   animation: mf-planted-pulse 1.8s ease-in-out infinite;
 }
 
+@keyframes mf-radar-bomb-halo {
+  0% {
+    transform: scale(0.62);
+    opacity: 0.7;
+  }
+  100% {
+    transform: scale(1.55);
+    opacity: 0;
+  }
+}
+
+.mf-radar-bomb-halo {
+  border: 2px solid var(--mf-t);
+  box-shadow: 0 0 0 1px rgb(11 13 16 / 0.55);
+  animation: mf-radar-bomb-halo 1.55s ease-out infinite;
+}
+
+@keyframes mf-smoke-deploy {
+  from {
+    opacity: 0.4;
+    transform: scale(0.55);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes mf-smoke-breathe {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.84;
+    transform: scale(1.03);
+  }
+}
+
+.mf-smoke-area {
+  transform-origin: center;
+  animation:
+    mf-smoke-deploy 280ms ease-out,
+    mf-smoke-breathe 3.4s ease-in-out 280ms infinite;
+}
+
+.mf-history {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 280ms ease;
+}
+
+.mf-history-open {
+  grid-template-rows: 1fr;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .mf-planted-pulse {
+  .mf-history {
+    transition: none;
+  }
+
+  .mf-planted-pulse,
+  .mf-radar-bomb-halo {
+    animation: none;
+  }
+
+  .mf-radar-bomb-halo {
+    opacity: 0.45;
+    transform: scale(1.12);
+  }
+
+  .mf-smoke-area {
     animation: none;
   }
 }

@@ -69,7 +69,7 @@ function snapshot(options: {
     options.players ?? [...roster(CT_ROSTER, "ct", "CT"), ...roster(T_ROSTER, "t", "T")]
   return {
     timestamp: options.timestamp ?? 1,
-    map: { name: "de_inferno", phase: "live", round: options.round ?? 1 },
+    map: { name: "de_inferno", phase: "live", round: options.round ?? 1, roundHistory: [] },
     round: {
       phase: options.roundPhase ?? "live",
       winTeam: options.winTeam ?? null,
@@ -78,13 +78,14 @@ function snapshot(options: {
       alive: aliveCountsBySide(players),
     },
     teams: options.teams ?? [
-      { id: "ct", name: "CT", side: "CT", score: 8 },
-      { id: "t", name: "T", side: "T", score: 6 },
+      { id: "ct", name: "CT", side: "CT", score: 8, seriesWins: 0 },
+      { id: "t", name: "T", side: "T", score: 6, seriesWins: 0 },
     ],
     players,
     observer: { playerSteamId: options.observer ?? "A" },
     bomb: options.bomb ?? null,
     pause: options.pause ?? null,
+    worldGrenades: [],
   }
 }
 
@@ -117,8 +118,8 @@ describe("createGameStateEngine", () => {
       snapshot({
         timestamp: 2,
         teams: [
-          { id: "ct", name: "CT", side: "CT", score: 6 },
-          { id: "t", name: "T", side: "T", score: 8 },
+          { id: "ct", name: "CT", side: "CT", score: 6, seriesWins: 0 },
+          { id: "t", name: "T", side: "T", score: 8, seriesWins: 0 },
         ],
         players: [
           ...roster(T_ROSTER, "ct", "CT"),
@@ -128,8 +129,8 @@ describe("createGameStateEngine", () => {
     )
 
     expect(swapped.state.teams).toEqual([
-      { id: ctId, name: "T", side: "T", score: 8 },
-      { id: tId, name: "CT", side: "CT", score: 6 },
+      { id: ctId, name: "T", side: "T", score: 8, seriesWins: 0 },
+      { id: tId, name: "CT", side: "CT", score: 6, seriesWins: 0 },
     ])
     expect(swapped.state.players.find((p) => p.steamId === "A")?.teamId).toBe(ctId)
     expect(swapped.state.players.find((p) => p.steamId === "F")?.teamId).toBe(tId)
@@ -149,8 +150,8 @@ describe("createGameStateEngine", () => {
       snapshot({
         timestamp: 2,
         teams: [
-          { id: "ct", name: "CT", side: "CT", score: 6 },
-          { id: "t", name: "T", side: "T", score: 8 },
+          { id: "ct", name: "CT", side: "CT", score: 6, seriesWins: 0 },
+          { id: "t", name: "T", side: "T", score: 8, seriesWins: 0 },
         ],
         players: [
           ...roster(T_ROSTER, "ct", "CT"),
@@ -320,8 +321,8 @@ describe("createGameStateEngine", () => {
     const first = engine.apply(
       snapshot({
         teams: [
-          { id: "northwind", name: "Northwind", side: "CT", score: 8 },
-          { id: "redline", name: "Redline", side: "T", score: 6 },
+          { id: "northwind", name: "Northwind", side: "CT", score: 8, seriesWins: 1 },
+          { id: "redline", name: "Redline", side: "T", score: 6, seriesWins: 0 },
         ],
         players: [
           ...roster(CT_ROSTER, "northwind", "CT"),
@@ -334,8 +335,8 @@ describe("createGameStateEngine", () => {
       snapshot({
         timestamp: 2,
         teams: [
-          { id: "redline", name: "Redline", side: "CT", score: 6 },
-          { id: "northwind", name: "Northwind", side: "T", score: 8 },
+          { id: "redline", name: "Redline", side: "CT", score: 6, seriesWins: 0 },
+          { id: "northwind", name: "Northwind", side: "T", score: 8, seriesWins: 1 },
         ],
         players: [
           ...roster(T_ROSTER, "redline", "CT"),
@@ -351,6 +352,7 @@ describe("createGameStateEngine", () => {
     ])
     expect(swapped.state.teams[0]?.name).toBe("Northwind")
     expect(swapped.state.teams[1]?.name).toBe("Redline")
+    expect(swapped.state.teams.map((team) => team.seriesWins)).toEqual([1, 0])
   })
 
   test("round_ended resolves the logical winner after a side switch", () => {
@@ -358,8 +360,8 @@ describe("createGameStateEngine", () => {
     engine.apply(
       snapshot({
         teams: [
-          { id: "northwind", name: "Northwind", side: "CT", score: 8 },
-          { id: "redline", name: "Redline", side: "T", score: 6 },
+          { id: "northwind", name: "Northwind", side: "CT", score: 8, seriesWins: 0 },
+          { id: "redline", name: "Redline", side: "T", score: 6, seriesWins: 0 },
         ],
         players: [
           ...roster(CT_ROSTER, "northwind", "CT"),
@@ -371,8 +373,8 @@ describe("createGameStateEngine", () => {
       snapshot({
         timestamp: 2,
         teams: [
-          { id: "redline", name: "Redline", side: "CT", score: 6 },
-          { id: "northwind", name: "Northwind", side: "T", score: 8 },
+          { id: "redline", name: "Redline", side: "CT", score: 6, seriesWins: 0 },
+          { id: "northwind", name: "Northwind", side: "T", score: 8, seriesWins: 0 },
         ],
         players: [
           ...roster(T_ROSTER, "redline", "CT"),
@@ -388,8 +390,8 @@ describe("createGameStateEngine", () => {
         winTeam: "T",
         winReason: "elimination",
         teams: [
-          { id: "redline", name: "Redline", side: "CT", score: 6 },
-          { id: "northwind", name: "Northwind", side: "T", score: 9 },
+          { id: "redline", name: "Redline", side: "CT", score: 6, seriesWins: 0 },
+          { id: "northwind", name: "Northwind", side: "T", score: 9, seriesWins: 0 },
         ],
         players: [
           ...roster(T_ROSTER, "redline", "CT"),

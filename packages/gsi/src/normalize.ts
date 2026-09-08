@@ -5,17 +5,19 @@ import type {
   MapPhase,
   PauseState,
   PlayerState,
+  RoundHistoryEntry,
   RoundPhase,
   RoundState,
   RoundWinReason,
   Side,
   TeamState,
-  Vector3,
 } from "@workspace/game-state"
 import { aliveCountsBySide } from "@workspace/game-state"
 
 import type { GsiPayload, GsiPlayer, GsiTeam } from "./schema"
+import { parseGsiNumber, parseVector3 } from "./values"
 import { equipmentFromWeapons, normalizeWeapon } from "./weapons"
+import { normalizeWorldGrenades } from "./world-grenades"
 
 function asSide(value: string | undefined): Side | null {
   if (value === "CT" || value === "T") {
@@ -59,36 +61,7 @@ function asBombState(value: string | undefined): BombStatus {
 }
 
 function toCountdown(value: number | string | undefined): number | undefined {
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return value
-  }
-  if (typeof value === "string") {
-    const parsed = Number(value)
-    if (Number.isFinite(parsed)) {
-      return parsed
-    }
-  }
-  return undefined
-}
-
-function parseVector3(value: string | undefined): Vector3 | undefined {
-  if (!value) {
-    return undefined
-  }
-  const parts = value.split(",").map((part) => Number(part.trim()))
-  const [x, y, z] = parts
-  if (
-    parts.length < 3 ||
-    x === undefined ||
-    y === undefined ||
-    z === undefined ||
-    !Number.isFinite(x) ||
-    !Number.isFinite(y) ||
-    !Number.isFinite(z)
-  ) {
-    return undefined
-  }
-  return { x, y, z }
+  return parseGsiNumber(value)
 }
 
 // ponytail: ids are name slugs (else side slots). Persist identity across
@@ -112,7 +85,15 @@ function normalizeTeam(team: GsiTeam | undefined, side: Side): TeamState {
     name,
     side,
     score: team?.score ?? 0,
+    seriesWins: seriesWins(team?.matches_won_this_series),
   }
+}
+
+function seriesWins(value: number | undefined): number {
+  if (value === undefined || !Number.isFinite(value) || value < 0) {
+    return 0
+  }
+  return Math.trunc(value)
 }
 
 function normalizePlayer(
@@ -267,12 +248,75 @@ function normalizeWinReason(payload: GsiPayload): RoundWinReason | undefined {
 }
 
 function winReasonFromRoundWins(payload: GsiPayload): RoundWinReason | undefined {
-  const wins = payload.map?.round_wins
   const round = payload.map?.round
-  if (!wins || round === undefined) {
+  if (round === undefined) {
     return undefined
   }
-  return asWinReason(wins[String(round + 1)]) ?? asWinReason(wins[String(round)])
+  const history = normalizeRoundHistory(payload.map?.round_wins)
+  return (
+    history.find((entry) => entry.round === round + 1)?.reason ??
+    history.find((entry) => entry.round === round)?.reason
+  )
+}
+
+function normalizeRoundHistory(
+  wins: Record<string, string> | undefined
+): RoundHistoryEntry[] {
+  if (!wins) {
+    return []
+  }
+  const entries: RoundHistoryEntry[] = []
+  for (const [key, value] of Object.entries(wins)) {
+    const round = Number(key)
+    if (!Number.isInteger(round) || round < 1) {
+      continue
+    }
+    const parsed = parseRoundWin(value)
+    if (!parsed) {
+      continue
+    }
+    entries.push({ round, ...parsed })
+  }
+  entries.sort((a, b) => a.round - b.round)
+  return entries
+}
+
+function withCurrentOver(
+  history: readonly RoundHistoryEntry[],
+  round: RoundState,
+  mapRound: number
+): RoundHistoryEntry[] {
+  if (round.phase !== "over" || !round.winTeam) {
+    return [...history]
+  }
+  const display = mapRound + 1
+  if (history.some((entry) => entry.round === display)) {
+    return [...history]
+  }
+  const entry: RoundHistoryEntry = { round: display, winner: round.winTeam }
+  if (round.winReason) {
+    entry.reason = round.winReason
+  }
+  return [...history, entry]
+}
+
+function parseRoundWin(
+  value: string | undefined
+): { winner: Side; reason?: RoundWinReason } | undefined {
+  if (!value) {
+    return undefined
+  }
+  const lower = value.toLowerCase()
+  const winner: Side | null = lower.startsWith("ct_")
+    ? "CT"
+    : lower.startsWith("t_")
+      ? "T"
+      : null
+  if (!winner) {
+    return undefined
+  }
+  const reason = asWinReason(lower)
+  return reason ? { winner, reason } : { winner }
 }
 
 function asWinReason(value: string | undefined): RoundWinReason | undefined {
@@ -346,14 +390,21 @@ export function normalizeGsiPayload(payload: GsiPayload): GameState {
     }
   }
 
+  const round = normalizeRound(payload, players)
+  const mapRound = payload.map?.round ?? 0
   return {
     timestamp: payload.provider?.timestamp ?? 0,
     map: {
       name: payload.map?.name ?? "",
       phase: asMapPhase(payload.map?.phase),
-      round: payload.map?.round ?? 0,
+      round: mapRound,
+      roundHistory: withCurrentOver(
+        normalizeRoundHistory(payload.map?.round_wins),
+        round,
+        mapRound
+      ),
     },
-    round: normalizeRound(payload, players),
+    round,
     teams: [ct, t],
     players,
     observer: {
@@ -361,5 +412,6 @@ export function normalizeGsiPayload(payload: GsiPayload): GameState {
     },
     bomb,
     pause: normalizePause(payload),
+    worldGrenades: normalizeWorldGrenades(payload),
   }
 }

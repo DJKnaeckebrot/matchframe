@@ -9,6 +9,13 @@ const FIXTURE_DEMOS = {
     { variant: "bomb-defusing", holdMs: 5200 },
     { variant: "bomb-defused", holdMs: 0 },
   ],
+  "demo:smoke": [
+    { variant: "radar-anubis", holdMs: 800 },
+    { variant: "radar-anubis-smoke-flight", holdMs: 700 },
+    { variant: "radar-anubis-smoke-flight-moved", holdMs: 700 },
+    { variant: "radar-anubis-smoke-active", holdMs: 2800 },
+    { variant: "radar-anubis-smoke-removed", holdMs: 0 },
+  ],
 } as const satisfies Record<
   string,
   readonly { variant: GsiFixtureVariant; holdMs: number }[]

@@ -3,7 +3,7 @@ import type { PlayerState } from "@workspace/game-state"
 import { SIDE_DEFAULT_OPERATOR } from "@workspace/presentation"
 
 import { getPortraitAsset } from "../assets/portraits/pack"
-import { BUST_PORTRAIT_HEIGHT, BUST_PORTRAIT_WIDTH, cardLifeClass, cardPortraitLayout, portraitStageBox, portraitStageImage } from "./card-layout"
+import { BUST_PORTRAIT_BOTTOM, BUST_PORTRAIT_HEIGHT, BUST_PORTRAIT_WIDTH, cardLifeClass, cardPortraitLayout, portraitStageBox, portraitStageImage } from "./card-layout"
 import { overlayPortraitStack, resolveOverlayPortrait, shouldPunchPortrait } from "./resolve"
 
 function player(partial: Partial<PlayerState> & Pick<PlayerState, "steamId" | "side">): PlayerState {
@@ -124,7 +124,10 @@ describe("card layout", () => {
     const box = portraitStageBox({ fit: "contain", position: "bottom" })
     const image = portraitStageImage({ fit: "contain", position: "bottom" })
     expect(box.left).toBe("50%")
-    expect(box.bottom).toBe(0)
+    expect(box.bottom).toBe(BUST_PORTRAIT_BOTTOM)
+    expect(Number.parseFloat(BUST_PORTRAIT_BOTTOM)).toBeLessThan(0)
+    expect(Number.parseFloat(BUST_PORTRAIT_HEIGHT)).toBeGreaterThan(150)
+    expect(Number.parseFloat(BUST_PORTRAIT_WIDTH)).toBeGreaterThan(180)
     expect(box.width).toBe(BUST_PORTRAIT_WIDTH)
     expect(box.height).toBe(BUST_PORTRAIT_HEIGHT)
     expect(box.transform).toBe("translateX(-50%)")

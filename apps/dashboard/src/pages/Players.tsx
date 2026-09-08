@@ -4,9 +4,11 @@ import type { PlayerState, TeamState } from "@workspace/game-state"
 import {
   operatorById,
   operatorsGroupedByFaction,
+  overlayTeamName,
   resolvePlayerPortrait,
   SIDE_DEFAULT_OPERATOR,
   type OperatorPortrait,
+  type OverlayConfig,
   type PlayerPresentation,
   type PortraitType,
 } from "@workspace/presentation"
@@ -17,6 +19,7 @@ import { Label } from "@workspace/ui/components/label"
 import {
   deletePlayerPresentation,
   fetchGameState,
+  fetchOverlayConfig,
   fetchPlayersConfig,
   savePlayerPresentation,
 } from "@/lib/api.ts"
@@ -30,6 +33,12 @@ export function PlayersPage() {
     retry: 8,
     retryDelay: 400,
     refetchInterval: 1000,
+  })
+  const overlayQuery = useQuery({
+    queryKey: ["overlay-config"],
+    queryFn: fetchOverlayConfig,
+    retry: 8,
+    retryDelay: 400,
   })
   const configQuery = useQuery({
     queryKey: ["players-config"],
@@ -108,7 +117,7 @@ export function PlayersPage() {
               <PlayerRow
                 key={player.steamId}
                 player={player}
-                team={teamFor(teams, player.teamId)}
+                teamName={broadcastTeamName(teams, player.teamId, overlayQuery.data)}
                 config={config[player.steamId]}
                 selected={player.steamId === selectedId}
                 onSelect={() => setSelectedId(player.steamId)}
@@ -118,7 +127,7 @@ export function PlayersPage() {
           {selected ? (
             <PlayerEditor
               player={selected}
-              team={teamFor(teams, selected.teamId)}
+              teamName={broadcastTeamName(teams, selected.teamId, overlayQuery.data)}
               entry={config[selected.steamId]}
               pending={mutation.isPending || clearMutation.isPending}
               onSave={(entry) => mutation.mutate({ steamId: selected.steamId, entry })}
@@ -153,13 +162,13 @@ function EmptyState({ loading }: { loading: boolean }) {
 
 function PlayerRow({
   player,
-  team,
+  teamName,
   config,
   selected,
   onSelect,
 }: {
   player: PlayerState
-  team: TeamState | undefined
+  teamName: string
   config: PlayerPresentation | undefined
   selected: boolean
   onSelect: () => void
@@ -200,7 +209,7 @@ function PlayerRow({
           </span>
         </span>
         <span className="shrink-0 text-right text-xs text-muted-foreground">
-          <span className="block">{team?.name ?? player.teamId}</span>
+          <span className="block">{teamName}</span>
           <span className="block">{player.side}</span>
           <span className="block">{sourceLabel(config)}</span>
         </span>
@@ -211,14 +220,14 @@ function PlayerRow({
 
 function PlayerEditor({
   player,
-  team,
+  teamName,
   entry,
   pending,
   onSave,
   onClear,
 }: {
   player: PlayerState
-  team: TeamState | undefined
+  teamName: string
   entry: PlayerPresentation | undefined
   pending: boolean
   onSave: (entry: PlayerPresentation) => void
@@ -247,7 +256,7 @@ function PlayerEditor({
         <div className="text-sm font-medium">{player.name || player.steamId}</div>
         <div className="font-mono text-xs text-muted-foreground">{player.steamId}</div>
         <div className="mt-1 text-xs text-muted-foreground">
-          {team?.name ?? player.teamId} · {player.side}
+          {teamName} · {player.side}
         </div>
       </div>
 
@@ -466,6 +475,18 @@ function sourceLabel(entry: PlayerPresentation | undefined): string {
     return "Custom"
   }
   return "Automatic"
+}
+
+function broadcastTeamName(
+  teams: readonly TeamState[],
+  teamId: string,
+  overlay: OverlayConfig | undefined
+): string {
+  const team = teamFor(teams, teamId)
+  if (!team) {
+    return teamId
+  }
+  return overlayTeamName(overlay ?? {}, teams[0]?.id === teamId ? "left" : "right", team.name)
 }
 
 function teamFor(teams: readonly TeamState[], teamId: string): TeamState | undefined {

@@ -24,6 +24,22 @@
       "consecutive_round_losses": 0,
       "timeouts_remaining": 1,
       "matches_won_this_series": 0
+    },
+    "round_wins": {
+      "1": "ct_win_elimination",
+      "2": "t_win_bomb",
+      "3": "ct_win_defuse",
+      "4": "ct_win_elimination",
+      "5": "t_win_elimination",
+      "6": "ct_win_time",
+      "7": "t_win_bomb",
+      "8": "ct_win_elimination",
+      "9": "t_win_elimination",
+      "10": "ct_win_defuse",
+      "11": "t_win_elimination",
+      "12": "ct_win_elimination",
+      "13": "t_win_bomb",
+      "14": "ct_win_elimination"
     }
   },
   "round": {

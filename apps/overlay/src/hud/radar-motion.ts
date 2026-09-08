@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 
-import type { RadarBombView, RadarPlayerView } from "./radar"
+import type { RadarBombView, RadarGrenadeView, RadarPlayerView } from "./radar"
 
 /** Matches `buffer`/`throttle` 0.1 in the GSI cfg. */
 const DEFAULT_MS = 100
@@ -29,21 +29,24 @@ export type RadarTrack = {
 
 export type RadarTracks = {
   players: Map<string, RadarTrack>
+  grenades: Map<string, RadarTrack>
   bomb?: RadarTrack
 }
 
 export type RadarMotionInput = {
   players: readonly RadarPlayerView[]
   bomb: RadarBombView | null
+  grenades: readonly RadarGrenadeView[]
 }
 
 export type RadarMotionView = {
   players: RadarPlayerView[]
   bomb: RadarBombView | null
+  grenades: RadarGrenadeView[]
 }
 
 export function emptyRadarTracks(): RadarTracks {
-  return { players: new Map() }
+  return { players: new Map(), grenades: new Map() }
 }
 
 /**
@@ -58,8 +61,13 @@ export function presentRadarMotion(
 ): RadarMotionView {
   if (reducedMotion) {
     tracks.players.clear()
+    tracks.grenades.clear()
     delete tracks.bomb
-    return { players: input.players.map(copyPlayer), bomb: copyBomb(input.bomb) }
+    return {
+      players: input.players.map(copyPlayer),
+      bomb: copyBomb(input.bomb),
+      grenades: input.grenades.map(copyGrenade),
+    }
   }
 
   const seen = new Set<string>()
@@ -78,27 +86,31 @@ export function presentRadarMotion(
     }
   }
 
+  const grenades = poseGrenades(input.grenades, tracks, now)
+
   if (!input.bomb) {
     delete tracks.bomb
-    return { players, bomb: null }
+    return { players, bomb: null, grenades }
   }
 
   const bombSample = toSample(input.bomb)
   tracks.bomb = retarget(tracks.bomb, bombSample, now)
   const posed = sampleAt(tracks.bomb, now)
-  return { players, bomb: { ...input.bomb, x: posed.x, y: posed.y } }
+  return { players, bomb: { ...input.bomb, x: posed.x, y: posed.y }, grenades }
 }
 
 export function useRadarMotion(
   players: readonly RadarPlayerView[],
-  bomb: RadarBombView | null
+  bomb: RadarBombView | null,
+  grenades: readonly RadarGrenadeView[]
 ): RadarMotionView {
   const tracksRef = useRef<RadarTracks>(emptyRadarTracks())
-  const inputRef = useRef<RadarMotionInput>({ players, bomb })
-  inputRef.current = { players, bomb }
+  const inputRef = useRef<RadarMotionInput>({ players, bomb, grenades })
+  inputRef.current = { players, bomb, grenades }
   const presentedRef = useRef<RadarMotionView>({
     players: players.map(copyPlayer),
     bomb: copyBomb(bomb),
+    grenades: grenades.map(copyGrenade),
   })
   const [presented, setPresented] = useState<RadarMotionView>(presentedRef.current)
 
@@ -178,6 +190,29 @@ function withPose(player: RadarPlayerView, posed: Sample): RadarPlayerView {
   return next
 }
 
+function poseGrenades(
+  grenades: readonly RadarGrenadeView[],
+  tracks: RadarTracks,
+  now: number
+): RadarGrenadeView[] {
+  const seen = new Set<string>()
+  const next: RadarGrenadeView[] = []
+  for (const grenade of grenades) {
+    seen.add(grenade.id)
+    const sample = toSample(grenade)
+    const track = retarget(tracks.grenades.get(grenade.id), sample, now)
+    tracks.grenades.set(grenade.id, track)
+    const posed = sampleAt(track, now)
+    next.push({ ...grenade, x: posed.x, y: posed.y })
+  }
+  for (const id of tracks.grenades.keys()) {
+    if (!seen.has(id)) {
+      tracks.grenades.delete(id)
+    }
+  }
+  return next
+}
+
 function toSample(point: Sample): Sample {
   return point.angle === undefined ? { x: point.x, y: point.y } : { x: point.x, y: point.y, angle: point.angle }
 }
@@ -200,8 +235,12 @@ function copyBomb(bomb: RadarBombView | null): RadarBombView | null {
   return bomb ? { ...bomb } : null
 }
 
+function copyGrenade(grenade: RadarGrenadeView): RadarGrenadeView {
+  return { ...grenade }
+}
+
 function sameView(a: RadarMotionView, b: RadarMotionView): boolean {
-  if (a.players.length !== b.players.length) {
+  if (a.players.length !== b.players.length || a.grenades.length !== b.grenades.length) {
     return false
   }
   for (let i = 0; i < a.players.length; i++) {
@@ -217,6 +256,23 @@ function sameView(a: RadarMotionView, b: RadarMotionView): boolean {
       left.observed !== right.observed ||
       left.slot !== right.slot ||
       left.side !== right.side
+    ) {
+      return false
+    }
+  }
+  for (let i = 0; i < a.grenades.length; i++) {
+    const left = a.grenades[i]
+    const right = b.grenades[i]
+    if (
+      !left ||
+      !right ||
+      left.id !== right.id ||
+      left.x !== right.x ||
+      left.y !== right.y ||
+      left.type !== right.type ||
+      left.active !== right.active ||
+      left.angle !== right.angle ||
+      left.ownerSide !== right.ownerSide
     ) {
       return false
     }

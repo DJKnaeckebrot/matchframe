@@ -1,7 +1,9 @@
 import type { GameState } from "@workspace/game-state"
 import {
+  overlayConfigSchema,
   playerPresentationConfigSchema,
   playerPresentationSchema,
+  type OverlayConfig,
   type PlayerPresentation,
   type PlayerPresentationConfig,
 } from "@workspace/presentation"
@@ -44,6 +46,34 @@ export async function saveTheme(theme: MatchframeTheme): Promise<MatchframeTheme
   const parsed = matchframeThemeSchema.safeParse(await response.json())
   if (!parsed.success) {
     throw new Error("Server returned an invalid theme")
+  }
+  return parsed.data
+}
+
+export async function fetchOverlayConfig(): Promise<OverlayConfig> {
+  const response = await fetch(api("/api/config/overlay"))
+  if (!response.ok) {
+    throw new Error("Could not load overlay settings")
+  }
+  const parsed = overlayConfigSchema.safeParse(await response.json())
+  if (!parsed.success) {
+    throw new Error("Server returned invalid overlay settings")
+  }
+  return parsed.data
+}
+
+export async function saveOverlayConfig(overlay: OverlayConfig): Promise<OverlayConfig> {
+  const response = await fetch(api("/api/config/overlay"), {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(overlay),
+  })
+  if (!response.ok) {
+    throw new Error("Could not apply overlay settings")
+  }
+  const parsed = overlayConfigSchema.safeParse(await response.json())
+  if (!parsed.success) {
+    throw new Error("Server returned invalid overlay settings")
   }
   return parsed.data
 }
@@ -114,4 +144,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 export { defaultTheme, THEME_TOKEN_LABELS, THEME_TOKENS }
-export type { MatchframeTheme, PlayerPresentation, PlayerPresentationConfig, ThemeToken }
+export type {
+  MatchframeTheme,
+  OverlayConfig,
+  PlayerPresentation,
+  PlayerPresentationConfig,
+  ThemeToken,
+}

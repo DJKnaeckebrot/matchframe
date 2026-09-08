@@ -10,9 +10,13 @@ import {
   getTeamObjectiveProgress,
 } from "@workspace/game-state"
 
+import { overlayTeamName } from "@workspace/presentation"
 import {
   formatWinReason,
+  seriesSlots,
+  teamBroadcastName,
   type BrandingSlot,
+  type OverlayBranding,
   type OverlayShow,
 } from "../broadcast/presentation"
 import {
@@ -43,19 +47,37 @@ export function Scoreboard({ state, show }: { state: GameState; show: OverlaySho
     presented
   )
   const showBars = leftProgress.kind !== "none" || rightProgress.kind !== "none"
+  const plantedBar = leftProgress.kind === "bomb" || rightProgress.kind === "bomb"
 
   return (
     <header className="bg-(--mf-surface)/92">
       <MetaStrip slots={show.slots} mapName={state.map.name} />
       <div className="grid grid-cols-[1fr_168px_1fr] items-stretch">
-        <TeamBlock team={left} align="left" alive={left ? getLogicalTeamAliveCount(state, left.id) : 0} />
-        <CenterWell state={state} presented={presented} result={show.chrome.result} />
-        <TeamBlock team={right} align="right" alive={right ? getLogicalTeamAliveCount(state, right.id) : 0} />
+        <TeamBlock
+          team={left}
+          name={left ? overlayTeamName(show.branding, "left", left.name) : undefined}
+          align="left"
+          alive={left ? getLogicalTeamAliveCount(state, left.id) : 0}
+          maps={seriesSlots(show.series, left?.seriesWins)}
+        />
+        <CenterWell
+          state={state}
+          branding={show.branding}
+          presented={presented}
+          result={show.chrome.result}
+        />
+        <TeamBlock
+          team={right}
+          name={right ? overlayTeamName(show.branding, "right", right.name) : undefined}
+          align="right"
+          alive={right ? getLogicalTeamAliveCount(state, right.id) : 0}
+          maps={seriesSlots(show.series, right?.seriesWins)}
+        />
         {showBars ? (
           <>
-            <ObjectiveSlot progress={leftProgress} align="left" />
+            <ObjectiveSlot progress={leftProgress} align="left" planted={plantedBar} />
             <div />
-            <ObjectiveSlot progress={rightProgress} align="right" />
+            <ObjectiveSlot progress={rightProgress} align="right" planted={plantedBar} />
           </>
         ) : null}
       </div>
@@ -106,12 +128,16 @@ function BrandingMark({ slot }: { slot: BrandingSlot }) {
 
 function TeamBlock({
   team,
+  name,
   align,
   alive,
+  maps,
 }: {
   team: TeamState | undefined
+  name?: string
   align: "left" | "right"
   alive: number
+  maps: readonly boolean[] | undefined
 }) {
   if (!team) {
     return <div />
@@ -119,6 +145,7 @@ function TeamBlock({
 
   const sideColor = team.side === "CT" ? "var(--mf-ct)" : "var(--mf-t)"
   const mirrored = align === "right"
+  const won = maps?.filter(Boolean).length
 
   return (
     <div className={`flex min-w-0 items-center ${mirrored ? "flex-row-reverse" : ""}`}>
@@ -133,14 +160,47 @@ function TeamBlock({
             {team.side}
           </div>
           <div className="truncate text-[20px] font-semibold tracking-wide text-(--mf-text) uppercase">
-            {team.name}
+            {name ?? team.name}
           </div>
           <AlivePips sideColor={sideColor} alive={alive} mirrored={mirrored} />
         </div>
+        {maps ? (
+          <SeriesPips
+            maps={maps}
+            sideColor={sideColor}
+            label={`${won ?? 0} of ${maps.length} maps`}
+          />
+        ) : null}
         <div className="mf-display text-[44px] leading-none tabular-nums text-(--mf-text)">
           {team.score}
         </div>
       </div>
+    </div>
+  )
+}
+
+function SeriesPips({
+  maps,
+  sideColor,
+  label,
+}: {
+  maps: readonly boolean[]
+  sideColor: string
+  label: string
+}) {
+  return (
+    <div className="flex flex-col justify-center gap-[3px]" aria-label={label}>
+      {maps.map((won, index) => (
+        <span
+          key={index}
+          className="h-[3px] w-3.5"
+          style={{
+            background: won
+              ? sideColor
+              : "color-mix(in srgb, var(--mf-text) 22%, transparent)",
+          }}
+        />
+      ))}
     </div>
   )
 }
@@ -172,16 +232,28 @@ function AlivePips({
 
 function CenterWell({
   state,
+  branding,
   presented,
   result,
 }: {
   state: GameState
+  branding: OverlayBranding
   presented: ObjectivePresentation
   result: boolean
 }) {
   const display = getRoundDisplayState(state)
   if (result && display.kind === "over") {
-    return <WinnerWell display={display} />
+    return (
+      <WinnerWell
+        display={display}
+        name={
+          teamBroadcastName(state.teams, display.winnerTeamId, branding) ??
+          display.winnerName ??
+          display.winTeam ??
+          "—"
+        }
+      />
+    )
   }
 
   const planted = display.kind === "bomb"
@@ -222,10 +294,9 @@ function CenterWell({
   )
 }
 
-function WinnerWell({ display }: { display: RoundDisplayState }) {
+function WinnerWell({ display, name }: { display: RoundDisplayState; name: string }) {
   const color = display.winTeam === "CT" ? "var(--mf-ct)" : "var(--mf-t)"
   const reason = formatWinReason(display.winReason)
-  const name = display.winnerName ?? display.winTeam ?? "—"
 
   return (
     <div
@@ -246,22 +317,26 @@ function WinnerWell({ display }: { display: RoundDisplayState }) {
 function ObjectiveSlot({
   progress,
   align,
+  planted,
 }: {
   progress: TeamObjectiveProgress
   align: "left" | "right"
+  planted: boolean
 }) {
   if (progress.kind === "none") {
-    return <div className="h-3.5" />
+    return <div className={planted ? "h-5" : "h-3.5"} />
   }
-  return <ObjectiveBar progress={progress} align={align} />
+  return <ObjectiveBar progress={progress} align={align} planted={planted} />
 }
 
 function ObjectiveBar({
   progress,
   align,
+  planted,
 }: {
   progress: Extract<TeamObjectiveProgress, { kind: "bomb" | "defuse" }>
   align: "left" | "right"
+  planted: boolean
 }) {
   const shown = progress.remaining
   const color = progress.kind === "bomb" ? "var(--mf-t)" : "var(--mf-ct)"
@@ -269,9 +344,14 @@ function ObjectiveBar({
   const label = shown === undefined ? word : `${word} ${formatRemaining(shown)}`
   const ratio = progressRatio(shown, progress.duration)
   const mirrored = align === "right"
+  const bombTrack = progress.kind === "bomb"
 
   return (
-    <div className={`flex h-3.5 items-center gap-2 px-3 pb-1 ${mirrored ? "flex-row-reverse" : ""}`}>
+    <div
+      className={`flex items-center gap-2 px-3 pb-1 ${planted ? "h-5" : "h-3.5"} ${
+        mirrored ? "flex-row-reverse" : ""
+      }`}
+    >
       <span
         className="flex items-center gap-1.5 text-[10px] font-semibold tracking-[0.14em] uppercase tabular-nums whitespace-nowrap"
         style={{ color }}
@@ -279,7 +359,9 @@ function ObjectiveBar({
         <ObjectiveIcon type={progress.kind} decorative />
         {label}
       </span>
-      <div className="relative h-[3px] min-w-0 flex-1 bg-(--mf-text)/15">
+      <div
+        className={`relative min-w-0 flex-1 bg-(--mf-text)/15 ${bombTrack ? "h-2" : "h-[3px]"}`}
+      >
         {ratio !== undefined ? (
           <div
             className="absolute top-0 h-full"

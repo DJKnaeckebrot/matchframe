@@ -2,13 +2,16 @@ import { describe, expect, test } from "bun:test"
 import type { GameState, PlayerState, Side } from "@workspace/game-state"
 
 import {
+  applyOverlayConfig,
   brandingSlots,
   formatWinReason,
   getOverlayPhase,
   overlayShow,
   parseOverlayBranding,
+  parseSeriesFormat,
   pickInterstitial,
   portraitInitials,
+  seriesSlots,
 } from "./presentation"
 
 function player(
@@ -33,24 +36,28 @@ function player(
   }
 }
 
-function state(overrides: Partial<GameState> = {}): GameState {
+function state(overrides: Omit<Partial<GameState>, "map" | "round"> & {
+  map?: Partial<GameState["map"]>
+  round?: Partial<GameState["round"]>
+} = {}): GameState {
   const players = overrides.players ?? [
     player({ steamId: "a", teamId: "northwind", side: "CT", name: "Nova", kills: 12 }),
     player({ steamId: "b", teamId: "northwind", side: "CT", name: "Ash", kills: 18 }),
     player({ steamId: "c", teamId: "redline", side: "T", name: "Viper", kills: 22 }),
   ]
-  const { round: roundOverride, ...rest } = overrides
+  const { round: roundOverride, map: mapOverride, ...rest } = overrides
   return {
     timestamp: 1,
-    map: { name: "de_inferno", phase: "live", round: 11 },
+    map: { name: "de_inferno", phase: "live", round: 11, roundHistory: [], ...mapOverride },
     teams: [
-      { id: "northwind", name: "Northwind", side: "CT", score: 8 },
-      { id: "redline", name: "Redline", side: "T", score: 6 },
+      { id: "northwind", name: "Northwind", side: "CT", score: 8, seriesWins: 0 },
+      { id: "redline", name: "Redline", side: "T", score: 6, seriesWins: 0 },
     ],
     players,
     observer: { playerSteamId: "a" },
     bomb: null,
     pause: null,
+    worldGrenades: [],
     ...rest,
     round: {
       phase: "live",
@@ -97,9 +104,72 @@ describe("brandingSlots", () => {
         eventName: "Matchframe",
         stage: "Semifinal",
         sponsorName: undefined,
-        seriesLabel: "BO1",
+        seriesLabel: "BO3",
       }).map((slot) => slot.id)
     ).toEqual(["event", "stage", "series"])
+  })
+
+  test("does not badge a single-map series", () => {
+    expect(
+      brandingSlots({ eventName: "Matchframe", seriesLabel: "BO1" }).map((slot) => slot.id)
+    ).toEqual(["event"])
+  })
+})
+
+describe("applyOverlayConfig", () => {
+  test("fills series from overlay config when the URL omits it", () => {
+    expect(applyOverlayConfig({ eventName: "Matchframe" }, { series: "BO3" }).seriesLabel).toBe("BO3")
+  })
+
+  test("keeps an explicit URL series", () => {
+    expect(
+      applyOverlayConfig({ eventName: "Matchframe", seriesLabel: "BO5" }, { series: "BO3" }).seriesLabel
+    ).toBe("BO5")
+  })
+
+  test("merges team names even when a URL series is set", () => {
+    expect(
+      applyOverlayConfig({ eventName: "Matchframe", seriesLabel: "BO5" }, {
+        series: "BO3",
+        leftName: "FaZe",
+        rightName: "NaVi",
+      })
+    ).toMatchObject({
+      seriesLabel: "BO5",
+      leftName: "FaZe",
+      rightName: "NaVi",
+    })
+  })
+})
+
+describe("parseSeriesFormat", () => {
+  const cases: Array<[string | undefined, ReturnType<typeof parseSeriesFormat>]> = [
+    [undefined, undefined],
+    ["Quarterfinal", undefined],
+    ["BO1", { length: 1, winsNeeded: 1 }],
+    ["bo3", { length: 3, winsNeeded: 2 }],
+    ["Best of 5", { length: 5, winsNeeded: 3 }],
+    ["7", { length: 7, winsNeeded: 4 }],
+  ]
+  for (const [label, expected] of cases) {
+    test(String(label), () => {
+      expect(parseSeriesFormat(label)).toEqual(expected)
+    })
+  }
+})
+
+describe("seriesSlots", () => {
+  const bo3 = { length: 3 as const, winsNeeded: 2 }
+
+  test("hides the rail for BO1 and unknown format", () => {
+    expect(seriesSlots({ length: 1, winsNeeded: 1 }, 1)).toBeUndefined()
+    expect(seriesSlots(undefined, 2)).toBeUndefined()
+  })
+
+  test("fills map marks up to wins needed", () => {
+    expect(seriesSlots(bo3, 0)).toEqual([false, false])
+    expect(seriesSlots(bo3, 1)).toEqual([true, false])
+    expect(seriesSlots(bo3, 4)).toEqual([true, true])
   })
 })
 
@@ -154,9 +224,18 @@ describe("overlayShow", () => {
       teams: true,
       focused: true,
       result: false,
+      history: false,
       interstitial: false,
     })
     expect(show.interstitial).toBeNull()
+    expect(show.series).toBeUndefined()
+  })
+
+  test("exposes a series format from branding", () => {
+    expect(overlayShow(state(), { seriesLabel: "BO3" }).series).toEqual({
+      length: 3,
+      winsNeeded: 2,
+    })
   })
 
   test("replaces focused player with MVP when the round ends", () => {
@@ -168,10 +247,32 @@ describe("overlayShow", () => {
     )
     expect(show.chrome.focused).toBe(false)
     expect(show.chrome.result).toBe(true)
+    expect(show.chrome.history).toBe(true)
     expect(show.chrome.interstitial).toBe(true)
     expect(show.interstitial?.kind).toBe("mvp")
     expect(show.interstitial?.playerSteamId).toBe("b")
     expect(show.interstitial?.statValue).toBe("18")
+  })
+
+  test("MVP card uses overlay team names", () => {
+    const show = overlayShow(
+      state({
+        round: { phase: "over", winTeam: "CT", winReason: "bomb_defused", alive: { ct: 2, t: 0 } },
+      }),
+      { leftName: "FaZe" }
+    )
+    expect(show.interstitial?.teamName).toBe("FaZe")
+  })
+
+  test("shows round history before the round is live", () => {
+    const freeze = overlayShow(
+      state({ round: { phase: "freezetime", winTeam: null, alive: { ct: 5, t: 5 } } }),
+      {}
+    )
+    expect(freeze.chrome.history).toBe(true)
+
+    const planted = overlayShow(state({ bomb: { state: "planted", countdown: 30 } }), {})
+    expect(planted.chrome.history).toBe(false)
   })
 })
 
@@ -220,8 +321,8 @@ describe("side", () => {
       state({
         round: { phase: "over", winTeam: "T", alive: { ct: 0, t: 2 } },
         teams: [
-          { id: "northwind", name: "Northwind", side: "T" as Side, score: 9 },
-          { id: "redline", name: "Redline", side: "CT", score: 6 },
+          { id: "northwind", name: "Northwind", side: "T" as Side, score: 9, seriesWins: 0 },
+          { id: "redline", name: "Redline", side: "CT", score: 6, seriesWins: 0 },
         ],
         players: [
           player({ steamId: "a", teamId: "northwind", side: "T", name: "Nova", kills: 9 }),

@@ -5,6 +5,7 @@ import {
   type GsiStateManager,
 } from "@workspace/gsi"
 import {
+  overlayConfigSchema,
   playerPresentationSchema,
   steamIdSchema,
 } from "@workspace/presentation"
@@ -13,6 +14,7 @@ import { Hono } from "hono"
 import { cors } from "hono/cors"
 import { upgradeWebSocket } from "hono/bun"
 
+import type { OverlayStore } from "./config/overlay-store"
 import type { PlayerStore } from "./config/player-store"
 import type { ThemeStore } from "./config/theme-store"
 import { isSafePortraitId, readPortraitFile } from "./config/portrait-files"
@@ -24,6 +26,7 @@ export type ServerAppDeps = {
   getState: () => GameState | null
   setState: (state: GameState) => void
   themeStore: ThemeStore
+  overlayStore: OverlayStore
   playerStore: PlayerStore
   portraitDir: string
   hub: RealtimeHub
@@ -121,6 +124,35 @@ export function createApp(deps: ServerAppDeps): Hono {
     return c.json(theme)
   })
 
+  app.get("/api/config/overlay", (c) => c.json(deps.overlayStore.get()))
+
+  app.put("/api/config/overlay", async (c) => {
+    let body: unknown
+    try {
+      body = await c.req.json()
+    } catch {
+      return c.json({ error: "Invalid JSON", details: [] }, 400)
+    }
+
+    const parsed = overlayConfigSchema.safeParse(body)
+    if (!parsed.success) {
+      return c.json(
+        {
+          error: "Invalid overlay config",
+          details: parsed.error.issues.map((issue) => ({
+            path: issue.path.join("."),
+            message: issue.message,
+          })),
+        },
+        400
+      )
+    }
+
+    const overlay = await deps.overlayStore.set(parsed.data)
+    deps.hub.broadcast({ type: "overlay", data: overlay })
+    return c.json(overlay)
+  })
+
   app.get("/api/config/players", (c) => c.json(deps.playerStore.get()))
 
   app.get("/api/portraits/:id", async (c) => {
@@ -212,6 +244,7 @@ export function createApp(deps: ServerAppDeps): Hono {
         })
         deps.hub.sendMessage(ws, { type: "theme", data: deps.themeStore.get() })
         deps.hub.sendMessage(ws, { type: "presentation", data: deps.playerStore.get() })
+        deps.hub.sendMessage(ws, { type: "overlay", data: deps.overlayStore.get() })
         if (state) {
           deps.hub.sendMessage(ws, { type: "snapshot", data: state })
         }

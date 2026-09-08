@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test"
 import { DE_ANUBIS, DE_ANUBIS_OVERVIEW_SPAWNS, radarToWorld } from "@workspace/maps"
 import type { GameState, PlayerState } from "@workspace/game-state"
 
-import { getRadarBomb, getRadarPlayers } from "./radar"
+import { getRadarBomb, getRadarGrenades, getRadarPlayers } from "./radar"
 
 function player(partial: Partial<PlayerState> & Pick<PlayerState, "steamId" | "side">): PlayerState {
   return {
@@ -25,19 +25,24 @@ function player(partial: Partial<PlayerState> & Pick<PlayerState, "steamId" | "s
   }
 }
 
-function state(players: PlayerState[], bomb: GameState["bomb"] = null): GameState {
+function state(
+  players: PlayerState[],
+  bomb: GameState["bomb"] = null,
+  worldGrenades: GameState["worldGrenades"] = []
+): GameState {
   return {
     timestamp: 1,
-    map: { name: "de_anubis", phase: "live", round: 0 },
+    map: { name: "de_anubis", phase: "live", round: 0, roundHistory: [] },
     round: { phase: "live", winTeam: null, alive: { ct: 1, t: 1 } },
     teams: [
-      { id: "northwind", name: "Northwind", side: "CT", score: 0 },
-      { id: "redline", name: "Redline", side: "T", score: 0 },
+      { id: "northwind", name: "Northwind", side: "CT", score: 0, seriesWins: 0 },
+      { id: "redline", name: "Redline", side: "T", score: 0, seriesWins: 0 },
     ],
     players,
     observer: { playerSteamId: "ct1" },
     bomb,
     pause: null,
+    worldGrenades,
   }
 }
 
@@ -136,5 +141,97 @@ describe("radar selectors", () => {
     expect(players.find((entry) => entry.steamId === "ct1")?.slot).toBe(1)
     expect(players.find((entry) => entry.steamId === "t1")?.slot).toBe(1)
     expect(players.find((entry) => entry.steamId === "t2")?.slot).toBe(2)
+  })
+
+  test("transforms smoke world position and marks effectTime>0 as active", () => {
+    const mid = radarToWorld({ x: 0.47, y: 0.48 }, DE_ANUBIS)
+    const grenades = getRadarGrenades(
+      state([], null, [
+        {
+          id: "401",
+          type: "smoke",
+          ownerSteamId: "t1",
+          position: { ...mid, z: 0 },
+          velocity: { x: 0, y: 0, z: 0 },
+          effectTime: 2.1,
+        },
+      ]),
+      DE_ANUBIS
+    )
+    expect(grenades).toHaveLength(1)
+    expect(grenades[0]).toMatchObject({
+      id: "401",
+      type: "smoke",
+      active: true,
+    })
+    expect(grenades[0]?.x).toBeCloseTo(0.47, 10)
+    expect(grenades[0]?.y).toBeCloseTo(0.48, 10)
+    expect(grenades[0]?.angle).toBeUndefined()
+  })
+
+  test("in-flight smoke stays inactive and uses velocity for facing", () => {
+    const pos = radarToWorld({ x: 0.56, y: 0.78 }, DE_ANUBIS)
+    const grenades = getRadarGrenades(
+      state([], null, [
+        {
+          id: "401",
+          type: "smoke",
+          position: { ...pos, z: 0 },
+          velocity: { x: 40, y: 280, z: 20 },
+          effectTime: 0,
+        },
+      ]),
+      DE_ANUBIS
+    )
+    expect(grenades[0]?.active).toBe(false)
+    expect(grenades[0]?.angle).toBeDefined()
+  })
+
+  test("owner side comes from current PlayerState, not the grenade", () => {
+    const pos = radarToWorld(DE_ANUBIS_OVERVIEW_SPAWNS.t, DE_ANUBIS)
+    const grenades = getRadarGrenades(
+      state(
+        [player({ steamId: "t1", side: "T" })],
+        null,
+        [{ id: "401", type: "smoke", ownerSteamId: "t1", position: { ...pos, z: 0 }, effectTime: 1 }]
+      ),
+      DE_ANUBIS
+    )
+    expect(grenades[0]?.ownerSide).toBe("T")
+    expect(grenades[0]?.ownerSteamId).toBe("t1")
+  })
+
+  test("missing owner renders without side", () => {
+    const pos = radarToWorld(DE_ANUBIS_OVERVIEW_SPAWNS.ct, DE_ANUBIS)
+    const grenades = getRadarGrenades(
+      state([], null, [{ id: "9", type: "smoke", position: { ...pos, z: 0 }, effectTime: 1 }]),
+      DE_ANUBIS
+    )
+    expect(grenades[0]?.ownerSide).toBeUndefined()
+    expect(grenades[0]?.ownerSteamId).toBeUndefined()
+  })
+
+  test("keeps simultaneous smokes as independent entities", () => {
+    const a = radarToWorld({ x: 0.47, y: 0.48 }, DE_ANUBIS)
+    const b = radarToWorld({ x: 0.72, y: 0.28 }, DE_ANUBIS)
+    const grenades = getRadarGrenades(
+      state([], null, [
+        { id: "401", type: "smoke", position: { ...a, z: 0 }, effectTime: 2 },
+        { id: "402", type: "smoke", position: { ...b, z: 0 }, effectTime: 3 },
+      ]),
+      DE_ANUBIS
+    )
+    expect(grenades.map((entry) => entry.id)).toEqual(["401", "402"])
+    expect(grenades[0]?.x).toBeCloseTo(0.47, 10)
+    expect(grenades[1]?.x).toBeCloseTo(0.72, 10)
+  })
+
+  test("keeps non-smoke world grenades in the selector for later types", () => {
+    const pos = radarToWorld({ x: 0.4, y: 0.4 }, DE_ANUBIS)
+    const grenades = getRadarGrenades(
+      state([], null, [{ id: "8", type: "flash", position: { ...pos, z: 0 } }]),
+      DE_ANUBIS
+    )
+    expect(grenades[0]).toMatchObject({ id: "8", type: "flash", active: false })
   })
 })

@@ -1,4 +1,4 @@
-import type { GameState, Side } from "@workspace/game-state"
+import type { GameState, Side, WorldGrenadeType } from "@workspace/game-state"
 import { getFacingAngle, worldToRadar, type MapMetadata } from "@workspace/maps"
 
 import { rosterNumber } from "./format"
@@ -20,12 +20,30 @@ export type RadarBombView = {
   kind: "carried" | "dropped" | "planted"
 }
 
+export type RadarGrenadeView = {
+  id: string
+  type: WorldGrenadeType
+  x: number
+  y: number
+  ownerSteamId?: string
+  ownerSide?: Side
+  /** Smoke: effectTime > 0. Other types stay false until their own presentation exists. */
+  active: boolean
+  /** In-flight facing from GSI velocity XY. Omitted when velocity is missing/zero. */
+  angle?: number
+}
+
+export const RADAR_LAYER = {
+  smokeArea: 1,
+  projectile: 2,
+  bomb: 2,
+  player: 3,
+  observed: 4,
+} as const
+
 /**
  * Alive players with a world position, already in radar image space.
  * Facing math stays here — not in JSX.
- *
- * Next slice: `getRadarGrenades(state, metadata)` once world nades are
- * normalized. Raw GSI `grenades` already survives the merge manager.
  */
 export function getRadarPlayers(
   state: GameState,
@@ -91,6 +109,51 @@ export function getRadarBomb(
     return null
   }
   return { x: point.x, y: point.y, kind }
+}
+
+/**
+ * World grenades in radar image space. React must not call worldToRadar.
+ * Owner side is resolved from current PlayerState, not stored on the grenade.
+ *
+ * Smoke `active` is effectTime > 0 (GSI: 0 / omitted while the projectile is
+ * in the air; counting once the cloud exists). Disappearance is the entity
+ * leaving `worldGrenades` — there is no fake expired state.
+ *
+ * Molotov/incendiary later need flame points, not a reused smoke circle.
+ */
+export function getRadarGrenades(
+  state: GameState,
+  metadata: MapMetadata
+): RadarGrenadeView[] {
+  const grenades: RadarGrenadeView[] = []
+  for (const grenade of state.worldGrenades ?? []) {
+    const point = worldToRadar(grenade.position, metadata)
+    if (!point) {
+      continue
+    }
+    const view: RadarGrenadeView = {
+      id: grenade.id,
+      type: grenade.type,
+      x: point.x,
+      y: point.y,
+      active: grenade.type === "smoke" && (grenade.effectTime ?? 0) > 0,
+    }
+    if (grenade.ownerSteamId) {
+      view.ownerSteamId = grenade.ownerSteamId
+      const owner = state.players.find((player) => player.steamId === grenade.ownerSteamId)
+      if (owner) {
+        view.ownerSide = owner.side
+      }
+    }
+    if (!view.active && grenade.velocity) {
+      const angle = getFacingAngle(grenade.velocity)
+      if (angle !== undefined) {
+        view.angle = angle
+      }
+    }
+    grenades.push(view)
+  }
+  return grenades
 }
 
 function bombKind(state: string): RadarBombView["kind"] | null {

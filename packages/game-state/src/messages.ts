@@ -1,5 +1,5 @@
-import { playerPresentationConfigSchema } from "@workspace/presentation"
-import type { PlayerPresentationConfig } from "@workspace/presentation"
+import { overlayConfigSchema, playerPresentationConfigSchema } from "@workspace/presentation"
+import type { OverlayConfig, PlayerPresentationConfig } from "@workspace/presentation"
 import { matchframeThemeSchema } from "@workspace/theme"
 import type { MatchframeTheme } from "@workspace/theme"
 
@@ -17,6 +17,7 @@ export type ServerMessage =
   | { type: "connection"; data: ConnectionState }
   | { type: "theme"; data: MatchframeTheme }
   | { type: "presentation"; data: PlayerPresentationConfig }
+  | { type: "overlay"; data: OverlayConfig }
 
 export function serializeServerMessage(message: ServerMessage): string {
   return JSON.stringify(message)
@@ -55,6 +56,11 @@ export function parseServerMessage(raw: unknown): ServerMessage | null {
   if (value.type === "presentation") {
     const parsed = playerPresentationConfigSchema.safeParse(value.data)
     return parsed.success ? { type: "presentation", data: parsed.data } : null
+  }
+
+  if (value.type === "overlay") {
+    const parsed = overlayConfigSchema.safeParse(value.data)
+    return parsed.success ? { type: "overlay", data: parsed.data } : null
   }
 
   return null

@@ -35,6 +35,15 @@ export {
 } from "./schema"
 
 export {
+  compactOverlayConfig,
+  defaultOverlayConfig,
+  overlayConfigSchema,
+  overlayTeamName,
+  SERIES_LABELS,
+} from "./overlay-config"
+export type { OverlayConfig, OverlayTeamSlot, SeriesLabel } from "./overlay-config"
+
+export {
   portraitCrop,
   resolveDisplayName,
   resolvePortraitCascade,

@@ -25,6 +25,12 @@ export const GSI_FIXTURE_VARIANTS = [
   "radar-anubis-moved",
   "radar-anubis-bomb-dropped",
   "radar-anubis-bomb-planted",
+  "radar-anubis-smoke-flight",
+  "radar-anubis-smoke-flight-moved",
+  "radar-anubis-smoke-active",
+  "radar-anubis-two-smokes",
+  "radar-anubis-smoke-removed",
+  "series",
 ] as const
 
 export type GsiFixtureVariant = (typeof GSI_FIXTURE_VARIANTS)[number]
@@ -67,11 +73,13 @@ type GsiDemo = {
     position?: string
     countdown?: number | string
   }
+  grenades?: Record<string, GsiDemoGrenade>
 }
 
 type GsiTeam = {
   name?: string
   score?: number
+  matches_won_this_series?: number
 }
 
 type GsiDemoWeapon = {
@@ -80,6 +88,15 @@ type GsiDemoWeapon = {
   state?: string
   ammo_clip?: number
   ammo_reserve?: number
+}
+
+type GsiDemoGrenade = {
+  owner?: string
+  position?: string
+  velocity?: string
+  type?: string
+  lifetime?: string
+  effecttime?: string
 }
 
 type GsiDemoPlayer = {
@@ -123,7 +140,39 @@ function applyVariant(payload: GsiDemo, variant: GsiFixtureVariant): void {
     plantBombAtCtSpawn(payload)
     return
   }
+  if (variant === "radar-anubis-smoke-flight") {
+    applyAnubisRadar(payload)
+    setAnubisSmoke(payload, SMOKE_FLIGHT)
+    return
+  }
+  if (variant === "radar-anubis-smoke-flight-moved") {
+    applyAnubisRadar(payload)
+    setAnubisSmoke(payload, SMOKE_FLIGHT_MOVED)
+    return
+  }
+  if (variant === "radar-anubis-smoke-active") {
+    applyAnubisRadar(payload)
+    setAnubisSmoke(payload, SMOKE_ACTIVE)
+    return
+  }
+  if (variant === "radar-anubis-two-smokes") {
+    applyAnubisRadar(payload)
+    payload.grenades = {
+      "401": anubisSmoke(SMOKE_ACTIVE),
+      "402": anubisSmoke(SMOKE_A),
+    }
+    return
+  }
+  if (variant === "radar-anubis-smoke-removed") {
+    applyAnubisRadar(payload)
+    payload.grenades = {}
+    return
+  }
   if (variant === "live" || variant === "equipment") {
+    return
+  }
+  if (variant === "series") {
+    setSeriesWins(payload, 1, 0)
     return
   }
   if (variant === "observer") {
@@ -232,6 +281,15 @@ function applyPostPad(payload: GsiDemo, variant: GsiFixtureVariant): void {
   }
   if (variant === "1v2") {
     setAliveCounts(payload, 1, 2)
+  }
+}
+
+function setSeriesWins(payload: GsiDemo, ct: number, t: number): void {
+  if (payload.map?.team_ct) {
+    payload.map.team_ct.matches_won_this_series = ct
+  }
+  if (payload.map?.team_t) {
+    payload.map.team_t.matches_won_this_series = t
   }
 }
 
@@ -635,6 +693,79 @@ function plantBombAtCtSpawn(payload: GsiDemo): void {
   delete payload.round.win_team
   payload.phase_countdowns = { phase: "bomb", phase_ends_in: "28.4" }
   payload.bomb = { state: "planted", countdown: "28.4", position: anubisWorld(0.61, 0.22) }
+}
+
+/**
+ * Synthetic Anubis smoke markers — not a live GSI capture.
+ * Positions are overview-normalized points converted with Valve pos/scale.
+ */
+const SMOKE_FLIGHT = {
+  id: "401",
+  radarX: 0.56,
+  radarY: 0.78,
+  velocity: "40, 280, 20",
+  lifetime: "0.6",
+  effecttime: "0.0",
+} as const
+
+const SMOKE_FLIGHT_MOVED = {
+  id: "401",
+  radarX: 0.5,
+  radarY: 0.58,
+  velocity: "20, 180, 8",
+  lifetime: "1.1",
+  effecttime: "0.0",
+} as const
+
+const SMOKE_ACTIVE = {
+  id: "401",
+  radarX: 0.47,
+  radarY: 0.48,
+  velocity: "0, 0, 0",
+  lifetime: "4.2",
+  effecttime: "2.1",
+} as const
+
+const SMOKE_A = {
+  id: "402",
+  radarX: 0.72,
+  radarY: 0.28,
+  velocity: "0, 0, 0",
+  lifetime: "6.0",
+  effecttime: "3.4",
+} as const
+
+const SMOKE_OWNER = "76561198000000004"
+
+function setAnubisSmoke(
+  payload: GsiDemo,
+  smoke: {
+    id: string
+    radarX: number
+    radarY: number
+    velocity: string
+    lifetime: string
+    effecttime: string
+  }
+): void {
+  payload.grenades = { [smoke.id]: anubisSmoke(smoke) }
+}
+
+function anubisSmoke(smoke: {
+  radarX: number
+  radarY: number
+  velocity: string
+  lifetime: string
+  effecttime: string
+}): GsiDemoGrenade {
+  return {
+    owner: SMOKE_OWNER,
+    type: "smoke",
+    position: anubisWorld(smoke.radarX, smoke.radarY),
+    velocity: smoke.velocity,
+    lifetime: smoke.lifetime,
+    effecttime: smoke.effecttime,
+  }
 }
 
 function place(

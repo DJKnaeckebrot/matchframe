@@ -32,7 +32,10 @@ function player(
   }
 }
 
-function state(overrides: Partial<GameState> = {}): GameState {
+function state(overrides: Omit<Partial<GameState>, "map" | "round"> & {
+  map?: Partial<GameState["map"]>
+  round?: Partial<GameState["round"]>
+} = {}): GameState {
   const players = overrides.players ?? [
     player("a", "northwind", "CT"),
     player("b", "northwind", "CT"),
@@ -45,18 +48,19 @@ function state(overrides: Partial<GameState> = {}): GameState {
     player("i", "redline", "T"),
     player("j", "redline", "T"),
   ]
-  const { round: roundOverride, ...rest } = overrides
+  const { round: roundOverride, map: mapOverride, ...rest } = overrides
   return {
     timestamp: 1,
-    map: { name: "de_inferno", phase: "live", round: 14 },
+    map: { name: "de_inferno", phase: "live", round: 14, roundHistory: [], ...mapOverride },
     teams: [
-      { id: "northwind", name: "Northwind", side: "CT", score: 8 },
-      { id: "redline", name: "Redline", side: "T", score: 6 },
+      { id: "northwind", name: "Northwind", side: "CT", score: 8, seriesWins: 0 },
+      { id: "redline", name: "Redline", side: "T", score: 6, seriesWins: 0 },
     ],
     players,
     observer: { playerSteamId: "a" },
     bomb: null,
     pause: null,
+    worldGrenades: [],
     ...rest,
     round: {
       phase: "live",
@@ -98,8 +102,8 @@ describe("getLogicalTeamAliveCount", () => {
   test("follows logical team identity after a side switch", () => {
     const swapped = state({
       teams: [
-        { id: "northwind", name: "Northwind", side: "T", score: 8 },
-        { id: "redline", name: "Redline", side: "CT", score: 6 },
+        { id: "northwind", name: "Northwind", side: "T", score: 8, seriesWins: 0 },
+        { id: "redline", name: "Redline", side: "CT", score: 6, seriesWins: 0 },
       ],
       players: [
         player("a", "northwind", "T"),
@@ -207,8 +211,8 @@ describe("getRoundDisplayState", () => {
       state({
         round: { phase: "over", winTeam: "T", alive: { ct: 0, t: 2 } },
         teams: [
-          { id: "northwind", name: "Northwind", side: "T", score: 9 },
-          { id: "redline", name: "Redline", side: "CT", score: 6 },
+          { id: "northwind", name: "Northwind", side: "T", score: 9, seriesWins: 0 },
+          { id: "redline", name: "Redline", side: "CT", score: 6, seriesWins: 0 },
         ],
       })
     )
@@ -275,8 +279,8 @@ describe("getDisplayRoundNumber", () => {
   test("side switch does not change the display round", () => {
     const swapped = state({
       teams: [
-        { id: "northwind", name: "Northwind", side: "T", score: 8 },
-        { id: "redline", name: "Redline", side: "CT", score: 6 },
+        { id: "northwind", name: "Northwind", side: "T", score: 8, seriesWins: 0 },
+        { id: "redline", name: "Redline", side: "CT", score: 6, seriesWins: 0 },
       ],
     })
     expect(swapped.map.round).toBe(14)
@@ -323,8 +327,8 @@ describe("getTeamObjectiveProgress", () => {
   test("after side switch logical order is unchanged and bars follow current side", () => {
     const swapped = state({
       teams: [
-        { id: "northwind", name: "Northwind", side: "T", score: 8 },
-        { id: "redline", name: "Redline", side: "CT", score: 6 },
+        { id: "northwind", name: "Northwind", side: "T", score: 8, seriesWins: 0 },
+        { id: "redline", name: "Redline", side: "CT", score: 6, seriesWins: 0 },
       ],
       players: [
         player("a", "northwind", "T"),
@@ -366,8 +370,8 @@ describe("getTeamObjectiveProgress", () => {
   test("does not assume left is CT or right is T", () => {
     const swappedPlanted = state({
       teams: [
-        { id: "northwind", name: "Northwind", side: "T", score: 8 },
-        { id: "redline", name: "Redline", side: "CT", score: 6 },
+        { id: "northwind", name: "Northwind", side: "T", score: 8, seriesWins: 0 },
+        { id: "redline", name: "Redline", side: "CT", score: 6, seriesWins: 0 },
       ],
       bomb: { state: "planted", countdown: 28.4, countdownDuration: 28.4 },
     })
