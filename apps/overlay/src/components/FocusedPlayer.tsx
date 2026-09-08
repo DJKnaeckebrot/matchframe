@@ -30,7 +30,7 @@ export function FocusedPlayer({
       <div className="h-0.5 shrink-0" style={{ background: accent }} />
       <div
         className="relative h-[168px] overflow-hidden"
-        style={{ background: `color-mix(in srgb, ${accent} 20%, var(--mf-background))` }}
+        style={{ background: `color-mix(in srgb, ${accent} 32%, var(--mf-background))` }}
       >
         <PlayerPortrait portrait={portrait} accent={accent} className="absolute inset-0 z-0" />
         <div className="absolute inset-x-0 bottom-0 z-10 bg-black/55 px-2 py-1.5">

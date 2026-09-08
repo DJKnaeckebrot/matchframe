@@ -43,6 +43,7 @@ const gsi = createGsiStateManager()
 const hub = createRealtimeHub()
 const themeStore = createFileThemeStore(dataDir())
 const playerStore = createFilePlayerStore(dataDir())
+const portraitDir = join(dataDir(), "portraits")
 const onGsiCapture = gsiCaptureWriter()
 
 const app = createApp({
@@ -52,6 +53,7 @@ const app = createApp({
   setState: (state) => gameStateStore.set(state),
   themeStore,
   playerStore,
+  portraitDir,
   hub,
   ...(onGsiCapture ? { onGsiCapture } : {}),
 })

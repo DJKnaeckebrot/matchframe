@@ -23,12 +23,12 @@ const viper: PortraitPlayer = {
 describe("resolvePlayerPortrait", () => {
   test("looks up presentation by Steam ID, not GSI name", () => {
     const config: PlayerPresentationConfig = {
-      [nova.steamId]: { portrait: { type: "operator", value: "ct_default_02" } },
+      [nova.steamId]: { portrait: { type: "operator", value: "ctm_fbi_variantb" } },
     }
     const renamed = { ...nova, name: "N0va" }
     expect(resolvePlayerPortrait(renamed, config)).toMatchObject({
       source: "operator",
-      assetId: "ct_default_02",
+      assetId: "ctm_fbi_variantb",
     })
   })
 
@@ -47,12 +47,12 @@ describe("resolvePlayerPortrait", () => {
 
   test("operator override wins over side fallback", () => {
     const config: PlayerPresentationConfig = {
-      [nova.steamId]: { portrait: { type: "operator", value: "t_default_03" } },
+      [nova.steamId]: { portrait: { type: "operator", value: "tm_phoenix_varianti" } },
     }
     expect(resolvePlayerPortrait(nova, config)).toMatchObject({
       source: "operator",
-      assetId: "t_default_03",
-      crop: { fit: "contain", position: "bottom" },
+      assetId: "tm_phoenix_varianti",
+      crop: { fit: "cover", position: "bottom" },
     })
   })
 
@@ -75,17 +75,17 @@ describe("resolvePlayerPortrait", () => {
     expect(automatic).toMatchObject({ source: "side", assetId: SIDE_DEFAULT_OPERATOR.T })
 
     const configured: PlayerPresentationConfig = {
-      [nova.steamId]: { portrait: { type: "operator", value: "ct_default_02" } },
+      [nova.steamId]: { portrait: { type: "operator", value: "ctm_fbi_variantb" } },
     }
     expect(resolvePlayerPortrait({ ...nova, side: "T" }, configured)).toMatchObject({
       source: "operator",
-      assetId: "ct_default_02",
+      assetId: "ctm_fbi_variantb",
     })
   })
 
   test("missing player config uses automatic fallback", () => {
     const config: PlayerPresentationConfig = {
-      someoneElse: { portrait: { type: "operator", value: "ct_default_03" } },
+      someoneElse: { portrait: { type: "operator", value: "ctm_swat_variante" } },
     }
     expect(resolvePlayerPortrait(nova, config).source).toBe("side")
   })

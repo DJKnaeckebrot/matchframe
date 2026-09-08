@@ -15,6 +15,7 @@ import { upgradeWebSocket } from "hono/bun"
 
 import type { PlayerStore } from "./config/player-store"
 import type { ThemeStore } from "./config/theme-store"
+import { isSafePortraitId, readPortraitFile } from "./config/portrait-files"
 import type { RealtimeHub } from "./hub"
 
 export type ServerAppDeps = {
@@ -24,6 +25,7 @@ export type ServerAppDeps = {
   setState: (state: GameState) => void
   themeStore: ThemeStore
   playerStore: PlayerStore
+  portraitDir: string
   hub: RealtimeHub
   onGsiCapture?: (merged: unknown) => void
 }
@@ -120,6 +122,22 @@ export function createApp(deps: ServerAppDeps): Hono {
   })
 
   app.get("/api/config/players", (c) => c.json(deps.playerStore.get()))
+
+  app.get("/api/portraits/:id", async (c) => {
+    const id = c.req.param("id")
+    if (!isSafePortraitId(id)) {
+      return c.body(null, 404)
+    }
+    const file = await readPortraitFile(deps.portraitDir, id)
+    if (!file) {
+      return c.body(null, 404)
+    }
+    return c.body(file.body, 200, {
+      "Content-Type": file.contentType,
+      "Cache-Control": "public, max-age=60",
+      "Cross-Origin-Resource-Policy": "cross-origin",
+    })
+  })
 
   app.put("/api/config/players/:steamId", async (c) => {
     const steamId = steamIdSchema.safeParse(c.req.param("steamId"))

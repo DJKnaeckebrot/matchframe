@@ -11,7 +11,7 @@ export function portraitCrop(source: ResolvedPortrait["source"]): PortraitCrop {
   if (source === "custom") {
     return { fit: "cover", position: "center" }
   }
-  return { fit: "contain", position: "bottom" }
+  return { fit: "cover", position: "bottom" }
 }
 
 export function resolveDisplayName(

@@ -3,8 +3,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { PlayerState, TeamState } from "@workspace/game-state"
 import {
   operatorById,
-  operatorsForSide,
+  operatorsGroupedByFaction,
   resolvePlayerPortrait,
+  SIDE_DEFAULT_OPERATOR,
   type OperatorPortrait,
   type PlayerPresentation,
   type PortraitType,
@@ -258,7 +259,7 @@ function PlayerEditor({
           <img
             src={previewSrc}
             alt=""
-            className="absolute inset-0 h-full w-full object-contain object-bottom"
+            className="absolute inset-0 h-full w-full object-cover object-center"
           />
         ) : null}
       </div>
@@ -302,7 +303,10 @@ function PlayerEditor({
                 displayName: displayName.trim() || undefined,
                 portrait: {
                   type: "operator",
-                  value: entry?.portrait?.type === "operator" ? entry.portrait.value : player.side === "CT" ? "ct_default_01" : "t_default_01",
+                  value:
+                    entry?.portrait?.type === "operator"
+                      ? entry.portrait.value
+                      : SIDE_DEFAULT_OPERATOR[player.side],
                 },
               })
             }
@@ -314,15 +318,16 @@ function PlayerEditor({
           </SourceButton>
         </div>
         <p className="text-xs text-muted-foreground">
-          Automatic uses a side fallback that follows CT/T. Custom local upload is the next slice —
-          portraits stay offline, never a remote URL.
+          Automatic uses SAS / Phoenix when no operator is set. Art is local CS2
+          inventory renders — run `bun run portraits:import` once. Overlay never
+          loads csgodatabase or Steam at runtime.
         </p>
       </fieldset>
 
       {mode === "operator" ? (
-        <div className="flex flex-col gap-3">
-          <OperatorGroup
-            label="CT"
+        <div className="flex max-h-[28rem] flex-col gap-4 overflow-y-auto pr-1">
+          <OperatorSide
+            side="CT"
             selectedId={entry?.portrait?.type === "operator" ? entry.portrait.value : undefined}
             disabled={pending}
             onPick={(id) =>
@@ -331,10 +336,9 @@ function PlayerEditor({
                 portrait: { type: "operator", value: id },
               })
             }
-            operators={operatorsForSide("CT")}
           />
-          <OperatorGroup
-            label="T"
+          <OperatorSide
+            side="T"
             selectedId={entry?.portrait?.type === "operator" ? entry.portrait.value : undefined}
             disabled={pending}
             onPick={(id) =>
@@ -343,7 +347,6 @@ function PlayerEditor({
                 portrait: { type: "operator", value: id },
               })
             }
-            operators={operatorsForSide("T")}
           />
         </div>
       ) : null}
@@ -354,6 +357,33 @@ function PlayerEditor({
         </Button>
       ) : null}
     </aside>
+  )
+}
+
+function OperatorSide({
+  side,
+  selectedId,
+  disabled,
+  onPick,
+}: {
+  side: "CT" | "T"
+  selectedId: string | undefined
+  disabled: boolean
+  onPick: (id: string) => void
+}) {
+  return (
+    <div className="flex flex-col gap-3">
+      {operatorsGroupedByFaction(side).map((group) => (
+        <OperatorGroup
+          key={group.faction}
+          label={group.faction}
+          selectedId={selectedId}
+          disabled={disabled}
+          onPick={onPick}
+          operators={group.operators}
+        />
+      ))}
+    </div>
   )
 }
 
@@ -389,20 +419,17 @@ function OperatorGroup({
                 selected ? "border-foreground" : "border-border hover:border-foreground/50"
               }`}
             >
-              <span className="relative block h-20 bg-muted">
+              <span className="relative block h-24 bg-muted">
                 {src ? (
                   <img
                     src={src}
                     alt=""
-                    className="absolute inset-0 h-full w-full object-contain object-bottom"
+                    className="absolute inset-0 h-full w-full object-cover object-center"
                   />
                 ) : null}
               </span>
               <span className="px-1.5 py-1">
                 <span className="block text-xs font-medium">{operator.label}</span>
-                <span className="block font-mono text-[10px] text-muted-foreground">
-                  {operator.id}
-                </span>
               </span>
             </button>
           )

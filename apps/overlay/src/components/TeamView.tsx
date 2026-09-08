@@ -122,7 +122,7 @@ function PlayerCard({
         style={{
           background: empty
             ? "transparent"
-            : `color-mix(in srgb, ${accent} 20%, var(--mf-background))`,
+            : `color-mix(in srgb, ${accent} 32%, var(--mf-background))`,
         }}
       >
         {player ? (

@@ -19,6 +19,7 @@ export type PlayerPresentationConfig = Readonly<
 export type OperatorPortrait = {
   id: string
   side: Side
+  faction: string
   label: string
 }
 

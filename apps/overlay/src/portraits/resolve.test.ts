@@ -28,7 +28,7 @@ function player(partial: Partial<PlayerState> & Pick<PlayerState, "steamId" | "s
 
 describe("portrait pack", () => {
   test("operator and fallback ids resolve to bundled assets", () => {
-    for (const id of ["ct_default_01", "ct_default_02", "ct_default_03", "t_default_01", "t_default_02", "t_default_03", "neutral"]) {
+    for (const id of ["ctm_sas_variantf", "tm_phoenix_varianth", "neutral"]) {
       expect(typeof getPortraitAsset(id)).toBe("string")
     }
   })
@@ -45,7 +45,7 @@ describe("resolveOverlayPortrait", () => {
     expect(view.source).toBe("side")
     expect(view.assetId).toBe(SIDE_DEFAULT_OPERATOR.CT)
     expect(typeof view.src).toBe("string")
-    expect(view.crop).toEqual({ fit: "contain", position: "bottom" })
+    expect(view.crop).toEqual({ fit: "cover", position: "bottom" })
   })
 
   test("custom crop is cover/center when a custom id is configured", () => {

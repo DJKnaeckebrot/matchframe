@@ -24,9 +24,9 @@ describe("steamIdSchema", () => {
 
 describe("portraitRefSchema", () => {
   test("accepts a known operator", () => {
-    expect(portraitRefSchema.parse({ type: "operator", value: "ct_default_01" })).toEqual({
+    expect(portraitRefSchema.parse({ type: "operator", value: "ctm_sas_variantf" })).toEqual({
       type: "operator",
-      value: "ct_default_01",
+      value: "ctm_sas_variantf",
     })
   })
 
@@ -55,7 +55,7 @@ describe("playerPresentationConfigSchema", () => {
     const parsed = playerPresentationConfigSchema.parse({
       "76561198000000000": {
         displayName: "Nova",
-        portrait: { type: "operator", value: "ct_default_01" },
+        portrait: { type: "operator", value: "ctm_sas_variantf" },
       },
     })
     expect(parsed["76561198000000000"]?.displayName).toBe("Nova")

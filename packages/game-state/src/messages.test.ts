@@ -40,7 +40,7 @@ describe("server messages", () => {
         data: {
           "76561198000000001": {
             displayName: "Nova",
-            portrait: { type: "operator" as const, value: "ct_default_01" },
+            portrait: { type: "operator" as const, value: "ctm_sas_variantf" },
           },
         },
       },

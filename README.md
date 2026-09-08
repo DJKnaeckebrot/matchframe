@@ -47,7 +47,7 @@ The dashboard talks to `/api` on its own origin; Vite proxies that to the broadc
 
 Appearance colors and player portraits are edited in the dashboard and applied to the running overlay over the same WebSocket. Player presentation is keyed by Steam ID and stored in `players.json` next to `theme.json`.
 
-Player portraits resolve stable ids (`ct_default_01`, `neutral`, …) through `getPortraitAsset`. The current pack is Matchframe-owned silhouettes in `apps/overlay/src/assets/portraits/matchframe`. Drop extracted CS2 operator art into `cs2-reference/` for local comparison only — Valve character assets are not Matchframe's to redistribute.
+Player portraits resolve CS2 agent ids (`ctm_sas_variantf`, `tm_phoenix_varianth`, …) through `getPortraitAsset`. The overlay loads those files from the local broadcast server (`/api/portraits/:id`), never from csgodatabase, Steam, or another CDN. Import inventory renders once with `bun run portraits:import` (writes into `apps/server/data/portraits`, gitignored). Counter-Strike character art remains property of Valve and is not redistributed in this repository.
 
 ### Preview without CS2
 

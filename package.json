@@ -10,6 +10,7 @@
     "typecheck": "turbo typecheck",
     "test": "bun test",
     "fixture:gsi": "bun run scripts/fixture-gsi.ts",
+    "portraits:import": "bun run scripts/import-portraits.ts",
     "capture:gsi": "bun run scripts/capture-gsi.ts"
   },
   "devDependencies": {

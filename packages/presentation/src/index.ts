@@ -20,6 +20,7 @@ export {
   isOperatorId,
   operatorById,
   operatorsForSide,
+  operatorsGroupedByFaction,
 } from "./operators"
 
 export {

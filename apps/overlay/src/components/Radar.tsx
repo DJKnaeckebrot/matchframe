@@ -1,5 +1,5 @@
 import type { GameState } from "@workspace/game-state"
-import { getMapMetadata } from "@workspace/maps"
+import { getMapMetadata, type MapMetadata } from "@workspace/maps"
 
 import { getRadarAsset } from "../assets/radar/pack"
 import { SHOW_DIAGNOSTICS } from "../hud/diagnostics"
@@ -10,6 +10,7 @@ import {
   type RadarBombView,
   type RadarPlayerView,
 } from "../hud/radar"
+import { useRadarMotion } from "../hud/radar-motion"
 import { ObjectiveIcon } from "../icons"
 
 const RADAR_PX = 400
@@ -25,8 +26,22 @@ export function Radar({ state }: { state: GameState }) {
     ) : null
   }
 
-  const players = getRadarPlayers(state, metadata)
-  const bomb = getRadarBomb(state, metadata)
+  return <RadarMap state={state} metadata={metadata} asset={asset} />
+}
+
+function RadarMap({
+  state,
+  metadata,
+  asset,
+}: {
+  state: GameState
+  metadata: MapMetadata
+  asset: string
+}) {
+  const { players, bomb } = useRadarMotion(
+    getRadarPlayers(state, metadata),
+    getRadarBomb(state, metadata)
+  )
 
   return (
     <div
@@ -60,9 +75,9 @@ function PlayerMarker({ player }: { player: RadarPlayerView }) {
     <div
       className="absolute size-8"
       style={{
-        left: `${clampRadarCoord(player.x) * 100}%`,
-        top: `${clampRadarCoord(player.y) * 100}%`,
-        transform: "translate(-50%, -50%)",
+        left: 0,
+        top: 0,
+        transform: `translate3d(${clampRadarCoord(player.x) * RADAR_PX}px, ${clampRadarCoord(player.y) * RADAR_PX}px, 0) translate(-50%, -50%)`,
         zIndex: player.observed ? 3 : 1,
       }}
     >
@@ -101,9 +116,9 @@ function BombMarker({ bomb }: { bomb: RadarBombView }) {
     <div
       className={`absolute ${planted ? "mf-planted-pulse" : carried ? "opacity-85" : ""}`}
       style={{
-        left: `${clampRadarCoord(bomb.x) * 100}%`,
-        top: `${clampRadarCoord(bomb.y) * 100}%`,
-        transform: placement,
+        left: 0,
+        top: 0,
+        transform: `translate3d(${clampRadarCoord(bomb.x) * RADAR_PX}px, ${clampRadarCoord(bomb.y) * RADAR_PX}px, 0) ${placement}`,
       }}
     >
       <ObjectiveIcon type="bomb" decorative />

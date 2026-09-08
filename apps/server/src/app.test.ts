@@ -34,6 +34,7 @@ function testApp(dir: string) {
     },
     themeStore,
     playerStore,
+    portraitDir: join(dir, "portraits"),
     hub,
   })
   return { app, hub, themeStore, playerStore }
@@ -256,7 +257,7 @@ describe("player presentation config", () => {
   const steamId = "76561198000000001"
   const entry = {
     displayName: "Nova",
-    portrait: { type: "operator" as const, value: "ct_default_01" },
+    portrait: { type: "operator" as const, value: "ctm_sas_variantf" },
   }
 
   test("GET returns an empty map when no config file exists", async () => {
@@ -372,6 +373,31 @@ describe("player presentation config", () => {
   })
 })
 
+describe("operator portraits", () => {
+  test("GET 404s when the local file is missing", async () => {
+    const { app } = testApp(await tempDir())
+    const missing = await app.request("/api/portraits/ctm_sas_variantf")
+    expect(missing.status).toBe(404)
+    const traversal = await app.request("/api/portraits/../theme")
+    expect(traversal.status).toBe(404)
+  })
+
+  test("GET returns a local PNG for a known operator", async () => {
+    const dir = await tempDir()
+    const png = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10])
+    await Bun.write(join(dir, "portraits", "ctm_sas_variantf.png"), png)
+    const { app } = testApp(dir)
+    const response = await app.request("/api/portraits/ctm_sas_variantf", {
+      headers: { Origin: "http://localhost:5174" },
+    })
+    expect(response.status).toBe(200)
+    expect(response.headers.get("Content-Type")).toBe("image/png")
+    expect(response.headers.get("Access-Control-Allow-Origin")).toBe("*")
+    expect(response.headers.get("Cross-Origin-Resource-Policy")).toBe("cross-origin")
+    expect(new Uint8Array(await response.arrayBuffer())).toEqual(png)
+  })
+})
+
 describe("realtime presentation", () => {
   test("player presentation update is broadcast to connected clients", async () => {
     const { app } = testApp(await tempDir())
@@ -398,14 +424,14 @@ describe("realtime presentation", () => {
     const response = await app.request(`/api/config/players/${steamId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ portrait: { type: "operator", value: "t_default_02" } }),
+      body: JSON.stringify({ portrait: { type: "operator", value: "tm_phoenix_variantg" } }),
     })
     expect(response.status).toBe(200)
     await waitFor(() =>
       received.some(
         (message) =>
           isPresentation(message) &&
-          message.data[steamId]?.portrait?.value === "t_default_02"
+          message.data[steamId]?.portrait?.value === "tm_phoenix_variantg"
       )
     )
     ws.close()
