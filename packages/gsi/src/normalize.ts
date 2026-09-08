@@ -163,6 +163,12 @@ function normalizePlayer(
   if (forward) {
     normalized.forward = forward
   }
+  if (
+    typeof player.observer_slot === "number" &&
+    Number.isFinite(player.observer_slot)
+  ) {
+    normalized.observerSlot = player.observer_slot
+  }
   return normalized
 }
 

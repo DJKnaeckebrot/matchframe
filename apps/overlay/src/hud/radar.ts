@@ -8,6 +8,8 @@ export type RadarPlayerView = {
   angle?: number
   side: Side
   observed: boolean
+  /** Keyboard slot label, 1–10. */
+  slot?: number
 }
 
 export type RadarBombView = {
@@ -49,6 +51,10 @@ export function getRadarPlayers(
       if (angle !== undefined) {
         view.angle = angle
       }
+    }
+    const slot = radarSlot(player.observerSlot)
+    if (slot !== undefined) {
+      view.slot = slot
     }
     players.push(view)
   }
@@ -100,4 +106,17 @@ function bombKind(state: string): RadarBombView["kind"] | null {
 
 export function clampRadarCoord(value: number): number {
   return Math.min(1, Math.max(0, value))
+}
+
+function radarSlot(observerSlot: number | undefined): number | undefined {
+  if (observerSlot === undefined || !Number.isFinite(observerSlot)) {
+    return undefined
+  }
+  if (observerSlot === 0) {
+    return 10
+  }
+  if (observerSlot < 0 || observerSlot > 10) {
+    return undefined
+  }
+  return observerSlot
 }

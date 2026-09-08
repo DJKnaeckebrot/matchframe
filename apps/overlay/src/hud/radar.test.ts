@@ -50,6 +50,7 @@ describe("radar selectors", () => {
         player({
           steamId: "ct1",
           side: "CT",
+          observerSlot: 1,
           position: { ...ctPos, z: 0 },
           forward: { x: 0, y: 1, z: 0 },
         }),
@@ -76,6 +77,7 @@ describe("radar selectors", () => {
       side: "CT",
       observed: true,
       angle: 0,
+      slot: 1,
     })
     expect(players[0]?.x).toBeCloseTo(DE_ANUBIS_OVERVIEW_SPAWNS.ct.x, 10)
     expect(players[1]?.angle).toBeCloseTo(90, 10)
@@ -103,5 +105,21 @@ describe("radar selectors", () => {
     )
     expect(bomb).toMatchObject({ kind: "planted" })
     expect(bomb?.x).toBeCloseTo(DE_ANUBIS_OVERVIEW_SPAWNS.ct.x, 10)
+  })
+
+  test("observer slot 0 becomes radar label 10", () => {
+    const ctPos = radarToWorld(DE_ANUBIS_OVERVIEW_SPAWNS.ct, DE_ANUBIS)
+    const players = getRadarPlayers(
+      state([
+        player({
+          steamId: "ct1",
+          side: "CT",
+          observerSlot: 0,
+          position: { ...ctPos, z: 0 },
+        }),
+      ]),
+      DE_ANUBIS
+    )
+    expect(players[0]?.slot).toBe(10)
   })
 })

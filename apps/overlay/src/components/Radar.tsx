@@ -12,7 +12,7 @@ import {
 } from "../hud/radar"
 import { ObjectiveIcon } from "../icons"
 
-const RADAR_PX = 288
+const RADAR_PX = 400
 
 export function Radar({ state }: { state: GameState }) {
   const metadata = getMapMetadata(state.map.name)
@@ -33,11 +33,11 @@ export function Radar({ state }: { state: GameState }) {
       className="absolute top-8 left-8"
       style={{ width: RADAR_PX, height: RADAR_PX }}
     >
-      <div className="relative h-full w-full overflow-hidden bg-(--mf-background)/80 ring-1 ring-(--mf-text)/20">
+      <div className="relative h-full w-full">
         <img
           src={asset}
           alt=""
-          className="pointer-events-none absolute inset-0 h-full w-full object-cover"
+          className="pointer-events-none absolute inset-0 h-full w-full object-contain"
         />
         {players.map((player) => (
           <PlayerMarker key={player.steamId} player={player} />
@@ -49,34 +49,42 @@ export function Radar({ state }: { state: GameState }) {
 }
 
 function PlayerMarker({ player }: { player: RadarPlayerView }) {
-  const color = player.side === "CT" ? "var(--mf-ct)" : "var(--mf-t)"
+  const fill = player.observed
+    ? "var(--mf-text)"
+    : player.side === "CT"
+      ? "var(--mf-ct)"
+      : "var(--mf-t)"
+  const ink = player.observed ? "#111418" : "var(--mf-background)"
+
   return (
     <div
-      className="absolute"
+      className="absolute size-7"
       style={{
         left: `${clampRadarCoord(player.x) * 100}%`,
         top: `${clampRadarCoord(player.y) * 100}%`,
         transform: "translate(-50%, -50%)",
+        zIndex: player.observed ? 3 : 1,
       }}
     >
-      {player.observed ? (
-        <span
-          className="absolute top-1/2 left-1/2 size-4 -translate-x-1/2 -translate-y-1/2 rounded-full ring-1 ring-(--mf-text)/80"
-          aria-hidden="true"
-        />
-      ) : null}
       <svg
-        width="12"
-        height="12"
-        viewBox="0 0 12 12"
+        viewBox="0 0 28 28"
+        className="absolute inset-0"
         aria-hidden="true"
         style={{
+          color: fill,
+          filter: "drop-shadow(0 1px 1px rgb(0 0 0 / 0.7))",
           transform: player.angle === undefined ? undefined : `rotate(${player.angle}deg)`,
         }}
       >
-        <polygon points="6,1 10.5,10.5 6,8.2 1.5,10.5" fill={color} />
-        <circle cx="6" cy="7.2" r="1.35" fill="var(--mf-text)" />
+        <polygon points="14,1 19.4,10.2 8.6,10.2" fill="currentColor" />
+        <circle cx="14" cy="14" r="8.2" fill="currentColor" />
       </svg>
+      <span
+        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-[11px] leading-none font-bold tabular-nums"
+        style={{ color: ink }}
+      >
+        {player.slot ?? ""}
+      </span>
     </div>
   )
 }
@@ -85,13 +93,13 @@ function BombMarker({ bomb }: { bomb: RadarBombView }) {
   const planted = bomb.kind === "planted"
   const carried = bomb.kind === "carried"
   const placement = carried
-    ? "translate(3px, 5px) scale(0.72)"
+    ? "translate(8px, 1px) scale(0.7)"
     : planted
-      ? "translate(-50%, -50%) scale(1.15)"
+      ? "translate(-50%, -50%) scale(1.05)"
       : "translate(-50%, -50%)"
   return (
     <div
-      className={`absolute ${planted ? "mf-planted-pulse" : carried ? "opacity-80" : ""}`}
+      className={`absolute ${planted ? "mf-planted-pulse" : carried ? "opacity-85" : ""}`}
       style={{
         left: `${clampRadarCoord(bomb.x) * 100}%`,
         top: `${clampRadarCoord(bomb.y) * 100}%`,

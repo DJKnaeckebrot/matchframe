@@ -114,6 +114,8 @@ export type PlayerState = {
   position?: Vector3
   /** World facing direction. Omitted when GSI did not send a valid vector. */
   forward?: Vector3
+  /** CS2 observer keyboard slot (0 = 10). */
+  observerSlot?: number
 }
 
 export type ObserverState = {

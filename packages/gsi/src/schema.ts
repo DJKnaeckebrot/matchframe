@@ -31,6 +31,7 @@ const gsiPlayerSchema = z.object({
   weapons: z.record(z.string(), gsiWeaponSchema).optional(),
   position: z.string().optional(),
   forward: z.string().optional(),
+  observer_slot: z.number().optional(),
 })
 
 const gsiTeamSchema = z.object({
