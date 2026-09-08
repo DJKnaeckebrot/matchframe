@@ -4,6 +4,7 @@ import { join } from "node:path"
 import { afterEach, describe, expect, test } from "bun:test"
 import { createGameStateEngine, parseServerMessage } from "@workspace/game-state"
 import type { GameState } from "@workspace/game-state"
+import { createGsiStateManager } from "@workspace/gsi"
 import { defaultTheme } from "@workspace/theme"
 import { websocket } from "hono/bun"
 
@@ -23,6 +24,7 @@ function testApp(dir: string) {
   const themeStore = createFileThemeStore(dir)
   const app = createApp({
     engine: createGameStateEngine(),
+    gsi: createGsiStateManager(),
     getState: () => store.current,
     setState: (state) => {
       store.current = state
@@ -168,6 +170,80 @@ describe("realtime theme", () => {
 
     const messages = await collectWsMessages(`ws://127.0.0.1:${server.port}/ws`, 3)
     expect(messages.map((message) => message.type)).toEqual(["connection", "theme", "snapshot"])
+  })
+
+  test("partial GSI posts merge instead of replacing roster", async () => {
+    const { app } = testApp(await tempDir())
+    const payload = await Bun.file(liveFixturePath).json()
+    const full = await app.request("/api/gsi", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    })
+    expect(full.status).toBe(204)
+
+    const omitted = await app.request("/api/gsi", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ provider: { timestamp: 1710000001 } }),
+    })
+    expect(omitted.status).toBe(204)
+
+    const afterOmit = (await (await app.request("/api/state")).json()) as {
+      state: {
+        timestamp: number
+        map: { name: string }
+        players: Array<{
+          steamId: string
+          health: number
+          equipment: { primary?: { id: string } }
+        }>
+      }
+    }
+    expect(afterOmit.state.timestamp).toBe(1710000001)
+    expect(afterOmit.state.map.name).toBe("de_inferno")
+    expect(afterOmit.state.players).toHaveLength(6)
+
+    const novaId = "76561198000000001"
+    const healthOnly = await app.request("/api/gsi", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        allplayers: Object.fromEntries(
+          afterOmit.state.players.map((player) => [
+            player.steamId,
+            player.steamId === novaId ? { state: { health: 41 } } : {},
+          ])
+        ),
+      }),
+    })
+    expect(healthOnly.status).toBe(204)
+
+    const afterHealth = (await (await app.request("/api/state")).json()) as {
+      state: {
+        players: Array<{
+          steamId: string
+          health: number
+          equipment: { primary?: { id: string } }
+        }>
+      }
+    }
+    const nova = afterHealth.state.players.find((player) => player.steamId === novaId)
+    expect(afterHealth.state.players).toHaveLength(6)
+    expect(nova?.health).toBe(41)
+    expect(nova?.equipment.primary?.id).toBe("m4a4")
+  })
+
+  test("rejects non-object GSI bodies", async () => {
+    const { app } = testApp(await tempDir())
+    for (const body of ["null", "[]", "42"]) {
+      const response = await app.request("/api/gsi", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body,
+      })
+      expect(response.status).toBe(400)
+    }
   })
 })
 

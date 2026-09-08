@@ -21,7 +21,7 @@ import {
   formatRoundHeadline,
   mapDisplayName,
 } from "../hud/format"
-import { HudIcon } from "../hud/icons"
+import { ObjectiveIcon } from "../icons"
 
 export function Scoreboard({ state }: { state: GameState }) {
   const left = state.teams[0]
@@ -81,7 +81,7 @@ function MatchContext({
           planted ? "text-(--mf-t)" : "text-(--mf-text)"
         }`}
       >
-        {planted ? <HudIcon name="bomb" className="size-3.5" /> : null}
+        {planted ? <ObjectiveIcon type="bomb" decorative /> : null}
         <span className={planted ? "mf-planted-pulse" : undefined}>
           {formatRoundHeadline(display.kind, display.round, display.timeoutSide)}
         </span>
@@ -213,9 +213,10 @@ function ObjectiveBar({
       className={`flex h-4 items-center gap-2 ${mirrored ? "flex-row-reverse" : ""}`}
     >
       <span
-        className="text-[10px] font-semibold tracking-[0.14em] uppercase tabular-nums whitespace-nowrap"
+        className="flex items-center gap-1.5 text-[10px] font-semibold tracking-[0.14em] uppercase tabular-nums whitespace-nowrap"
         style={{ color }}
       >
+        <ObjectiveIcon type={progress.kind} decorative />
         {label}
       </span>
       <div className="relative h-[3px] min-w-0 flex-1 bg-(--mf-text)/15">

@@ -1,7 +1,7 @@
 import type { PlayerState, WeaponState } from "@workspace/game-state"
 
-import { formatMoney, weaponShortLabel } from "../hud/format"
-import { HudIcon, UtilityMarks, iconLabel } from "../hud/icons"
+import { formatMoney } from "../hud/format"
+import { EquipmentIcon, LoadoutIcons, WeaponIcon } from "../icons"
 
 export function FocusedPlayer({ player }: { player: PlayerState }) {
   const sideColor = player.side === "CT" ? "var(--mf-ct)" : "var(--mf-t)"
@@ -12,13 +12,13 @@ export function FocusedPlayer({ player }: { player: PlayerState }) {
 
   return (
     <section
-      className={`relative w-[600px] ${dead ? "bg-(--mf-background)" : "bg-(--mf-surface)"}`}
+      className={`relative h-[76px] w-[600px] overflow-hidden ${dead ? "bg-(--mf-background)" : "bg-(--mf-surface)"}`}
     >
-      <div className={`grid grid-cols-[4px_1fr] items-stretch ${dead ? "grayscale opacity-65" : ""}`}>
+      <div className={`grid h-full grid-cols-[4px_1fr] items-stretch ${dead ? "grayscale opacity-65" : ""}`}>
         <div style={{ background: sideColor }} />
-        <div className="grid grid-cols-[1fr_auto] gap-x-6 gap-y-1 px-3 py-2">
-          <div className="flex min-w-0 items-baseline gap-2.5">
-            <span className="whitespace-nowrap text-[20px] font-semibold tracking-wide text-(--mf-text) uppercase">
+        <div className="grid h-full min-h-0 grid-cols-[1fr_auto] grid-rows-[1fr_2rem] gap-x-6 px-3 py-2">
+          <div className="flex min-h-0 min-w-0 items-center gap-2.5">
+            <span className="whitespace-nowrap text-[20px] font-semibold leading-none tracking-wide text-(--mf-text) uppercase">
               {player.name || player.steamId}
             </span>
             <span
@@ -28,22 +28,22 @@ export function FocusedPlayer({ player }: { player: PlayerState }) {
               {player.side}
             </span>
           </div>
-          <div className="flex items-center justify-end gap-3 text-[12px] tabular-nums text-(--mf-text-muted)">
+          <div className="flex min-h-0 items-center justify-end gap-3 text-[12px] leading-none tabular-nums text-(--mf-text-muted)">
             <span className="text-[17px] font-semibold text-(--mf-text)">
               {player.health}
             </span>
             <span className="flex items-center gap-1">
               {player.armor}
               {player.equipment.hasHelmet ? (
-                <span title={iconLabel("helmet")} className="text-(--mf-text)">
-                  <HudIcon name="helmet" />
+                <span className="text-(--mf-text)">
+                  <EquipmentIcon type="helmet" />
                 </span>
               ) : null}
             </span>
             <span>{formatMoney(player.money)}</span>
           </div>
           <WeaponAmmo weapon={weapon} />
-          <div className="flex items-center justify-end gap-4">
+          <div className="flex min-h-0 items-center justify-end gap-4">
             <span className="flex items-center gap-2 text-[12px] tabular-nums text-(--mf-text-muted)">
               <span>
                 <span className="text-[10px] tracking-wider">K </span>
@@ -58,7 +58,9 @@ export function FocusedPlayer({ player }: { player: PlayerState }) {
                 {player.deaths}
               </span>
             </span>
-            <UtilityMarks player={player} align="right" />
+            <span className="text-(--mf-text)/80">
+              <LoadoutIcons player={player} align="right" />
+            </span>
           </div>
         </div>
       </div>
@@ -79,24 +81,36 @@ export function FocusedPlayer({ player }: { player: PlayerState }) {
 
 function WeaponAmmo({ weapon }: { weapon: WeaponState | undefined }) {
   if (!weapon) {
-    return <div className="text-[13px] text-(--mf-text-muted)">—</div>
+    return <div className="flex h-8 min-h-0 items-center text-[13px] leading-none text-(--mf-text-muted)">—</div>
   }
 
   return (
-    <div className="flex items-baseline gap-1.5 text-(--mf-text)">
-      <span className="text-[13px] font-semibold tracking-wide uppercase">
-        {weaponShortLabel(weapon)}
-      </span>
-      {weapon.ammoClip !== undefined ? (
-        <span className="tabular-nums">
-          <span className="text-[13px] font-semibold">{weapon.ammoClip}</span>
-          {weapon.ammoReserve !== undefined ? (
-            <span className="text-[12px] text-(--mf-text-muted)">
-              /{weapon.ammoReserve}
-            </span>
-          ) : null}
+    <div className="flex h-8 min-h-0 items-center gap-2.5 overflow-hidden text-(--mf-text)">
+      <WeaponIcon
+        weaponId={weapon.id}
+        label={weapon.name}
+        size="lg"
+        decorative
+      />
+      <div className="flex h-8 min-h-0 min-w-0 flex-col justify-center overflow-hidden leading-none">
+        <span className="flex h-4 min-h-0 items-center truncate text-[12px] leading-none tracking-wide text-(--mf-text-muted) uppercase">
+          {weapon.name}
         </span>
-      ) : null}
+        <span className="flex h-4 min-h-0 items-center tabular-nums leading-none">
+          {weapon.ammoClip !== undefined ? (
+            <>
+              <span className="text-[13px] font-semibold leading-none">{weapon.ammoClip}</span>
+              {weapon.ammoReserve !== undefined ? (
+                <span className="text-[12px] leading-none text-(--mf-text-muted)">
+                  /{weapon.ammoReserve}
+                </span>
+              ) : null}
+            </>
+          ) : (
+            "\u00a0"
+          )}
+        </span>
+      </div>
     </div>
   )
 }

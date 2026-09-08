@@ -1,5 +1,9 @@
 import type { GameState, GameStateEngine } from "@workspace/game-state"
-import { normalizeGsiPayload, parseGsiPayload } from "@workspace/gsi"
+import {
+  normalizeGsiPayload,
+  parseGsiPayload,
+  type GsiStateManager,
+} from "@workspace/gsi"
 import { matchframeThemeSchema } from "@workspace/theme"
 import { Hono } from "hono"
 import { cors } from "hono/cors"
@@ -10,6 +14,7 @@ import type { RealtimeHub } from "./hub"
 
 export type ServerAppDeps = {
   engine: GameStateEngine
+  gsi: GsiStateManager
   getState: () => GameState | null
   setState: (state: GameState) => void
   themeStore: ThemeStore
@@ -38,7 +43,23 @@ export function createApp(deps: ServerAppDeps): Hono {
       return c.json({ error: "Invalid JSON", details: [] }, 400)
     }
 
-    const parsed = parseGsiPayload(body)
+    if (typeof body !== "object" || body === null || Array.isArray(body)) {
+      return c.json(
+        {
+          error: "Invalid GSI payload",
+          details: [{ path: "", message: "Expected an object" }],
+        },
+        400
+      )
+    }
+
+    try {
+      deps.gsi.update(body)
+    } catch {
+      return c.json({ error: "Invalid GSI payload", details: [] }, 400)
+    }
+
+    const parsed = parseGsiPayload(deps.gsi.getState())
     if (!parsed.success) {
       return c.json({ error: parsed.error, details: parsed.details }, 400)
     }

@@ -100,11 +100,12 @@ function shortFallback(id: string): string {
   return id.replace(/_/g, "").toUpperCase().slice(0, 6)
 }
 
+export function mainWeapon(player: PlayerState): WeaponState | undefined {
+  return player.equipment.primary ?? player.equipment.activeWeapon ?? player.equipment.secondary
+}
+
 export function mainWeaponLabel(player: PlayerState): string {
-  const weapon =
-    player.equipment.primary ??
-    player.equipment.activeWeapon ??
-    player.equipment.secondary
+  const weapon = mainWeapon(player)
   return weapon ? weaponShortLabel(weapon) : ""
 }
 

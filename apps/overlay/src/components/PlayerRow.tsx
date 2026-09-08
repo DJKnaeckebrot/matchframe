@@ -1,7 +1,7 @@
 import type { PlayerState, Side } from "@workspace/game-state"
 
-import { formatMoney, mainWeaponLabel } from "../hud/format"
-import { UtilityMarks } from "../hud/icons"
+import { formatMoney, mainWeapon, weaponShortLabel } from "../hud/format"
+import { LoadoutIcons, WeaponIcon } from "../icons"
 
 export function PlayerRow({
   player,
@@ -100,17 +100,23 @@ function Secondary({
     return <div />
   }
 
+  const weapon = mainWeapon(player)
+
   return (
     <div
       className={`flex min-w-0 items-center gap-2 ${mirrored ? "flex-row-reverse" : ""}`}
     >
-      <span className="shrink-0 text-[11px] tracking-wide text-(--mf-text-muted) uppercase">
-        {mainWeaponLabel(player)}
-      </span>
+      {weapon ? (
+        <span className="text-(--mf-text-muted)">
+          <WeaponIcon weaponId={weapon.id} label={weaponShortLabel(weapon)} />
+        </span>
+      ) : null}
       <span className="shrink-0 text-[12px] tabular-nums text-(--mf-text-muted)">
         {formatMoney(player.money)}
       </span>
-      <UtilityMarks player={player} align={mirrored ? "left" : "right"} />
+      <span className="text-(--mf-text)/80">
+        <LoadoutIcons player={player} align={mirrored ? "left" : "right"} />
+      </span>
     </div>
   )
 }

@@ -1,5 +1,6 @@
 import { join } from "node:path"
 import { createGameStateEngine } from "@workspace/game-state"
+import { createGsiStateManager } from "@workspace/gsi"
 import { websocket } from "hono/bun"
 
 import { createApp } from "./app"
@@ -23,11 +24,13 @@ function dataDir(): string {
 }
 
 const engine = createGameStateEngine()
+const gsi = createGsiStateManager()
 const hub = createRealtimeHub()
 const themeStore = createFileThemeStore(dataDir())
 
 const app = createApp({
   engine,
+  gsi,
   getState: () => gameStateStore.get(),
   setState: (state) => gameStateStore.set(state),
   themeStore,

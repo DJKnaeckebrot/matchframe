@@ -22,6 +22,8 @@ This starts the dashboard, overlay, and broadcast server together.
 
 Point an OBS Browser Source at the overlay URL when you are ready to composite it over gameplay. Keep the source at 1920×1080 with a transparent background.
 
+HUD equipment icons resolve normalized Matchframe ids through `apps/overlay/src/icons`. The current development artwork lives in `apps/overlay/src/assets/icon-packs/cs2-reference` (Valve silhouettes via [Juknum/counter-strike-icons](https://github.com/Juknum/counter-strike-icons); Counter-Strike assets remain property of Valve). The overlay never loads icons from the network.
+
 The overlay connects automatically. Override the server with `VITE_REALTIME_URL` (default `ws://localhost:3131/ws`).
 
 The dashboard reads and writes overlay colors on the broadcast server (`http://localhost:3131`, override with `VITE_API_URL`). Use the Vite app at http://localhost:5173 — a `vite preview` tab on port 4173 is a static build and will miss `/api` unless the server is reachable.
