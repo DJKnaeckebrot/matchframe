@@ -85,6 +85,7 @@ type GsiDemoWeapon = {
 type GsiDemoPlayer = {
   name?: string
   team?: string
+  observer_slot?: number
   state?: {
     health?: number
     armor?: number
@@ -338,19 +339,19 @@ function padRosters(payload: GsiDemo): void {
   const allplayers = payload.allplayers ?? {}
   payload.allplayers = allplayers
   padTeam(allplayers, "CT", [
-    { id: "76561198000000007", name: "Ash" },
-    { id: "76561198000000008", name: "Quill" },
+    { id: "76561198000000007", name: "Ash", slot: 4 },
+    { id: "76561198000000008", name: "Quill", slot: 5 },
   ])
   padTeam(allplayers, "T", [
-    { id: "76561198000000009", name: "Rook" },
-    { id: "76561198000000010", name: "Pike" },
+    { id: "76561198000000009", name: "Rook", slot: 9 },
+    { id: "76561198000000010", name: "Pike", slot: 0 },
   ])
 }
 
 function padTeam(
   allplayers: Record<string, GsiDemoPlayer>,
   team: "CT" | "T",
-  extras: readonly { id: string; name: string }[]
+  extras: readonly { id: string; name: string; slot: number }[]
 ): void {
   let count = Object.values(allplayers).filter((player) => player.team === team).length
   for (const extra of extras) {
@@ -363,6 +364,7 @@ function padTeam(
     allplayers[extra.id] = {
       name: extra.name,
       team,
+      observer_slot: extra.slot,
       state: { health: 100, armor: 100, helmet: true, money: 2700 },
     }
     count += 1

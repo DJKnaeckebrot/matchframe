@@ -54,11 +54,11 @@ function PlayerMarker({ player }: { player: RadarPlayerView }) {
     : player.side === "CT"
       ? "var(--mf-ct)"
       : "var(--mf-t)"
-  const ink = player.observed ? "#111418" : "var(--mf-background)"
+  const ink = player.observed ? "#111418" : "var(--mf-text)"
 
   return (
     <div
-      className="absolute size-7"
+      className="absolute size-8"
       style={{
         left: `${clampRadarCoord(player.x) * 100}%`,
         top: `${clampRadarCoord(player.y) * 100}%`,
@@ -67,7 +67,7 @@ function PlayerMarker({ player }: { player: RadarPlayerView }) {
       }}
     >
       <svg
-        viewBox="0 0 28 28"
+        viewBox="0 0 32 32"
         className="absolute inset-0"
         aria-hidden="true"
         style={{
@@ -76,11 +76,11 @@ function PlayerMarker({ player }: { player: RadarPlayerView }) {
           transform: player.angle === undefined ? undefined : `rotate(${player.angle}deg)`,
         }}
       >
-        <polygon points="14,1 19.4,10.2 8.6,10.2" fill="currentColor" />
-        <circle cx="14" cy="14" r="8.2" fill="currentColor" />
+        <polygon points="16,1 22,11.4 10,11.4" fill="currentColor" />
+        <circle cx="16" cy="17" r="10" fill="currentColor" />
       </svg>
       <span
-        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-[11px] leading-none font-bold tabular-nums"
+        className="absolute top-[17px] left-1/2 -translate-x-1/2 -translate-y-1/2 text-[12px] leading-none font-bold tabular-nums"
         style={{ color: ink }}
       >
         {player.slot ?? ""}

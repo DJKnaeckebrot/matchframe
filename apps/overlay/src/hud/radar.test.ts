@@ -107,19 +107,34 @@ describe("radar selectors", () => {
     expect(bomb?.x).toBeCloseTo(DE_ANUBIS_OVERVIEW_SPAWNS.ct.x, 10)
   })
 
-  test("observer slot 0 becomes radar label 10", () => {
+  test("radar blob uses team roster number 1–5, not keyboard 6–10", () => {
     const ctPos = radarToWorld(DE_ANUBIS_OVERVIEW_SPAWNS.ct, DE_ANUBIS)
+    const tPos = radarToWorld(DE_ANUBIS_OVERVIEW_SPAWNS.t, DE_ANUBIS)
     const players = getRadarPlayers(
       state([
         player({
           steamId: "ct1",
           side: "CT",
-          observerSlot: 0,
+          observerSlot: 1,
           position: { ...ctPos, z: 0 },
+        }),
+        player({
+          steamId: "t1",
+          side: "T",
+          observerSlot: 6,
+          position: { ...tPos, z: 0 },
+        }),
+        player({
+          steamId: "t2",
+          side: "T",
+          observerSlot: 0,
+          position: { ...tPos, z: 0 },
         }),
       ]),
       DE_ANUBIS
     )
-    expect(players[0]?.slot).toBe(10)
+    expect(players.find((entry) => entry.steamId === "ct1")?.slot).toBe(1)
+    expect(players.find((entry) => entry.steamId === "t1")?.slot).toBe(1)
+    expect(players.find((entry) => entry.steamId === "t2")?.slot).toBe(2)
   })
 })

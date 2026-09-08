@@ -117,14 +117,51 @@ export function focusedPlayer(state: GameState): PlayerState | null {
   return state.players.find((player) => player.steamId === steamId) ?? null
 }
 
+/** Keyboard slot on the HUD, 1–10. GSI 0 is key 0 / slot 10. */
+export function observerSlotLabel(observerSlot: number | undefined): number | undefined {
+  if (observerSlot === undefined || !Number.isFinite(observerSlot)) {
+    return undefined
+  }
+  if (observerSlot === 0) {
+    return 10
+  }
+  if (observerSlot < 0 || observerSlot > 10) {
+    return undefined
+  }
+  return observerSlot
+}
+
 export function playersForTeam(
   players: readonly PlayerState[],
   teamId: string
 ): Array<PlayerState | null> {
-  const members = players.filter((player) => player.teamId === teamId)
+  const members = players
+    .filter((player) => player.teamId === teamId)
+    .sort(byObserverSlot)
   const slots: Array<PlayerState | null> = members.slice(0, PLAYER_SLOTS)
   while (slots.length < PLAYER_SLOTS) {
     slots.push(null)
   }
   return slots
+}
+
+/** 1–5 in team-view order. Same value on the card and the radar blob. */
+export function rosterNumber(
+  players: readonly PlayerState[],
+  teamId: string,
+  steamId: string
+): number | undefined {
+  const index = playersForTeam(players, teamId).findIndex(
+    (player) => player?.steamId === steamId
+  )
+  return index >= 0 ? index + 1 : undefined
+}
+
+function byObserverSlot(a: PlayerState, b: PlayerState): number {
+  const rankA = observerSlotLabel(a.observerSlot) ?? 99
+  const rankB = observerSlotLabel(b.observerSlot) ?? 99
+  if (rankA !== rankB) {
+    return rankA - rankB
+  }
+  return a.name.localeCompare(b.name)
 }

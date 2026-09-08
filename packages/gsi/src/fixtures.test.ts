@@ -18,6 +18,7 @@ describe("GSI fixture variants", () => {
   test("healthy fixture restores full health", async () => {
     const state = await normalized("healthy")
     expect(state.players).toHaveLength(10)
+    expect(state.players.every((player) => player.observerSlot !== undefined)).toBe(true)
     expect(state.players.every((player) => player.health === 100 && player.alive)).toBe(true)
     expect(state.round.alive).toEqual({ ct: 5, t: 5 })
   })
