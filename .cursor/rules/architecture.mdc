@@ -1,0 +1,73 @@
+---
+description: Architecture and monorepo boundaries
+alwaysApply: true
+---
+
+# Project Architecture
+
+This is an open-source esports broadcast overlay system.
+
+## Stack
+
+- Bun runtime and package manager
+- Turborepo
+- TypeScript
+- React + Vite
+- Hono backend
+- shadcn/ui for dashboard UI
+- Tailwind CSS
+- Zod for validation
+- Zustand for realtime client state
+- TanStack Query for REST/API state
+- SQLite + Drizzle when persistence is needed
+
+Never introduce npm, pnpm or yarn commands. Use Bun.
+
+## Monorepo
+
+Apps:
+- `apps/dashboard`: configuration and control UI
+- `apps/overlay`: OBS browser-source overlay
+- `apps/server`: local Hono server, GSI receiver and WebSocket server
+
+Packages:
+- `packages/gsi`: raw CS2 GSI schemas, parsing and Valve-specific logic
+- `packages/game-state`: game-independent normalized state and events
+- `packages/theme`: shared theme types and tokens
+- `packages/ui`: shared dashboard UI components
+- `packages/database`: persistence
+- `packages/config`: shared configuration
+
+## Boundaries
+
+Keep packages independent of applications.
+
+`packages/game-state` MUST NOT depend on:
+- React
+- Hono
+- database code
+- CS2-specific GSI structures
+
+`packages/gsi` may depend on `game-state`, but `game-state` must never depend on `gsi`.
+
+The overlay must never consume raw CS2 GSI payloads.
+
+Correct flow:
+
+CS2 GSI
+→ GSI parser
+→ normalized GameState
+→ state engine
+→ WebSocket
+→ overlay
+
+Do not bypass this architecture.
+
+## UI
+
+Business logic and GSI parsing must not live inside React components.
+
+React components should primarily render already-normalized state.
+
+Overlay components must not create their own WebSocket connections.
+Use one centralized realtime store/client.

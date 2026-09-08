@@ -1,0 +1,57 @@
+---
+description: CS2 GSI and realtime state rules
+alwaysApply: false
+globs:
+  - "apps/server/**"
+  - "packages/gsi/**"
+  - "packages/game-state/**"
+  - "apps/overlay/**"
+---
+
+# GSI and Realtime
+
+Treat incoming CS2 Game State Integration payloads as untrusted external data.
+
+Pipeline:
+
+raw payload
+→ validation
+→ normalization
+→ state engine
+→ events
+→ broadcast
+
+Never expose raw Valve GSI payloads to frontend applications.
+
+The state engine owns the authoritative current game state.
+
+Events must be derived by comparing previous and current normalized state.
+
+Examples:
+
+- round_started
+- round_ended
+- player_died
+- bomb_planted
+- bomb_defused
+- observer_changed
+- side_changed
+
+WebSocket messages must use typed discriminated unions.
+
+Example:
+
+type ServerMessage =
+  | { type: "snapshot"; data: GameState }
+  | { type: "event"; data: GameEvent }
+  | { type: "connection"; data: ConnectionState };
+
+On WebSocket connection, send a full snapshot.
+
+Do not prematurely optimize realtime communication with:
+- protobuf
+- binary protocols
+- JSON patch
+- delta compression
+
+Prefer simple JSON snapshots until profiling proves otherwise.

@@ -1,0 +1,39 @@
+---
+description: TypeScript coding conventions
+alwaysApply: true
+---
+
+# TypeScript
+
+Use strict TypeScript.
+
+Prefer:
+- explicit domain types
+- discriminated unions
+- readonly data where appropriate
+- small focused functions
+- named exports
+- `unknown` over `any`
+- Zod validation at external boundaries
+
+Avoid:
+- `any`
+- type assertions unless unavoidable
+- enums when string unions work
+- deeply nested ternaries
+- giant utility files
+- duplicate domain models
+
+Never duplicate shared types between apps.
+
+External data must be validated before entering the domain layer.
+
+Use domain-specific types such as:
+
+- GameState
+- PlayerState
+- TeamState
+- RoundState
+- GameEvent
+
+instead of passing raw objects through the application.

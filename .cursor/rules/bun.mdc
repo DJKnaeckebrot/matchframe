@@ -1,0 +1,25 @@
+---
+description: Bun package manager and runtime
+alwaysApply: true
+---
+
+# Bun
+
+This repository exclusively uses Bun.
+
+Use:
+
+bun install
+bun add
+bun add -d
+bun run
+bun test
+bunx
+
+Never use:
+
+npm
+npx
+pnpm
+pnpx
+yarn

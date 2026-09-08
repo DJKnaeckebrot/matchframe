@@ -1,0 +1,29 @@
+---
+description: Testing conventions
+alwaysApply: true
+---
+
+# Testing
+
+Use Bun's test runner.
+
+Prioritize tests for domain logic over UI snapshots.
+
+Always add or update tests when changing:
+
+- GSI normalization
+- state transitions
+- event detection
+- side switching
+- round transitions
+- bomb state
+- player state
+- reconnect/recovery behavior
+
+Prefer table-driven tests for GSI payload transformations.
+
+Do not rely on real running CS2 instances in unit tests.
+
+Store sanitized GSI fixtures where useful.
+
+Bug fixes in game-state logic should include a regression test.

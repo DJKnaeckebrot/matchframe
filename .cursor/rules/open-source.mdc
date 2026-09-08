@@ -1,0 +1,23 @@
+---
+description: Open source project conventions
+alwaysApply: true
+---
+
+# Open Source
+
+Assume this project will be publicly released.
+
+Do not:
+- commit secrets
+- hardcode local filesystem paths
+- depend on private infrastructure
+- require cloud services for core functionality
+- introduce telemetry without explicit opt-in
+
+Prefer local-first functionality.
+
+Configuration should have sensible defaults.
+
+New features should work without requiring accounts or external services whenever possible.
+
+Keep public APIs and domain types documented and stable.
