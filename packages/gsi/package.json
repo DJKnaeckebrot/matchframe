@@ -11,6 +11,7 @@
     "test": "bun test"
   },
   "dependencies": {
+    "@counter-strike-2-gsi/server": "^0.3.0",
     "@workspace/game-state": "workspace:*",
     "zod": "^4.4.3"
   },

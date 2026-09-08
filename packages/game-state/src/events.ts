@@ -1,8 +1,14 @@
-import type { Side } from "./types"
+import type { RoundWinReason, Side } from "./types"
 
 export type GameEvent =
   | { type: "round_started"; round: number }
-  | { type: "round_ended"; round: number; winTeam: Side | null }
+  | {
+      type: "round_ended"
+      round: number
+      winTeam: Side | null
+      teamId?: string
+      winReason?: RoundWinReason
+    }
   | { type: "player_died"; steamId: string }
   | { type: "player_reappeared"; steamId: string }
   | {

@@ -42,11 +42,18 @@ const gsiMapSchema = z.object({
   round: z.number().optional(),
   team_ct: gsiTeamSchema.optional(),
   team_t: gsiTeamSchema.optional(),
+  round_wins: z.record(z.string(), z.string()).optional(),
 })
 
 const gsiRoundSchema = z.object({
   phase: z.string().optional(),
   win_team: z.string().optional(),
+  bomb: z.string().optional(),
+})
+
+const gsiPhaseCountdownsSchema = z.object({
+  phase: z.string().optional(),
+  phase_ends_in: z.union([z.number(), z.string()]).optional(),
 })
 
 const gsiBombSchema = z.object({
@@ -67,6 +74,7 @@ export const gsiPayloadSchema = z.object({
   player: gsiPlayerSchema.optional(),
   allplayers: z.record(z.string(), gsiPlayerSchema).optional(),
   bomb: gsiBombSchema.optional(),
+  phase_countdowns: gsiPhaseCountdownsSchema.optional(),
 })
 
 export type GsiPayload = z.infer<typeof gsiPayloadSchema>

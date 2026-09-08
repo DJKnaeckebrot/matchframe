@@ -12,3 +12,23 @@ body,
   font-family: "Segoe UI Variable Text", "Segoe UI", "Helvetica Neue", sans-serif;
   font-feature-settings: "tnum" 1;
 }
+
+@keyframes mf-planted-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.72;
+  }
+}
+
+.mf-planted-pulse {
+  animation: mf-planted-pulse 1.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mf-planted-pulse {
+    animation: none;
+  }
+}

@@ -6,7 +6,7 @@ import {
 } from "@workspace/theme"
 import type { MatchframeTheme, ThemeToken } from "@workspace/theme"
 
-const API_BASE = import.meta.env.VITE_API_URL ?? ""
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:3131"
 
 export async function fetchTheme(): Promise<MatchframeTheme> {
   const response = await fetch(`${API_BASE}/api/config/theme`)

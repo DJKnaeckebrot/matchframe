@@ -2,6 +2,7 @@ import { matchframeThemeSchema } from "@workspace/theme"
 import type { MatchframeTheme } from "@workspace/theme"
 
 import type { GameEvent } from "./events"
+import { isRoundWinReason } from "./selectors"
 import type { GameState } from "./types"
 
 export type ConnectionState = {
@@ -76,7 +77,13 @@ function parseGameEvent(value: unknown): GameEvent | null {
       if (value.winTeam !== "CT" && value.winTeam !== "T" && value.winTeam !== null) {
         return null
       }
-      return { type: "round_ended", round: value.round, winTeam: value.winTeam }
+      return {
+        type: "round_ended",
+        round: value.round,
+        winTeam: value.winTeam,
+        ...(typeof value.teamId === "string" ? { teamId: value.teamId } : {}),
+        ...(isRoundWinReason(value.winReason) ? { winReason: value.winReason } : {}),
+      }
     case "player_died":
     case "player_reappeared":
       return typeof value.steamId === "string"

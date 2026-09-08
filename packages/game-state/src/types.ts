@@ -25,10 +25,21 @@ export type BombStatus =
   | "carried"
   | "dropped"
   | "planted"
+  | "defusing"
   | "defused"
   | "exploding"
   | "exploded"
   | "unknown"
+
+export type RoundWinReason =
+  | "elimination"
+  | "bomb_exploded"
+  | "bomb_defused"
+  | "time_expired"
+
+export type PauseState =
+  | { kind: "paused"; timeRemaining?: number }
+  | { kind: "timeout"; side: Side; timeRemaining?: number }
 
 export type Vector3 = {
   x: number
@@ -39,12 +50,19 @@ export type Vector3 = {
 export type MapState = {
   name: string
   phase: MapPhase
+  /** Zero-based CS2 GSI round index. Use getDisplayRoundNumber for HUD labels. */
   round: number
 }
 
 export type RoundState = {
   phase: RoundPhase
   winTeam: Side | null
+  winReason?: RoundWinReason
+  timeRemaining?: number
+  alive: {
+    ct: number
+    t: number
+  }
 }
 
 export type TeamState = {
@@ -101,8 +119,16 @@ export type ObserverState = {
 export type BombState = {
   state: BombStatus
   carrierSteamId?: string
+  defuserSteamId?: string
   position?: Vector3
+  /** Remaining plant time. Not the defuse timer. */
   countdown?: number
+  /** Remaining defuse time while state is defusing. */
+  defuseCountdown?: number
+  /** First observed plant remaining for the current planted sequence. */
+  countdownDuration?: number
+  /** First observed defuse remaining for the current defuse attempt. */
+  defuseDuration?: number
 }
 
 export type GameState = {
@@ -113,4 +139,5 @@ export type GameState = {
   players: readonly PlayerState[]
   observer: ObserverState
   bomb: BombState | null
+  pause: PauseState | null
 }

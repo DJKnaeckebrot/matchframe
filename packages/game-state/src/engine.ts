@@ -1,6 +1,6 @@
 import type { GameEvent } from "./events"
 import { assignTeamIdentity } from "./identity"
-import type { GameState, PlayerState } from "./types"
+import type { BombState, BombStatus, GameState, PlayerState } from "./types"
 
 export type ApplyResult = {
   state: GameState
@@ -11,12 +11,15 @@ export type GameStateEngine = {
   apply(snapshot: GameState): ApplyResult
 }
 
+const PLANTED_SEQUENCE = new Set<BombStatus>(["planted", "defusing", "exploding"])
+
 export function createGameStateEngine(): GameStateEngine {
   let previous: GameState | null = null
 
   return {
     apply(snapshot: GameState): ApplyResult {
-      const state = assignTeamIdentity(previous, snapshot)
+      const identified = assignTeamIdentity(previous, snapshot)
+      const state = captureBombProgress(previous, identified)
       const events = previous === null ? [] : deriveEvents(previous, state)
       previous = state
       return { state, events }
@@ -24,14 +27,95 @@ export function createGameStateEngine(): GameStateEngine {
   }
 }
 
+function isPlantedSequence(state: BombStatus | undefined): boolean {
+  return state !== undefined && PLANTED_SEQUENCE.has(state)
+}
+
+function isNewRound(previous: GameState, next: GameState): boolean {
+  return (
+    next.map.round !== previous.map.round ||
+    (previous.round.phase === "over" && next.round.phase === "freezetime")
+  )
+}
+
+function captureBombProgress(previous: GameState | null, next: GameState): GameState {
+  const bomb = next.bomb
+  if (!bomb) {
+    return next
+  }
+
+  if (!isPlantedSequence(bomb.state)) {
+    return { ...next, bomb: stripCapturedProgress(bomb) }
+  }
+
+  const continueSequence =
+    previous !== null &&
+    isPlantedSequence(previous.bomb?.state) &&
+    !isNewRound(previous, next)
+
+  const captured: BombState = { state: bomb.state }
+  if (bomb.carrierSteamId !== undefined) {
+    captured.carrierSteamId = bomb.carrierSteamId
+  }
+  if (bomb.position !== undefined) {
+    captured.position = bomb.position
+  }
+
+  let countdown = bomb.countdown
+  if (countdown === undefined && continueSequence && previous.bomb?.countdown !== undefined) {
+    countdown = previous.bomb.countdown
+  }
+  if (countdown !== undefined) {
+    captured.countdown = countdown
+  }
+
+  const previousDuration = continueSequence ? previous.bomb?.countdownDuration : undefined
+  if (previousDuration !== undefined) {
+    captured.countdownDuration = previousDuration
+  } else if (countdown !== undefined) {
+    captured.countdownDuration = countdown
+  }
+
+  if (bomb.state === "defusing") {
+    if (bomb.defuserSteamId !== undefined) {
+      captured.defuserSteamId = bomb.defuserSteamId
+    }
+    if (bomb.defuseCountdown !== undefined) {
+      captured.defuseCountdown = bomb.defuseCountdown
+    }
+    const continueDefuse = continueSequence && previous.bomb?.state === "defusing"
+    if (continueDefuse && previous.bomb?.defuseDuration !== undefined) {
+      captured.defuseDuration = previous.bomb.defuseDuration
+    } else if (bomb.defuseCountdown !== undefined) {
+      captured.defuseDuration = bomb.defuseCountdown
+    }
+  }
+
+  return { ...next, bomb: captured }
+}
+
+function stripCapturedProgress(bomb: BombState): BombState {
+  const next: BombState = { state: bomb.state }
+  if (bomb.carrierSteamId !== undefined) {
+    next.carrierSteamId = bomb.carrierSteamId
+  }
+  if (bomb.position !== undefined) {
+    next.position = bomb.position
+  }
+  return next
+}
+
 function deriveEvents(previous: GameState, next: GameState): GameEvent[] {
   const events: GameEvent[] = []
 
   if (previous.round.phase !== "over" && next.round.phase === "over") {
+    const winner = next.teams.find((team) => team.side === next.round.winTeam)
     events.push({
       type: "round_ended",
       round: next.map.round,
       winTeam: next.round.winTeam,
+      ...(winner ? { teamId: winner.id } : {}),
+      ...(next.round.winReason ? { winReason: next.round.winReason } : {}),
     })
   }
 

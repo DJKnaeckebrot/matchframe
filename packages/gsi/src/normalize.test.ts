@@ -134,7 +134,7 @@ describe("normalizeGsiPayload", () => {
     expect(state).toEqual({
       timestamp: 0,
       map: { name: "", phase: "unknown", round: 0 },
-      round: { phase: "unknown", winTeam: null },
+      round: { phase: "unknown", winTeam: null, alive: { ct: 0, t: 0 } },
       teams: [
         { id: "ct", name: "CT", side: "CT", score: 0 },
         { id: "t", name: "T", side: "T", score: 0 },
@@ -142,6 +142,7 @@ describe("normalizeGsiPayload", () => {
       players: [],
       observer: { playerSteamId: null },
       bomb: null,
+      pause: null,
     })
 
     const partial = parseGsiPayload({
@@ -273,6 +274,211 @@ describe("normalizeGsiPayload", () => {
       hasHelmet: false,
       hasDefuseKit: false,
       hasBomb: false,
+    })
+  })
+
+  test("live fixture exposes round clock and side alive counts", async () => {
+    const state = normalizeGsiPayload(await parsedFixture())
+    expect(state.round.phase).toBe("live")
+    expect(state.round.timeRemaining).toBe(83.4)
+    expect(state.round.alive).toEqual({ ct: 3, t: 2 })
+    expect(state.round.winTeam).toBeNull()
+    expect(state.pause).toBeNull()
+  })
+
+  test("round phase and freeze countdown come from GSI, not invented clocks", () => {
+    const parsed = parseGsiPayload({
+      round: { phase: "freezetime" },
+      phase_countdowns: { phase: "freezetime", phase_ends_in: "12.0" },
+    })
+    expect(parsed.success).toBe(true)
+    if (!parsed.success) {
+      return
+    }
+    const state = normalizeGsiPayload(parsed.data)
+    expect(state.round.phase).toBe("freezetime")
+    expect(state.round.timeRemaining).toBe(12)
+  })
+
+  test("missing countdown stays undefined", () => {
+    const parsed = parseGsiPayload({
+      round: { phase: "live" },
+      bomb: { state: "carried", player: "t1" },
+    })
+    expect(parsed.success).toBe(true)
+    if (!parsed.success) {
+      return
+    }
+    const state = normalizeGsiPayload(parsed.data)
+    expect(state.round.timeRemaining).toBeUndefined()
+    expect(state.bomb?.countdown).toBeUndefined()
+  })
+
+  test("phase_countdowns bomb timer is not copied onto the round clock", () => {
+    const parsed = parseGsiPayload({
+      round: { phase: "live" },
+      phase_countdowns: { phase: "bomb", phase_ends_in: "28.4" },
+      bomb: { state: "planted", countdown: "28.4" },
+    })
+    expect(parsed.success).toBe(true)
+    if (!parsed.success) {
+      return
+    }
+    const state = normalizeGsiPayload(parsed.data)
+    expect(state.round.phase).toBe("live")
+    expect(state.round.timeRemaining).toBeUndefined()
+    expect(state.bomb).toEqual({ state: "planted", countdown: 28.4 })
+  })
+
+  test("carried and dropped bombs never keep a planted countdown", () => {
+    for (const bomb of [
+      { state: "carried" as const, player: "t1", countdown: "40" },
+      { state: "dropped" as const, countdown: "40" },
+    ]) {
+      const parsed = parseGsiPayload({ bomb })
+      expect(parsed.success).toBe(true)
+      if (!parsed.success) {
+        continue
+      }
+      const state = normalizeGsiPayload(parsed.data)
+      expect(state.bomb?.countdown).toBeUndefined()
+      expect(state.bomb?.state).toBe(bomb.state)
+    }
+  })
+
+  test("defusing is planted-adjacent but does not reuse the defuse timer as a plant countdown", () => {
+    const parsed = parseGsiPayload({
+      bomb: { state: "defusing", player: "ct1", countdown: "4.2" },
+      phase_countdowns: { phase: "defuse", phase_ends_in: "4.2" },
+    })
+    expect(parsed.success).toBe(true)
+    if (!parsed.success) {
+      return
+    }
+    const state = normalizeGsiPayload(parsed.data)
+    expect(state.bomb).toEqual({
+      state: "defusing",
+      defuserSteamId: "ct1",
+      defuseCountdown: 4.2,
+    })
+    expect(state.bomb?.countdown).toBeUndefined()
+    expect(state.round.timeRemaining).toBeUndefined()
+  })
+
+  test("defusing without bomb.player leaves defuserSteamId unset", () => {
+    const parsed = parseGsiPayload({
+      bomb: { state: "defusing", countdown: "3.1" },
+      phase_countdowns: { phase: "defuse", phase_ends_in: "3.1" },
+    })
+    expect(parsed.success).toBe(true)
+    if (!parsed.success) {
+      return
+    }
+    const state = normalizeGsiPayload(parsed.data)
+    expect(state.bomb).toEqual({ state: "defusing", defuseCountdown: 3.1 })
+    expect(state.bomb?.defuserSteamId).toBeUndefined()
+  })
+
+  test("defused and exploded bombs drop countdown and carrier", () => {
+    for (const bombState of ["defused", "exploded"] as const) {
+      const parsed = parseGsiPayload({
+        bomb: { state: bombState, player: "t1", countdown: "0.8" },
+      })
+      expect(parsed.success).toBe(true)
+      if (!parsed.success) {
+        continue
+      }
+      const state = normalizeGsiPayload(parsed.data)
+      expect(state.bomb).toEqual({ state: bombState })
+    }
+  })
+
+  test("alive counts follow current side, including after a switch", () => {
+    const payload = {
+      map: {
+        team_ct: { name: "Northwind" },
+        team_t: { name: "Redline" },
+      },
+      allplayers: {
+        ct1: { team: "CT", state: { health: 100 } },
+        ct2: { team: "CT", state: { health: 100 } },
+        ct3: { team: "CT", state: { health: 0 } },
+        t1: { team: "T", state: { health: 80 } },
+        t2: { team: "T", state: { health: 0 } },
+      },
+    }
+    const live = parseGsiPayload(payload)
+    expect(live.success).toBe(true)
+    if (!live.success) {
+      return
+    }
+    expect(normalizeGsiPayload(live.data).round.alive).toEqual({ ct: 2, t: 1 })
+
+    const swapped = parseGsiPayload({
+      map: {
+        team_ct: { name: "Redline" },
+        team_t: { name: "Northwind" },
+      },
+      allplayers: {
+        ct1: { team: "T", state: { health: 100 } },
+        ct2: { team: "T", state: { health: 100 } },
+        ct3: { team: "T", state: { health: 0 } },
+        t1: { team: "CT", state: { health: 80 } },
+        t2: { team: "CT", state: { health: 0 } },
+      },
+    })
+    expect(swapped.success).toBe(true)
+    if (!swapped.success) {
+      return
+    }
+    expect(normalizeGsiPayload(swapped.data).round.alive).toEqual({ ct: 1, t: 2 })
+  })
+
+  test("round winner and win reason are normalized without Valve strings", () => {
+    const parsed = parseGsiPayload({
+      map: { round: 14, round_wins: { "15": "ct_win_defuse" } },
+      round: { phase: "over", win_team: "CT", bomb: "defused" },
+      phase_countdowns: { phase: "over", phase_ends_in: "6" },
+    })
+    expect(parsed.success).toBe(true)
+    if (!parsed.success) {
+      return
+    }
+    const state = normalizeGsiPayload(parsed.data)
+    expect(state.round).toMatchObject({
+      phase: "over",
+      winTeam: "CT",
+      winReason: "bomb_defused",
+      timeRemaining: 6,
+    })
+  })
+
+  test("pause and timeout come from phase_countdowns only", () => {
+    const paused = parseGsiPayload({
+      round: { phase: "live" },
+      phase_countdowns: { phase: "paused", phase_ends_in: "45.0" },
+    })
+    expect(paused.success).toBe(true)
+    if (!paused.success) {
+      return
+    }
+    expect(normalizeGsiPayload(paused.data).pause).toEqual({
+      kind: "paused",
+      timeRemaining: 45,
+    })
+
+    const timeout = parseGsiPayload({
+      round: { phase: "live" },
+      phase_countdowns: { phase: "timeout_t", phase_ends_in: "30" },
+    })
+    expect(timeout.success).toBe(true)
+    if (!timeout.success) {
+      return
+    }
+    expect(normalizeGsiPayload(timeout.data).pause).toEqual({
+      kind: "timeout",
+      side: "T",
+      timeRemaining: 30,
     })
   })
 })

@@ -1,4 +1,5 @@
 import type { GameState, PlayerState, WeaponState } from "@workspace/game-state"
+import type { RoundDisplayKind } from "@workspace/game-state"
 
 export const PLAYER_SLOTS = 5
 
@@ -50,17 +51,41 @@ export function mapDisplayName(name: string): string {
   return stripped.replace(/\b\w/g, (char) => char.toUpperCase())
 }
 
-export function formatRoundPhase(phase: string): string {
-  if (phase === "freezetime") {
-    return "FREEZE"
+export function formatClock(seconds: number): string {
+  const total = Math.max(0, Math.floor(seconds))
+  const minutes = Math.floor(total / 60)
+  const remainder = total % 60
+  return `${minutes}:${remainder.toString().padStart(2, "0")}`
+}
+
+export function formatRemaining(seconds: number): string {
+  return Math.max(0, seconds).toFixed(1)
+}
+
+export function formatRoundHeadline(
+  kind: RoundDisplayKind,
+  round: number,
+  timeoutSide?: string
+): string {
+  if (kind === "freezetime") {
+    return `R${round} · FREEZE`
   }
-  if (phase === "live") {
-    return "LIVE"
+  if (kind === "live") {
+    return `R${round} · LIVE`
   }
-  if (phase === "over") {
-    return "OVER"
+  if (kind === "bomb") {
+    return "PLANTED"
   }
-  return phase.toUpperCase()
+  if (kind === "over") {
+    return `ROUND ${round}`
+  }
+  if (kind === "paused") {
+    return "PAUSED"
+  }
+  if (kind === "timeout") {
+    return timeoutSide ? `${timeoutSide} TIMEOUT` : "TIMEOUT"
+  }
+  return `R${round}`
 }
 
 export function formatMoney(value: number): string {

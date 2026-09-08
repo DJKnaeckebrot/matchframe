@@ -4,8 +4,23 @@ export const GSI_FIXTURE_VARIANTS = [
   "damaged",
   "dead",
   "sides-switched",
+  "sides-switched-live",
   "equipment",
   "observer",
+  "freeze",
+  "4v5",
+  "1v2",
+  "bomb-planted",
+  "bomb-low-time",
+  "bomb-defusing",
+  "bomb-defusing-low-time",
+  "bomb-defused",
+  "bomb-exploded",
+  "sides-switched-bomb-planted",
+  "sides-switched-defusing",
+  "round-ct-win",
+  "round-t-win",
+  "round-over-bomb-defused",
 ] as const
 
 export type GsiFixtureVariant = (typeof GSI_FIXTURE_VARIANTS)[number]
@@ -18,17 +33,28 @@ export async function loadGsiFixture(
   const payload = structuredClone(await Bun.file(liveFixturePath).json()) as GsiDemo
   applyVariant(payload, variant)
   padRosters(payload)
-  if (variant === "equipment") {
-    applyEquipmentLoadouts(payload)
-  }
+  applyPostPad(payload, variant)
   return payload
 }
 
 type GsiDemo = {
   player?: { steamid?: string; name?: string }
   map?: {
+    name?: string
+    phase?: string
+    round?: number
     team_ct?: GsiTeam
     team_t?: GsiTeam
+    round_wins?: Record<string, string>
+  }
+  round?: {
+    phase?: string
+    win_team?: string
+    bomb?: string
+  }
+  phase_countdowns?: {
+    phase?: string
+    phase_ends_in?: number | string
   }
   allplayers?: Record<string, GsiDemoPlayer>
   bomb?: {
@@ -104,7 +130,86 @@ function applyVariant(payload: GsiDemo, variant: GsiFixtureVariant): void {
     }
     return
   }
+  if (variant === "freeze") {
+    setPhase(payload, "freezetime", "12.0")
+    return
+  }
+  if (variant === "bomb-planted") {
+    setPlanted(payload, "28.4")
+    return
+  }
+  if (variant === "bomb-low-time") {
+    setPlanted(payload, "5.2")
+    return
+  }
+  if (variant === "bomb-defusing") {
+    setDefusing(payload, "4.2")
+    return
+  }
+  if (variant === "bomb-defusing-low-time") {
+    setDefusing(payload, "1.1")
+    return
+  }
+  if (variant === "bomb-defused" || variant === "round-over-bomb-defused") {
+    setRoundOver(payload, "CT", "ct_win_defuse", "defused")
+    return
+  }
+  if (variant === "bomb-exploded") {
+    setRoundOver(payload, "T", "t_win_bomb", "exploded")
+    return
+  }
+  if (variant === "sides-switched-bomb-planted") {
+    swapSides(payload)
+    setPlanted(payload, "28.4")
+    return
+  }
+  if (variant === "sides-switched-defusing") {
+    swapSides(payload)
+    setDefusing(payload, "4.2")
+    return
+  }
+  if (variant === "round-ct-win") {
+    setRoundOver(payload, "CT", "ct_win_elimination")
+    return
+  }
+  if (variant === "round-t-win") {
+    setRoundOver(payload, "T", "t_win_elimination")
+    return
+  }
+  if (
+    variant === "sides-switched" ||
+    variant === "sides-switched-live" ||
+    variant === "4v5" ||
+    variant === "1v2"
+  ) {
+    if (variant === "sides-switched" || variant === "sides-switched-live") {
+      swapSides(payload)
+    }
+    if (variant === "sides-switched-live") {
+      setPhase(payload, "live", "83.4")
+    }
+  }
+}
 
+function applyPostPad(payload: GsiDemo, variant: GsiFixtureVariant): void {
+  if (variant === "equipment") {
+    applyEquipmentLoadouts(payload)
+    return
+  }
+  if (variant === "freeze") {
+    reviveAll(payload)
+    return
+  }
+  if (variant === "4v5") {
+    setAliveCounts(payload, 4, 5)
+    return
+  }
+  if (variant === "1v2") {
+    setAliveCounts(payload, 1, 2)
+  }
+}
+
+function swapSides(payload: GsiDemo): void {
   const map = payload.map
   if (!map) {
     return
@@ -120,6 +225,88 @@ function applyVariant(payload: GsiDemo, variant: GsiFixtureVariant): void {
       player.team = "CT"
     }
   }
+}
+
+function setPhase(payload: GsiDemo, phase: string, endsIn: string): void {
+  payload.round = { ...payload.round, phase }
+  delete payload.round.win_team
+  delete payload.round.bomb
+  payload.phase_countdowns = { phase, phase_ends_in: endsIn }
+}
+
+function setPlanted(payload: GsiDemo, countdown: string): void {
+  payload.round = { ...payload.round, phase: "live", bomb: "planted" }
+  delete payload.round.win_team
+  payload.phase_countdowns = { phase: "bomb", phase_ends_in: countdown }
+  payload.bomb = { state: "planted", countdown }
+}
+
+function setDefusing(payload: GsiDemo, countdown: string): void {
+  payload.round = { ...payload.round, phase: "live", bomb: "planted" }
+  delete payload.round.win_team
+  payload.phase_countdowns = { phase: "defuse", phase_ends_in: countdown }
+  const bomb: NonNullable<GsiDemo["bomb"]> = { state: "defusing", countdown }
+  const defuser = currentSideSteamId(payload, "CT")
+  if (defuser) {
+    bomb.player = defuser
+  }
+  payload.bomb = bomb
+}
+
+function currentSideSteamId(payload: GsiDemo, side: "CT" | "T"): string | undefined {
+  for (const [steamId, player] of Object.entries(payload.allplayers ?? {})) {
+    if (player.team === side && (player.state?.health ?? 0) > 0) {
+      return steamId
+    }
+  }
+  return undefined
+}
+
+function setRoundOver(
+  payload: GsiDemo,
+  winTeam: "CT" | "T",
+  win: string,
+  bomb?: "defused" | "exploded"
+): void {
+  payload.round = { phase: "over", win_team: winTeam }
+  if (bomb) {
+    payload.round.bomb = bomb
+    payload.bomb = { state: bomb }
+  } else if (payload.bomb) {
+    payload.bomb = { ...payload.bomb, state: "carried" }
+  }
+  payload.phase_countdowns = { phase: "over", phase_ends_in: "6.0" }
+  const round = payload.map?.round ?? 0
+  payload.map = {
+    ...payload.map,
+    round_wins: { ...(payload.map?.round_wins ?? {}), [String(round + 1)]: win },
+  }
+}
+
+function reviveAll(payload: GsiDemo): void {
+  for (const player of playersOf(payload)) {
+    if ((player.state?.health ?? 0) <= 0) {
+      setVitals(player, { health: 100, armor: 100, helmet: true })
+    }
+  }
+}
+
+function setAliveCounts(payload: GsiDemo, ctAlive: number, tAlive: number): void {
+  setTeamAlive(payload, "CT", ctAlive)
+  setTeamAlive(payload, "T", tAlive)
+}
+
+function setTeamAlive(payload: GsiDemo, team: "CT" | "T", keep: number): void {
+  const list = playersOf(payload).filter((player) => player.team === team)
+  list.forEach((player, index) => {
+    if (index < keep) {
+      if ((player.state?.health ?? 0) <= 0) {
+        setVitals(player, { health: 100, armor: 0, helmet: false })
+      }
+      return
+    }
+    setVitals(player, { health: 0, armor: 0, helmet: false })
+  })
 }
 
 function padRosters(payload: GsiDemo): void {

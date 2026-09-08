@@ -17,7 +17,12 @@ import type { MatchframeTheme, ThemeToken } from "@/lib/api.ts"
 
 export function AppearancePage() {
   const queryClient = useQueryClient()
-  const query = useQuery({ queryKey: ["theme"], queryFn: fetchTheme })
+  const query = useQuery({
+    queryKey: ["theme"],
+    queryFn: fetchTheme,
+    retry: 8,
+    retryDelay: 400,
+  })
   const [draft, setDraft] = useState<MatchframeTheme>(defaultTheme)
 
   useEffect(() => {

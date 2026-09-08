@@ -7,11 +7,12 @@ import { parseServerMessage, serializeServerMessage } from "./messages"
 const sampleState: GameState = {
   timestamp: 1,
   map: { name: "de_inferno", phase: "live", round: 1 },
-  round: { phase: "live", winTeam: null },
+  round: { phase: "live", winTeam: null, alive: { ct: 0, t: 0 } },
   teams: [{ id: "team-1", name: "Northwind", side: "CT", score: 8 }],
   players: [],
   observer: { playerSteamId: null },
   bomb: null,
+  pause: null,
 }
 
 describe("server messages", () => {
@@ -23,7 +24,13 @@ describe("server messages", () => {
       { type: "event" as const, data: { type: "bomb_planted" as const } },
       {
         type: "event" as const,
-        data: { type: "round_ended" as const, round: 14, winTeam: "CT" as const },
+        data: {
+          type: "round_ended" as const,
+          round: 14,
+          winTeam: "CT" as const,
+          teamId: "team-1",
+          winReason: "elimination" as const,
+        },
       },
       { type: "theme" as const, data: defaultTheme },
     ]
