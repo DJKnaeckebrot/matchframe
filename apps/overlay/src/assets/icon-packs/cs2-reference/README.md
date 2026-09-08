@@ -1,9 +1,31 @@
-# CS2 reference icon pack
+# Counter-Strike Reference Assets
 
-Development/reference silhouettes used by the overlay HUD. Gun, nade, kit, and C4 files from the equipment folder are bundled locally; knife skins and unrelated panorama icons are not.
+The files in this directory originate from or are derived from Counter-Strike 2
+game assets.
 
-Source: [Juknum/counter-strike-icons](https://github.com/Juknum/counter-strike-icons), path `cs2/panorama/images/icons/equipment`.
+They are NOT licensed under Matchframe's MPL-2.0 license.
 
-That repository states that Counter-Strike assets remain property of Valve Corporation and are intended for community / educational use.
+Counter-Strike and its game assets are property of Valve Corporation.
 
-Matchframe does not treat these files as the product icon API. Overlay components resolve **normalized Matchframe ids** (`ak47`, `flash`, `bomb`) through `apps/overlay/src/icons`. Swap this folder (or point `icon-registry.ts` at another pack) to replace artwork without changing player rows or game-state types.
+Source/reference:
+https://github.com/Juknum/counter-strike-icons
+
+These assets are kept separate from Matchframe-owned source code so they can be
+replaced independently.
+
+Do not assume that redistribution or commercial use of these assets is granted
+by Matchframe's software license.
+
+## Pack notes
+
+Development/reference silhouettes used by the overlay HUD. Gun, nade, kit, and
+C4 files from the equipment folder are bundled locally; knife skins and
+unrelated panorama icons are not.
+
+Upstream path: `cs2/panorama/images/icons/equipment`.
+
+Matchframe does not treat these files as the product icon API. Overlay
+components resolve **normalized Matchframe ids** (`ak47`, `flash`, `bomb`)
+through `apps/overlay/src/icons`. Swap this folder (or point `icon-registry.ts`
+at another pack) to replace artwork without changing player rows or game-state
+types.

@@ -138,3 +138,27 @@ Import from the shared UI package:
 ```tsx
 import { Button } from "@workspace/ui/components/button"
 ```
+
+## License
+
+Copyright © 2026 Matchframe contributors
+
+Matchframe source code is licensed under the
+[Mozilla Public License 2.0](LICENSE).
+
+MPL-2.0 is a file-level copyleft license. Modifications to Matchframe source
+files that are distributed must remain available under MPL-2.0, while separate
+files and larger works may use different licensing terms subject to the MPL.
+
+Third-party software and assets are licensed separately.
+See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for details.
+
+### Counter-Strike assets
+
+Counter-Strike 2 icons, operator renders, radar artwork, and other game-derived
+assets are not licensed under Matchframe's MPL-2.0 license.
+
+Such assets remain the property of Valve Corporation and/or their respective
+rights holders.
+
+Matchframe is not affiliated with or endorsed by Valve Corporation.
