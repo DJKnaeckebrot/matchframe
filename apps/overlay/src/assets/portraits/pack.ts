@@ -1,4 +1,4 @@
-import { isOperatorId, NEUTRAL_PORTRAIT_ID } from "@workspace/presentation"
+import { localAssetIdSchema } from "@workspace/presentation"
 
 /**
  * Local portrait files are served by the broadcast server from data/portraits.
@@ -9,7 +9,7 @@ function apiBase(): string {
 }
 
 export function getPortraitAsset(id: string): string | undefined {
-  if (id !== NEUTRAL_PORTRAIT_ID && !isOperatorId(id)) {
+  if (!localAssetIdSchema.safeParse(id).success) {
     return undefined
   }
   return `${apiBase()}/api/portraits/${id}`

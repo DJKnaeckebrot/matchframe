@@ -1,16 +1,16 @@
 import {
   overlayDisplayName,
-  resolveOverlayPortrait,
+  overlayPortraitStack,
   type OverlayPortraitView,
 } from "./resolve"
 import { useRealtimeStore } from "../realtime/store"
 
-export function useOverlayPortrait(
+export function useOverlayPortraits(
   player: { steamId: string; name: string; side: "CT" | "T" } | null,
   number?: number
-): OverlayPortraitView {
+): OverlayPortraitView[] {
   const config = useRealtimeStore((store) => store.presentation)
-  return resolveOverlayPortrait(player, config, number)
+  return overlayPortraitStack(player, config, number)
 }
 
 export function usePlayerDisplayName(player: { steamId: string; name: string } | null): string {

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 
-import { punchStudioBlack } from "./key-backdrop"
+import { opaquePixelRatio, punchStudioBlack } from "./key-backdrop"
 
 function raster(width: number, height: number, fill: [number, number, number, number]): {
   width: number
@@ -53,5 +53,20 @@ describe("punchStudioBlack", () => {
 
     expect(image.data[3]).toBe(0)
     expect(image.data[hole + 3]).toBe(255)
+  })
+})
+
+describe("opaquePixelRatio", () => {
+  test("reports a punched-empty frame as below the keep threshold", () => {
+    const image = raster(4, 4, [0, 0, 0, 0])
+    expect(opaquePixelRatio(image)).toBe(0)
+  })
+
+  test("keeps a frame with a visible figure", () => {
+    const image = raster(4, 4, [0, 0, 0, 0])
+    for (let i = 0; i < 8; i++) {
+      image.data[i * 4 + 3] = 255
+    }
+    expect(opaquePixelRatio(image)).toBe(0.5)
   })
 })

@@ -3,6 +3,7 @@ import { describe, expect, test } from "bun:test"
 import { NEUTRAL_PORTRAIT_ID, SIDE_DEFAULT_OPERATOR } from "./operators"
 import {
   resolveDisplayName,
+  resolvePortraitCascade,
   resolvePlayerPortrait,
   resolvePlayerPresentation,
 } from "./resolve"
@@ -52,7 +53,7 @@ describe("resolvePlayerPortrait", () => {
     expect(resolvePlayerPortrait(nova, config)).toMatchObject({
       source: "operator",
       assetId: "tm_phoenix_varianti",
-      crop: { fit: "cover", position: "bottom" },
+      crop: { fit: "contain", position: "bottom" },
     })
   })
 
@@ -112,6 +113,34 @@ describe("resolveDisplayName", () => {
 
   test("falls back to the live GSI name", () => {
     expect(resolveDisplayName(nova, {})).toBe("Nova")
+  })
+})
+
+describe("resolvePortraitCascade", () => {
+  test("custom then side then neutral, skipping duplicate ids", () => {
+    const config: PlayerPresentationConfig = {
+      [nova.steamId]: { portrait: { type: "custom", value: "nova_lan" } },
+    }
+    expect(resolvePortraitCascade(nova, config).map((entry) => entry.source)).toEqual([
+      "custom",
+      "side",
+      "neutral",
+    ])
+  })
+
+  test("operator then side then neutral", () => {
+    const config: PlayerPresentationConfig = {
+      [nova.steamId]: { portrait: { type: "operator", value: "ctm_fbi_variantb" } },
+    }
+    expect(resolvePortraitCascade(nova, config).map((entry) => [entry.source, entry.assetId])).toEqual([
+      ["operator", "ctm_fbi_variantb"],
+      ["side", SIDE_DEFAULT_OPERATOR.CT],
+      ["neutral", NEUTRAL_PORTRAIT_ID],
+    ])
+  })
+
+  test("automatic is side then neutral", () => {
+    expect(resolvePortraitCascade(nova, {}).map((entry) => entry.source)).toEqual(["side", "neutral"])
   })
 })
 

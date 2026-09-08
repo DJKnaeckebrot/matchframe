@@ -37,6 +37,7 @@ export {
 export {
   portraitCrop,
   resolveDisplayName,
+  resolvePortraitCascade,
   resolvePlayerPortrait,
   resolvePlayerPresentation,
 } from "./resolve"

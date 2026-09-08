@@ -396,6 +396,16 @@ describe("operator portraits", () => {
     expect(response.headers.get("Cross-Origin-Resource-Policy")).toBe("cross-origin")
     expect(new Uint8Array(await response.arrayBuffer())).toEqual(png)
   })
+
+  test("GET returns a custom local portrait file", async () => {
+    const dir = await tempDir()
+    const png = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10])
+    await Bun.write(join(dir, "portraits", "nova_lan.png"), png)
+    const { app } = testApp(dir)
+    const response = await app.request("/api/portraits/nova_lan")
+    expect(response.status).toBe(200)
+    expect(new Uint8Array(await response.arrayBuffer())).toEqual(png)
+  })
 })
 
 describe("realtime presentation", () => {

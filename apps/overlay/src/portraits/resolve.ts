@@ -1,7 +1,7 @@
 import type { PlayerState } from "@workspace/game-state"
 import {
   resolveDisplayName,
-  resolvePlayerPortrait,
+  resolvePortraitCascade,
   type PlayerPresentationConfig,
   type PortraitCrop,
   type PortraitPlayer,
@@ -20,6 +20,8 @@ export type OverlayPortraitView = {
   number?: number
 }
 
+const PLACEHOLDER_CROP: PortraitCrop = { fit: "contain", position: "bottom" }
+
 export function toPortraitPlayer(
   player: Pick<PlayerState, "steamId" | "name" | "side">
 ): PortraitPlayer {
@@ -33,30 +35,53 @@ export function overlayDisplayName(
   return resolveDisplayName(player, config)
 }
 
+export function shouldPunchPortrait(source: OverlayPortraitView["source"]): boolean {
+  return source === "operator" || source === "side"
+}
+
+export function overlayPortraitStack(
+  player: Pick<PlayerState, "steamId" | "name" | "side"> | null,
+  config: PlayerPresentationConfig,
+  number?: number
+): OverlayPortraitView[] {
+  const initials = portraitInitials(player?.name ?? "", number)
+  const numbered = number !== undefined ? { number } : {}
+  if (!player) {
+    return [
+      {
+        source: "placeholder",
+        crop: PLACEHOLDER_CROP,
+        initials,
+        ...numbered,
+      },
+    ]
+  }
+
+  return resolvePortraitCascade(toPortraitPlayer(player), config)
+    .filter((entry) => entry.source !== "neutral")
+    .map((resolved) => {
+      const src = getPortraitAsset(resolved.assetId)
+      return {
+        source: resolved.source,
+        assetId: resolved.assetId,
+        crop: resolved.crop,
+        initials,
+        ...numbered,
+        ...(src ? { src } : {}),
+      }
+    })
+}
+
 export function resolveOverlayPortrait(
   player: Pick<PlayerState, "steamId" | "name" | "side"> | null,
   config: PlayerPresentationConfig,
   number?: number
 ): OverlayPortraitView {
-  const initials = portraitInitials(player?.name ?? "", number)
-  const numbered = number !== undefined ? { number } : {}
-  if (!player) {
-    return {
+  return (
+    overlayPortraitStack(player, config, number)[0] ?? {
       source: "placeholder",
-      crop: { fit: "contain", position: "bottom" },
-      initials,
-      ...numbered,
+      crop: PLACEHOLDER_CROP,
+      initials: portraitInitials(player?.name ?? "", number),
     }
-  }
-
-  const resolved = resolvePlayerPortrait(toPortraitPlayer(player), config)
-  const src = getPortraitAsset(resolved.assetId)
-  return {
-    source: resolved.source,
-    assetId: resolved.assetId,
-    crop: resolved.crop,
-    initials,
-    ...numbered,
-    ...(src ? { src } : {}),
-  }
+  )
 }

@@ -1,5 +1,5 @@
 import type { InterstitialModel } from "../broadcast/presentation"
-import { useOverlayPortrait, usePlayerDisplayName } from "../portraits/use-portrait"
+import { useOverlayPortraits, usePlayerDisplayName } from "../portraits/use-portrait"
 import { PlayerPortrait } from "./PlayerPortrait"
 
 export function InterstitialCard({ card }: { card: InterstitialModel }) {
@@ -8,7 +8,7 @@ export function InterstitialCard({ card }: { card: InterstitialModel }) {
     card.playerSteamId && card.side
       ? { steamId: card.playerSteamId, name: card.playerName ?? "", side: card.side }
       : null
-  const portrait = useOverlayPortrait(player)
+  const portraits = useOverlayPortraits(player)
   const displayName = usePlayerDisplayName(player)
 
   return (
@@ -28,7 +28,7 @@ export function InterstitialCard({ card }: { card: InterstitialModel }) {
         className="relative mx-2.5 mb-2 h-[168px] overflow-hidden"
         style={{ background: `color-mix(in srgb, ${accent} 20%, var(--mf-background))` }}
       >
-        <PlayerPortrait portrait={portrait} accent={accent} className="absolute inset-0" />
+        <PlayerPortrait portraits={portraits} />
       </div>
       <div
         className="flex items-baseline justify-between gap-2 px-2.5 py-1.5"

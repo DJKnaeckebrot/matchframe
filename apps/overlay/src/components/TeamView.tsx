@@ -10,7 +10,8 @@ import {
   weaponShortLabel,
 } from "../hud/format"
 import { EquipmentIcon, LoadoutIcons, WeaponIcon } from "../icons"
-import { useOverlayPortrait, usePlayerDisplayName } from "../portraits/use-portrait"
+import { cardLifeClass, cardPortraitLayout } from "../portraits/card-layout"
+import { useOverlayPortraits, usePlayerDisplayName } from "../portraits/use-portrait"
 import { FocusedPlayer } from "./FocusedPlayer"
 import { CrosshairMark, HeartMark, SkullMark } from "./hud-marks"
 import { InterstitialCard } from "./InterstitialCard"
@@ -106,36 +107,45 @@ function PlayerCard({
   const health = player?.health ?? 0
   const healthColor = health <= 20 ? "var(--mf-danger)" : accent
   const weapon = player ? mainWeapon(player) : undefined
-  const portrait = useOverlayPortrait(player, number)
+  const portraits = useOverlayPortraits(player, number)
   const displayName = usePlayerDisplayName(player)
-  const mirrored = align === "right"
+  const layout = cardPortraitLayout(align)
+  const mirrored = layout.mirrored
 
   return (
     <li
-      className={`flex min-w-0 flex-1 flex-col overflow-hidden bg-(--mf-background)/80 ${
-        empty ? "opacity-35" : dead ? "grayscale opacity-70" : ""
-      }`}
+      className={`relative flex min-w-0 flex-1 flex-col overflow-hidden bg-(--mf-background)/70 ${cardLifeClass(empty, dead)}`}
     >
       <div className="h-0.5 shrink-0" style={{ background: empty ? "transparent" : accent }} />
-      <div
-        className="relative h-[128px] overflow-hidden"
-        style={{
-          background: empty
-            ? "transparent"
-            : `color-mix(in srgb, ${accent} 32%, var(--mf-background))`,
-        }}
-      >
+      {empty ? null : (
+        <div
+          className={`absolute inset-y-0.5 z-30 w-0.5 ${mirrored ? "right-0" : "left-0"}`}
+          style={{ background: accent }}
+        />
+      )}
+      <div className="relative h-[128px] overflow-hidden bg-(--mf-surface-elevated)/80">
         {player ? (
           <>
-            <PlayerPortrait portrait={portrait} accent={accent} className="absolute inset-0 z-0" />
-            <div className={`absolute top-1.5 z-10 ${mirrored ? "right-1.5" : "left-1.5"} text-(--mf-text)`}>
-              <LoadoutIcons player={player} size="sm" align={mirrored ? "right" : "left"} />
+            <div
+              className="pointer-events-none absolute inset-0 z-0"
+              style={{
+                background: mirrored
+                  ? `linear-gradient(to left, color-mix(in srgb, ${accent} 9%, transparent), transparent 52%)`
+                  : `linear-gradient(to right, color-mix(in srgb, ${accent} 9%, transparent), transparent 52%)`,
+              }}
+            />
+            <PlayerPortrait portraits={portraits} className="z-[1]" />
+            <div className={`absolute top-1 z-20 ${mirrored ? "right-1.5" : "left-1.5"} text-(--mf-text)`}>
+              <LoadoutIcons player={player} size="sm" align={layout.loadoutAlign} />
             </div>
             {weapon ? (
-              <span className="absolute inset-x-0 bottom-0 z-10 flex h-6 items-center justify-center bg-black/35 text-(--mf-text)">
+              <span
+                className={`absolute bottom-0.5 z-20 opacity-85 ${mirrored ? "left-1.5" : "right-1.5"}`}
+              >
                 <WeaponIcon
                   weaponId={weapon.id}
                   label={weaponShortLabel(weapon)}
+                  size="sm"
                   decorative
                 />
               </span>
@@ -144,47 +154,47 @@ function PlayerCard({
         ) : null}
       </div>
       <div
-        className={`flex min-h-7 items-center px-1.5 py-1 ${mirrored ? "flex-row-reverse" : ""}`}
+        className="relative z-10 bg-(--mf-surface)/94 px-1.5 py-1"
         style={
-          observed
-            ? { background: `color-mix(in srgb, ${accent} 40%, var(--mf-surface))` }
-            : undefined
+          observed ? { boxShadow: `inset 0 1px 0 ${accent}` } : undefined
         }
       >
-        <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-(--mf-text)">
-          {displayName}
-        </span>
-      </div>
-      <div className="flex min-h-[22px] items-center gap-1 px-1.5 pb-1">
-        {player?.alive ? (
-          <>
-            <HeartMark />
-            <span className="text-[12px] font-semibold tabular-nums">{health}</span>
-            <div className="h-1.5 min-w-0 flex-1 bg-(--mf-text)/15">
-              <div className="h-full" style={{ width: `${health}%`, background: healthColor }} />
-            </div>
-            {player.equipment.hasHelmet ? (
-              <EquipmentIcon type="helmet" decorative />
-            ) : player.armor > 0 ? (
-              <EquipmentIcon type="armor" decorative />
-            ) : null}
-          </>
-        ) : player ? (
-          <span className="text-[10px] tracking-[0.14em] text-(--mf-text-muted) uppercase">Dead</span>
-        ) : null}
-      </div>
-      <div className="flex items-center gap-2 bg-black/35 px-1.5 py-1 text-[11px] tabular-nums text-(--mf-text-muted)">
-        <span className="flex items-center gap-0.5">
-          <CrosshairMark />
-          {player?.kills ?? ""}
-        </span>
-        <span className="flex items-center gap-0.5">
-          <SkullMark />
-          {player?.deaths ?? ""}
-        </span>
-        <span className="ml-auto text-(--mf-text)">
-          {player ? formatMoney(player.money) : ""}
-        </span>
+        <div className={`flex min-h-5 items-center ${mirrored ? "flex-row-reverse" : ""}`}>
+          <span className="min-w-0 flex-1 truncate text-[12px] font-semibold text-(--mf-text)">
+            {displayName}
+          </span>
+        </div>
+        <div className="mt-0.5 flex min-h-4 items-center gap-1">
+          {player?.alive ? (
+            <>
+              <HeartMark />
+              <span className="text-[11px] font-semibold tabular-nums">{health}</span>
+              <div className="h-1 min-w-0 flex-1 bg-(--mf-text)/15">
+                <div className="h-full" style={{ width: `${health}%`, background: healthColor }} />
+              </div>
+              {player.equipment.hasHelmet ? (
+                <EquipmentIcon type="helmet" decorative />
+              ) : player.armor > 0 ? (
+                <EquipmentIcon type="armor" decorative />
+              ) : null}
+            </>
+          ) : player ? (
+            <span className="text-[10px] tracking-[0.14em] text-(--mf-text-muted) uppercase">Dead</span>
+          ) : null}
+        </div>
+        <div className="mt-0.5 flex items-center gap-2 text-[10px] tabular-nums text-(--mf-text-muted)">
+          <span className="flex items-center gap-0.5">
+            <CrosshairMark />
+            {player?.kills ?? ""}
+          </span>
+          <span className="flex items-center gap-0.5">
+            <SkullMark />
+            {player?.deaths ?? ""}
+          </span>
+          <span className="ml-auto text-(--mf-text)">
+            {player ? formatMoney(player.money) : ""}
+          </span>
+        </div>
       </div>
     </li>
   )

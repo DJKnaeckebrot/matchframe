@@ -1,144 +1,81 @@
 import { useEffect, useRef, useState } from "react"
+import type { PortraitCrop } from "@workspace/presentation"
 
+import fallbackSilhouette from "../assets/portraits/matchframe/neutral.svg?url"
+import { portraitStageBox, portraitStageImage } from "../portraits/card-layout"
 import type { OverlayPortraitView } from "../portraits/resolve"
-import { punchStudioBlack } from "../portraits/key-backdrop"
-
-const keyedUrls = new Map<string, Promise<string>>()
 
 export function PlayerPortrait({
-  portrait,
-  accent,
+  portraits,
   className,
 }: {
-  portrait: OverlayPortraitView
-  accent: string
+  portraits: readonly OverlayPortraitView[]
   className?: string
 }) {
-  const [broken, setBroken] = useState(false)
+  const [index, setIndex] = useState(0)
+  const stackKey = portraits.map((view) => view.src ?? view.assetId ?? view.source).join("|")
   useEffect(() => {
-    setBroken(false)
-  }, [portrait.src])
+    setIndex(0)
+  }, [stackKey])
 
-  const label = portrait.number !== undefined ? `Player ${portrait.number}` : "Player"
-  const showImage = Boolean(portrait.src) && !broken
+  const portrait = portraits[index]
+  const label = portrait?.number !== undefined ? `Player ${portrait.number}` : "Player"
+  const src = portrait?.src
+  const crop = portrait?.crop ?? { fit: "contain", position: "bottom" as const }
 
   return (
-    <span className={`pointer-events-none relative block overflow-hidden ${className ?? "h-full w-full"}`}>
-      {showImage && portrait.src ? (
-        <KeyedAgentImage
-          src={portrait.src}
+    <span className={`pointer-events-none absolute inset-0 block overflow-hidden ${className ?? ""}`}>
+      {src && portrait ? (
+        <PortraitImage
+          key={src}
+          src={src}
           alt={label}
-          fit={portrait.crop.fit}
-          position={portrait.crop.position}
-          onBroken={() => setBroken(true)}
+          crop={crop}
+          onBroken={() => setIndex((current) => current + 1)}
         />
       ) : (
-        <span
-          className="mf-display flex h-full w-full items-center justify-center text-[22px] font-semibold text-(--mf-text)/70"
-          style={{ background: `color-mix(in srgb, ${accent} 18%, var(--mf-background))` }}
-          aria-hidden
-        >
-          {portrait.initials}
-        </span>
+        <FallbackSilhouette crop={crop} />
       )}
     </span>
   )
 }
 
-function KeyedAgentImage({
+function FallbackSilhouette({ crop }: { crop: PortraitCrop }) {
+  return (
+    <span style={portraitStageBox(crop)}>
+      <img src={fallbackSilhouette} alt="" style={{ ...portraitStageImage(crop), opacity: 0.9 }} />
+    </span>
+  )
+}
+
+function PortraitImage({
   src,
   alt,
-  fit,
-  position,
+  crop,
   onBroken,
 }: {
   src: string
   alt: string
-  fit: "contain" | "cover"
-  position: "bottom" | "center"
+  crop: PortraitCrop
   onBroken: () => void
 }) {
-  const [url, setUrl] = useState<string | null>(null)
   const onBrokenRef = useRef(onBroken)
   onBrokenRef.current = onBroken
 
-  useEffect(() => {
-    let cancelled = false
-    keyPortraitSrc(src)
-      .then((keyed) => {
-        if (!cancelled) {
-          setUrl(keyed)
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          onBrokenRef.current()
-        }
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [src])
-
-  if (!url) {
-    return null
-  }
-
   return (
-    <img
-      src={url}
-      alt={alt}
-      className="absolute inset-0 h-full w-full max-h-none max-w-none"
-      style={{
-        objectFit: fit,
-        objectPosition: position === "bottom" ? "bottom center" : "center",
-        filter:
-          "drop-shadow(0 0 0.7px rgb(255 255 255 / 0.4)) drop-shadow(0 10px 18px rgb(0 0 0 / 0.45))",
-      }}
-    />
+    <span style={portraitStageBox(crop)}>
+      <img
+        src={src}
+        alt={alt}
+        style={{
+          ...portraitStageImage(crop),
+          filter:
+            crop.fit === "contain"
+              ? "drop-shadow(0 0 0.8px rgb(255 255 255 / 0.45)) drop-shadow(0 10px 18px rgb(0 0 0 / 0.4))"
+              : undefined,
+        }}
+        onError={() => onBrokenRef.current()}
+      />
+    </span>
   )
-}
-
-function keyPortraitSrc(src: string): Promise<string> {
-  const cached = keyedUrls.get(src)
-  if (cached) {
-    return cached
-  }
-  const pending = punchPortraitUrl(src)
-  keyedUrls.set(src, pending)
-  pending.catch(() => {
-    keyedUrls.delete(src)
-  })
-  return pending
-}
-
-async function punchPortraitUrl(src: string): Promise<string> {
-  const response = await fetch(src)
-  if (!response.ok) {
-    throw new Error(`portrait ${response.status}`)
-  }
-  const bitmap = await createImageBitmap(await response.blob())
-  const canvas = document.createElement("canvas")
-  canvas.width = bitmap.width
-  canvas.height = bitmap.height
-  const ctx = canvas.getContext("2d", { willReadFrequently: true })
-  if (!ctx) {
-    bitmap.close()
-    throw new Error("no 2d context")
-  }
-  ctx.drawImage(bitmap, 0, 0)
-  bitmap.close()
-  const frame = ctx.getImageData(0, 0, canvas.width, canvas.height)
-  punchStudioBlack(frame)
-  ctx.putImageData(frame, 0, 0)
-  const blob = await new Promise<Blob>((resolve, reject) => {
-    canvas.toBlob((out) => {
-      if (out) {
-        resolve(out)
-        return
-      }
-      reject(new Error("encode failed"))
-    }, "image/png")
-  })
-  return URL.createObjectURL(blob)
 }

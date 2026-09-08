@@ -4,6 +4,20 @@ export type Raster = {
   data: Uint8ClampedArray
 }
 
+export function opaquePixelRatio(image: Raster): number {
+  const pixels = image.width * image.height
+  if (pixels === 0) {
+    return 0
+  }
+  let opaque = 0
+  for (let i = 3; i < image.data.length; i += 4) {
+    if (image.data[i]! > 16) {
+      opaque += 1
+    }
+  }
+  return opaque / pixels
+}
+
 /** Knock out the studio backdrop without eating black gear in the silhouette. */
 export function punchStudioBlack(image: Raster, limit = 14): void {
   const { width, height, data } = image

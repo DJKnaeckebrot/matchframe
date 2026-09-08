@@ -1,16 +1,14 @@
 import { join } from "node:path"
-import { isOperatorId, NEUTRAL_PORTRAIT_ID } from "@workspace/presentation"
-
-const PORTRAIT_ID = /^[A-Za-z0-9_]+$/
+import { localAssetIdSchema } from "@workspace/presentation"
 
 export function isSafePortraitId(id: string): boolean {
-  return PORTRAIT_ID.test(id) && (id === NEUTRAL_PORTRAIT_ID || isOperatorId(id))
+  return localAssetIdSchema.safeParse(id).success
 }
 
 export async function readPortraitFile(
   dir: string,
   id: string
-): Promise<{ body: Uint8Array; contentType: string } | null> {
+): Promise<{ body: ArrayBuffer; contentType: string } | null> {
   if (!isSafePortraitId(id)) {
     return null
   }
@@ -19,5 +17,5 @@ export async function readPortraitFile(
   if (!(await file.exists())) {
     return null
   }
-  return { body: new Uint8Array(await file.arrayBuffer()), contentType: "image/png" }
+  return { body: await file.arrayBuffer(), contentType: "image/png" }
 }
