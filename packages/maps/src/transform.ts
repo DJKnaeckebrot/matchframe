@@ -49,3 +49,30 @@ export function radarToWorld(point: RadarPoint, metadata: MapMetadata): Vec2 {
     y: posY - point.y * scale * height,
   }
 }
+
+/**
+ * World-unit radius → normalized radar image radius (fraction of image width).
+ * Overlay presentation constants convert here — React must not do this math.
+ */
+export function worldRadiusToRadar(
+  worldRadius: number,
+  metadata: MapMetadata
+): number | undefined {
+  if (!Number.isFinite(worldRadius) || worldRadius < 0) {
+    return undefined
+  }
+
+  const { scale, width, rotate } = metadata.radar
+  if (rotate !== undefined && rotate !== 0) {
+    throw new Error(
+      `Unsupported radar rotation ${rotate} for ${metadata.id}; v1 maps are rotate 0`
+    )
+  }
+
+  const span = scale * width
+  if (!Number.isFinite(span) || span === 0) {
+    throw new Error(`Invalid radar scale/size for ${metadata.id}`)
+  }
+
+  return worldRadius / span
+}

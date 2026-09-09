@@ -22,7 +22,7 @@ export function ConnectionIndicator() {
   }
 
   return (
-    <div className="pointer-events-none absolute top-8 left-8 z-10 flex items-center gap-2 text-[11px] tracking-[0.18em] text-(--mf-text-muted) uppercase">
+    <div className="pointer-events-none absolute top-8 right-8 z-(--mf-z-diagnostics) flex items-center gap-2 text-[11px] tracking-[0.18em] text-(--mf-text-muted) uppercase">
       <span
         className="size-1.5 rounded-full bg-(--mf-accent)"
         aria-hidden="true"

@@ -41,6 +41,7 @@ export {
   compactOverlayConfig,
   defaultBroadcastConfig,
   defaultOverlayConfig,
+  defaultSponsorConfig,
   getSeriesWinTarget,
   overlayConfigSchema,
   overlaySeriesWins,
@@ -51,8 +52,12 @@ export {
   resolveBroadcastEvent,
   resolveBroadcastSponsor,
   resolveBroadcastTeam,
+  resolveSponsorContent,
   SERIES_LABELS,
   seriesWinsNeeded,
+  SPONSOR_DISPLAY_MODES,
+  SPONSOR_POSITIONS,
+  sponsorNeedsContent,
 } from "./broadcast-config"
 export type {
   BroadcastConfig,
@@ -65,8 +70,13 @@ export type {
   OverlayConfig,
   OverlaySeriesWins,
   OverlayTeamSlot,
+  ResolvedBroadcastSponsor,
   ResolvedBroadcastTeam,
   SeriesLabel,
+  SponsorConfig,
+  SponsorDisplayMode,
+  SponsorPosition,
+  BroadcastSponsorDraft,
 } from "./broadcast-config"
 
 export {

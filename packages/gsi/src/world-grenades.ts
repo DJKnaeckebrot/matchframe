@@ -1,6 +1,6 @@
 import type { Side, WorldGrenadeState, WorldGrenadeType } from "@workspace/game-state"
 
-import type { GsiGrenade, GsiPayload } from "./schema"
+import { gsiGrenadeSchema, type GsiGrenade, type GsiPayload } from "./schema"
 import { parseGsiNumber, parseVector3 } from "./values"
 
 /**
@@ -60,7 +60,11 @@ export function normalizeWorldGrenades(payload: GsiPayload): WorldGrenadeState[]
 
   const grenades: WorldGrenadeState[] = []
   for (const [id, raw] of Object.entries(payload.grenades)) {
-    const grenade = normalizeWorldGrenade(id, raw, payload)
+    const parsed = gsiGrenadeSchema.safeParse(raw)
+    if (!parsed.success) {
+      continue
+    }
+    const grenade = normalizeWorldGrenade(id, parsed.data, payload)
     if (grenade) {
       grenades.push(grenade)
     }

@@ -8,6 +8,7 @@ import {
   formatWinReason,
   getOverlayPhase,
   overlayShow,
+  overlaySponsor,
   parseOverlayBranding,
   parseSeriesFormat,
   pickInterstitial,
@@ -114,6 +115,89 @@ describe("brandingSlots", () => {
     expect(
       brandingSlots({ eventName: "Matchframe", seriesLabel: "BO1" }).map((slot) => slot.id)
     ).toEqual(["event"])
+  })
+})
+
+describe("overlaySponsor", () => {
+  test("hides when disabled even if name and logo exist", () => {
+    const config = compactBroadcastConfig({
+      format: "BO1",
+      teams: { left: {}, right: {} },
+      series: { leftMapsWon: 0, rightMapsWon: 0 },
+      sponsor: {
+        enabled: false,
+        name: "Local LAN",
+        assetId: "sponsor-ab12",
+        position: "center",
+        displayMode: "logo-text",
+      },
+    })
+    const branding = applyBroadcastConfig({}, config)
+    expect(overlaySponsor(branding, config)).toBeUndefined()
+    expect(overlayShow(state(), branding, config).sponsor).toBeUndefined()
+  })
+
+  test("places a text-only sponsor top-right", () => {
+    const config = compactBroadcastConfig({
+      format: "BO1",
+      teams: { left: {}, right: {} },
+      series: { leftMapsWon: 0, rightMapsWon: 0 },
+      sponsor: { enabled: true, name: "Local LAN", position: "top-right", displayMode: "text" },
+    })
+    const branding = applyBroadcastConfig({}, config)
+    expect(overlaySponsor(branding, config)).toEqual({
+      position: "top-right",
+      displayMode: "text",
+      name: "Local LAN",
+      showLogo: false,
+      showText: true,
+    })
+  })
+
+  test("logo mode falls back to text when the asset id is invalid", () => {
+    const config = compactBroadcastConfig({
+      format: "BO1",
+      teams: { left: {}, right: {} },
+      series: { leftMapsWon: 0, rightMapsWon: 0 },
+      sponsor: {
+        enabled: true,
+        name: "Local LAN",
+        assetId: "../secret",
+        position: "center",
+        displayMode: "logo",
+      },
+    })
+    const branding = applyBroadcastConfig({}, config)
+    expect(branding.sponsorImageUrl).toBeUndefined()
+    expect(overlaySponsor(branding, config)).toEqual({
+      position: "center",
+      displayMode: "logo",
+      name: "Local LAN",
+      showLogo: false,
+      showText: true,
+    })
+  })
+
+  test("URL-only sponsor still appears when broadcast config has none", () => {
+    expect(
+      overlaySponsor({ sponsorName: "Local LAN" }, defaultBroadcastConfig)
+    ).toEqual({
+      position: "top-right",
+      displayMode: "logo-text",
+      name: "Local LAN",
+      showLogo: false,
+      showText: true,
+    })
+  })
+
+  test("does not put sponsor in the event/stage meta slots", () => {
+    expect(
+      brandingSlots({
+        eventName: "Matchframe",
+        sponsorName: "Local LAN",
+        seriesLabel: "BO3",
+      }).map((slot) => slot.id)
+    ).toEqual(["event", "series"])
   })
 })
 

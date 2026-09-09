@@ -71,15 +71,15 @@ const gsiProviderSchema = z.object({
   timestamp: z.number().optional(),
 })
 
-const gsiGrenadeSchema = z.object({
+export const gsiGrenadeSchema = z.object({
   owner: z.string().optional(),
   position: z.string().optional(),
   velocity: z.string().optional(),
   type: z.string().optional(),
   lifetime: z.union([z.number(), z.string()]).optional(),
   effecttime: z.union([z.number(), z.string()]).optional(),
-  /** Inferno flame anchors. Parsed so later molotov radar can use them; unused in v2. */
-  flames: z.record(z.string(), z.string()).optional(),
+  /** Inferno flame anchors. Shape is loose so a bad flames block cannot fail ingest. */
+  flames: z.unknown().optional(),
 })
 
 export const gsiPayloadSchema = z.object({
@@ -89,7 +89,8 @@ export const gsiPayloadSchema = z.object({
   player: gsiPlayerSchema.optional(),
   allplayers: z.record(z.string(), gsiPlayerSchema).optional(),
   bomb: gsiBombSchema.optional(),
-  grenades: z.record(z.string(), gsiGrenadeSchema).optional(),
+  /** Per-entity parse lives in normalizeWorldGrenades so one bad nade cannot drop the payload. */
+  grenades: z.record(z.string(), z.unknown()).optional(),
   phase_countdowns: gsiPhaseCountdownsSchema.optional(),
 })
 

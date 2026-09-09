@@ -23,12 +23,12 @@ export function cardPortraitLayout(align: CardAlign): {
 
 export function cardLifeClass(empty: boolean, dead: boolean): string {
   if (empty) {
-    return "opacity-35"
+    return "mf-card opacity-35"
   }
   if (dead) {
-    return "grayscale-[0.72] opacity-[0.78]"
+    return "mf-card grayscale-[0.72] opacity-[0.78]"
   }
-  return ""
+  return "mf-card"
 }
 
 export function portraitStageBox(crop: PortraitCrop): CSSProperties {

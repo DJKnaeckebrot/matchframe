@@ -23,9 +23,44 @@ export type BroadcastEventConfig = {
   stage?: string
 }
 
+export const SPONSOR_POSITIONS = ["top-right", "center"] as const
+export const SPONSOR_DISPLAY_MODES = ["logo", "text", "logo-text"] as const
+
+export type SponsorPosition = (typeof SPONSOR_POSITIONS)[number]
+export type SponsorDisplayMode = (typeof SPONSOR_DISPLAY_MODES)[number]
+
 export type BroadcastSponsorConfig = {
+  enabled: boolean
   name?: string
   assetId?: string
+  position: SponsorPosition
+  displayMode: SponsorDisplayMode
+}
+
+/** Alias used by overlay/dashboard sponsor presentation. */
+export type SponsorConfig = BroadcastSponsorConfig
+
+export type BroadcastSponsorDraft = {
+  enabled?: boolean
+  name?: string
+  assetId?: string
+  position?: SponsorPosition
+  displayMode?: SponsorDisplayMode
+}
+
+export type ResolvedBroadcastSponsor = {
+  position: SponsorPosition
+  displayMode: SponsorDisplayMode
+  name?: string
+  assetId?: string
+  showLogo: boolean
+  showText: boolean
+}
+
+export const defaultSponsorConfig: BroadcastSponsorConfig = {
+  enabled: false,
+  position: "top-right",
+  displayMode: "logo-text",
 }
 
 export type BroadcastConfig = {
@@ -62,12 +97,26 @@ const eventConfigSchema = z
   })
   .strict()
 
+const sponsorAssetIdSchema = z
+  .string()
+  .optional()
+  .catch(undefined)
+  .transform((value) => {
+    if (!value) {
+      return undefined
+    }
+    return localAssetIdSchema.safeParse(value).success ? value : undefined
+  })
+
 const sponsorConfigSchema = z
   .object({
+    enabled: z.boolean().optional().catch(undefined),
     name: teamNameSchema,
-    assetId: localAssetIdSchema.optional(),
+    assetId: sponsorAssetIdSchema,
+    position: z.enum(SPONSOR_POSITIONS).optional().catch("top-right"),
+    displayMode: z.enum(SPONSOR_DISPLAY_MODES).optional().catch("logo-text"),
   })
-  .strict()
+  .strip()
 
 const nestedBroadcastConfigSchema = z
   .object({
@@ -135,7 +184,9 @@ export function overlaySeriesWinsChanged(a: BroadcastConfig, b: BroadcastConfig)
   )
 }
 
-export function compactBroadcastConfig(config: BroadcastConfig): BroadcastConfig {
+export function compactBroadcastConfig(
+  config: Omit<BroadcastConfig, "sponsor"> & { sponsor?: BroadcastSponsorDraft }
+): BroadcastConfig {
   const left = compactTeam(config.teams.left)
   const right = compactTeam(config.teams.right)
   const event = compactEvent(config.event)
@@ -215,15 +266,56 @@ export function resolveBroadcastEvent(
   }
 }
 
+export function resolveSponsorContent(
+  displayMode: SponsorDisplayMode,
+  input: { name?: string; hasLogo: boolean }
+): { showLogo: boolean; showText: boolean } | undefined {
+  const hasName = Boolean(input.name?.trim())
+  if (displayMode === "logo") {
+    if (input.hasLogo) {
+      return { showLogo: true, showText: false }
+    }
+    if (hasName) {
+      return { showLogo: false, showText: true }
+    }
+    return undefined
+  }
+  if (displayMode === "text") {
+    return hasName ? { showLogo: false, showText: true } : undefined
+  }
+  if (!input.hasLogo && !hasName) {
+    return undefined
+  }
+  return { showLogo: input.hasLogo, showText: hasName }
+}
+
+export function sponsorNeedsContent(sponsor: BroadcastSponsorConfig | undefined): boolean {
+  if (!sponsor?.enabled) {
+    return false
+  }
+  return !sponsor.name?.trim() && !sponsor.assetId
+}
+
 export function resolveBroadcastSponsor(
   config: BroadcastConfig
-): { name?: string; assetId?: string } | undefined {
-  const name = config.sponsor?.name?.trim()
-  const assetId = config.sponsor?.assetId
-  if (!name && !assetId) {
+): ResolvedBroadcastSponsor | undefined {
+  const sponsor = compactSponsor(config.sponsor)
+  if (!sponsor?.enabled) {
+    return undefined
+  }
+  const name = sponsor.name
+  const assetId = sponsor.assetId
+  const content = resolveSponsorContent(sponsor.displayMode, {
+    name,
+    hasLogo: Boolean(assetId),
+  })
+  if (!content) {
     return undefined
   }
   return {
+    position: sponsor.position,
+    displayMode: sponsor.displayMode,
+    ...content,
     ...(name ? { name } : {}),
     ...(assetId ? { assetId } : {}),
   }
@@ -284,6 +376,7 @@ export const overlayConfigSchema = broadcastConfigSchema
 function toBroadcastConfig(
   value: z.infer<typeof nestedBroadcastConfigSchema>
 ): BroadcastConfig {
+  const sponsor = compactSponsor(value.sponsor)
   return {
     format: value.format,
     teams: {
@@ -295,7 +388,7 @@ function toBroadcastConfig(
       rightMapsWon: value.series.rightMapsWon,
     },
     ...(value.event ? { event: value.event } : {}),
-    ...(value.sponsor ? { sponsor: value.sponsor } : {}),
+    ...(sponsor ? { sponsor } : {}),
   }
 }
 
@@ -344,17 +437,44 @@ function compactEvent(event: BroadcastEventConfig | undefined): BroadcastEventCo
 }
 
 function compactSponsor(
-  sponsor: BroadcastSponsorConfig | undefined
+  sponsor: BroadcastSponsorDraft | undefined
 ): BroadcastSponsorConfig | undefined {
-  const name = sponsor?.name?.trim()
-  const assetId = sponsor?.assetId
-  if (!name && !assetId) {
+  if (!sponsor) {
+    return undefined
+  }
+  const name = sponsor.name?.trim()
+  const assetId = localAssetIdSchema.safeParse(sponsor.assetId).success
+    ? sponsor.assetId
+    : undefined
+  const position = isSponsorPosition(sponsor.position) ? sponsor.position : "top-right"
+  const displayMode = isSponsorDisplayMode(sponsor.displayMode)
+    ? sponsor.displayMode
+    : "logo-text"
+  const enabled = sponsor.enabled ?? Boolean(name || assetId)
+  if (
+    !enabled &&
+    !name &&
+    !assetId &&
+    position === "top-right" &&
+    displayMode === "logo-text"
+  ) {
     return undefined
   }
   return {
+    enabled,
+    position,
+    displayMode,
     ...(name ? { name } : {}),
     ...(assetId ? { assetId } : {}),
   }
+}
+
+function isSponsorPosition(value: unknown): value is SponsorPosition {
+  return value === "top-right" || value === "center"
+}
+
+function isSponsorDisplayMode(value: unknown): value is SponsorDisplayMode {
+  return value === "logo" || value === "text" || value === "logo-text"
 }
 
 function clampWins(value: number, max: number): number {

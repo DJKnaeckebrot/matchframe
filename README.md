@@ -89,6 +89,7 @@ bun run fixture:gsi
 bun run fixture:gsi equipment
 bun run fixture:gsi radar-anubis-bomb-planted
 bun run fixture:gsi demo:defuse
+bun run fixture:gsi demo:smoke
 ```
 
 `live` is the default. `bun run fixture:gsi` with an unknown name prints the
@@ -102,6 +103,12 @@ bun run capture:gsi
 ```
 
 The capture file is `apps/server/data/gsi-capture/latest.json` (gitignored).
+
+To capture a smoke throw, start that capture-enabled stack, spectate a live
+game or demo (`allplayers` + `grenades` in the cfg), throw a smoke, then copy
+the merged payload with `bun run capture:gsi anubis-smoke.json`. Omitted
+`grenades` blocks keep the previous collection — only a present map (including
+`grenades: {}`) is authoritative.
 
 ## Architecture
 

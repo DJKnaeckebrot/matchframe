@@ -17,7 +17,7 @@ export function FocusedPlayer({
   number?: number
 }) {
   const accent = player.side === "CT" ? "var(--mf-ct)" : "var(--mf-t)"
-  const healthColor = player.health <= 20 ? "var(--mf-danger)" : "rgb(255 255 255 / 0.94)"
+  const healthColor = player.health <= 20 ? "var(--mf-danger)" : "var(--mf-text)"
   const dead = !player.alive
   const weapon = mainWeapon(player)
   const active = player.equipment.activeWeapon ?? player.equipment.primary
@@ -26,10 +26,10 @@ export function FocusedPlayer({
 
   return (
     <section
-      className={`relative flex h-[216px] w-full overflow-hidden bg-(--mf-background)/70 ${cardLifeClass(false, dead)}`}
+      className={`mf-chrome-in relative flex h-[216px] w-full overflow-hidden bg-(--mf-background)/70 ${cardLifeClass(false, dead)}`}
     >
       <div className="relative h-full w-[200px] shrink-0 overflow-hidden bg-(--mf-surface)">
-        <PlayerPortrait portraits={portraits} className="z-[1]" />
+        <PlayerPortrait portraits={portraits} className="z-(--mf-z-portrait)" />
       </div>
       <div className="flex min-w-0 flex-1 flex-col">
         <div
@@ -42,7 +42,7 @@ export function FocusedPlayer({
                 {teamName}
               </span>
             ) : null}
-            <span className="block truncate text-[18px] leading-tight font-semibold tracking-wide uppercase">
+            <span className="mf-display block truncate text-[16px] leading-tight font-semibold tracking-[0.02em] uppercase">
               {displayName}
             </span>
           </div>
@@ -58,8 +58,14 @@ export function FocusedPlayer({
               <span className="mf-display text-[34px] leading-none font-semibold tabular-nums text-(--mf-text)">
                 {player.health}
               </span>
-              <div className="mt-2 h-2.5 w-full bg-black/30">
-                <div className="h-full" style={{ width: `${player.health}%`, background: healthColor }} />
+              <div className="mt-2 h-2.5 w-full overflow-hidden bg-(--mf-text)/15">
+                <div
+                  className="mf-meter"
+                  style={{
+                    background: healthColor,
+                    transform: `scaleX(${Math.min(1, Math.max(0, player.health / 100))})`,
+                  }}
+                />
               </div>
             </>
           ) : (
@@ -68,7 +74,7 @@ export function FocusedPlayer({
             </span>
           )}
         </div>
-        <div className="flex h-11 shrink-0 items-center gap-2 bg-black/55 px-3">
+        <div className="flex h-11 shrink-0 items-center gap-2 bg-(--mf-background)/70 px-3">
           <span className="flex items-center gap-1 text-[12px] tabular-nums text-(--mf-text-muted)">
             <CrosshairMark />
             {player.kills}

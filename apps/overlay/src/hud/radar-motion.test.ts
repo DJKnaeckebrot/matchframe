@@ -106,7 +106,7 @@ describe("presentRadarMotion", () => {
       type: "smoke" as const,
       x: 0,
       y: 0,
-      active: false,
+      state: "projectile" as const,
     }
     presentRadarMotion({ players: [], bomb: null, grenades: [grenade] }, tracks, 0)
     presentRadarMotion({ players: [], bomb: null, grenades: [{ ...grenade, x: 0.1 }] }, tracks, 1000)

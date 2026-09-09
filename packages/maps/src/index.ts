@@ -9,7 +9,7 @@ export type {
 } from "./types"
 
 export { radarFromValveOverview } from "./valve"
-export { radarToWorld, worldToRadar } from "./transform"
+export { radarToWorld, worldRadiusToRadar, worldToRadar } from "./transform"
 export { getFacingAngle } from "./facing"
 export { getMapMetadata, mapIdFromName } from "./registry"
 export { DE_ANCIENT, DE_ANCIENT_OVERVIEW_SPAWNS } from "./maps/de_ancient"

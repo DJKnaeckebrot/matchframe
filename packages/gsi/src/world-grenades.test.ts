@@ -124,6 +124,23 @@ describe("normalizeWorldGrenades", () => {
     expect(normalizeWorldGrenades({})).toEqual([])
   })
 
+  test("malformed sibling grenades do not drop valid smokes or fail ingest", () => {
+    const parsed = parseGsiPayload({
+      grenades: {
+        bad: "not-an-object",
+        also: { type: 12, position: true },
+        "401": { type: "smoke", position: "8, 9, 10", flames: ["not", "a", "map"] },
+      },
+    })
+    expect(parsed.success).toBe(true)
+    if (!parsed.success) {
+      return
+    }
+    expect(normalizeWorldGrenades(parsed.data)).toEqual([
+      { id: "401", type: "smoke", position: { x: 8, y: 9, z: 10 } },
+    ])
+  })
+
   test("flames on inferno do not break parse and are not copied into GameState", () => {
     const parsed = parseGsiPayload({
       grenades: {
@@ -139,9 +156,12 @@ describe("normalizeWorldGrenades", () => {
     if (!parsed.success) {
       return
     }
-    expect(parsed.data.grenades?.["7"]?.flames).toEqual({
-      flame_0: "10, 20, 30",
-      flame_1: "12, 22, 30",
+    const raw = parsed.data.grenades?.["7"]
+    expect(raw).toEqual({
+      owner: T,
+      type: "inferno",
+      position: "10, 20, 30",
+      flames: { flame_0: "10, 20, 30", flame_1: "12, 22, 30" },
     })
     const state = normalizeGsiPayload(parsed.data)
     expect(state.worldGrenades).toEqual([

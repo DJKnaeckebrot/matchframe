@@ -169,6 +169,43 @@ describe("overlay config", () => {
     expect(JSON.parse(await readFile(join(dir, "overlay.json"), "utf8"))).toEqual(next)
   })
 
+  test("PUT persists sponsor presentation and reloads it", async () => {
+    const dir = await tempDir()
+    const { app } = testApp(dir)
+    const next = {
+      format: "BO1" as const,
+      teams: { left: {}, right: {} },
+      series: { leftMapsWon: 0, rightMapsWon: 0 },
+      sponsor: {
+        enabled: true,
+        name: "Local LAN",
+        position: "center" as const,
+        displayMode: "logo" as const,
+      },
+    }
+
+    const response = await app.request("/api/config/broadcast", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        format: "BO1",
+        sponsor: {
+          enabled: true,
+          name: " Local LAN ",
+          position: "center",
+          displayMode: "logo",
+        },
+      }),
+    })
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual(next)
+    expect(JSON.parse(await readFile(join(dir, "overlay.json"), "utf8"))).toEqual(next)
+
+    const { app: restarted } = testApp(dir)
+    expect(await (await restarted.request("/api/config/broadcast")).json()).toEqual(next)
+  })
+
   test("PUT rejects unknown series lengths", async () => {
     const { app } = testApp(await tempDir())
     const response = await app.request("/api/config/broadcast", {
@@ -355,6 +392,48 @@ describe("realtime theme", () => {
     })
     expect(response.status).toBe(200)
     await waitFor(() => received.some((message) => isTheme(message) && message.data.accent === "#112233"))
+    ws.close()
+  })
+
+  test("broadcast-config sponsor updates are pushed to connected clients", async () => {
+    const { app } = testApp(await tempDir())
+    const server = Bun.serve({
+      port: 0,
+      fetch: (req, server) => app.fetch(req, server),
+      websocket,
+    })
+    servers.push(server)
+
+    const received: unknown[] = []
+    const ws = new WebSocket(`ws://127.0.0.1:${server.port}/ws`)
+    const opened = new Promise<void>((resolve, reject) => {
+      ws.onopen = () => resolve()
+      ws.onerror = () => reject(new Error("websocket error"))
+    })
+    ws.onmessage = (event) => {
+      received.push(parseServerMessage(typeof event.data === "string" ? event.data : null))
+    }
+    await opened
+    await waitFor(() => received.length >= 4)
+
+    const response = await app.request("/api/config/broadcast", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        format: "BO1",
+        sponsor: { enabled: true, name: "Local LAN", position: "center", displayMode: "logo-text" },
+      }),
+    })
+    expect(response.status).toBe(200)
+    await waitFor(() =>
+      received.some(
+        (message) =>
+          isBroadcastConfig(message) &&
+          message.data.sponsor?.enabled === true &&
+          message.data.sponsor?.name === "Local LAN" &&
+          message.data.sponsor?.position === "center"
+      )
+    )
     ws.close()
   })
 
@@ -761,9 +840,23 @@ describe("broadcast assets", () => {
     expect(uploaded.status).toBe(200)
     const body = (await uploaded.json()) as {
       id: string
-      config: { sponsor?: { name?: string; assetId?: string } }
+      config: {
+        sponsor?: {
+          enabled?: boolean
+          name?: string
+          assetId?: string
+          position?: string
+          displayMode?: string
+        }
+      }
     }
-    expect(body.config.sponsor).toEqual({ name: "Local LAN", assetId: body.id })
+    expect(body.config.sponsor).toEqual({
+      enabled: true,
+      name: "Local LAN",
+      assetId: body.id,
+      position: "top-right",
+      displayMode: "logo-text",
+    })
   })
 })
 
@@ -786,6 +879,20 @@ function isTheme(
     message !== null &&
     "type" in message &&
     message.type === "theme"
+  )
+}
+
+function isBroadcastConfig(
+  message: unknown
+): message is {
+  type: "broadcast-config"
+  data: { sponsor?: { enabled?: boolean; name?: string; position?: string } }
+} {
+  return (
+    typeof message === "object" &&
+    message !== null &&
+    "type" in message &&
+    message.type === "broadcast-config"
   )
 }
 

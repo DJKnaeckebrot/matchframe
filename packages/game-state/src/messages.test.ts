@@ -83,5 +83,27 @@ describe("server messages", () => {
         series: { leftMapsWon: 0, rightMapsWon: 0 },
       },
     })
+    expect(
+      parseServerMessage({
+        type: "broadcast-config",
+        data: {
+          format: "BO1",
+          sponsor: { enabled: true, name: "Local LAN", position: "center", displayMode: "text" },
+        },
+      })
+    ).toEqual({
+      type: "broadcast-config",
+      data: {
+        format: "BO1",
+        teams: { left: {}, right: {} },
+        series: { leftMapsWon: 0, rightMapsWon: 0 },
+        sponsor: {
+          enabled: true,
+          name: "Local LAN",
+          position: "center",
+          displayMode: "text",
+        },
+      },
+    })
   })
 })

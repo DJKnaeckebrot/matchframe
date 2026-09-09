@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 
 import { DE_ANUBIS, DE_ANUBIS_OVERVIEW_SPAWNS } from "./maps/de_anubis"
-import { radarToWorld, worldToRadar } from "./transform"
+import { radarToWorld, worldRadiusToRadar, worldToRadar } from "./transform"
 import type { MapMetadata } from "./types"
 
 const origin = { x: DE_ANUBIS.radar.posX, y: DE_ANUBIS.radar.posY }
@@ -77,5 +77,17 @@ describe("worldToRadar", () => {
       radar: { ...DE_ANUBIS.radar, rotate: 90 },
     }
     expect(() => worldToRadar(origin, rotated)).toThrow(/Unsupported radar rotation/)
+  })
+})
+
+describe("worldRadiusToRadar", () => {
+  test("divides world units by scale * width", () => {
+    expect(worldRadiusToRadar(5.22 * 1024, DE_ANUBIS)).toBe(1)
+    expect(worldRadiusToRadar(522, DE_ANUBIS)).toBeCloseTo(522 / (5.22 * 1024), 10)
+  })
+
+  test("invalid radius is undefined, not a crash", () => {
+    expect(worldRadiusToRadar(Number.NaN, DE_ANUBIS)).toBeUndefined()
+    expect(worldRadiusToRadar(-1, DE_ANUBIS)).toBeUndefined()
   })
 })

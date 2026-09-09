@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import type { PlayerState } from "@workspace/game-state"
 
-import { observerSlotLabel, playersForTeam, rosterNumber } from "./format"
+import { EMPTY_MARK, mapDisplayName, observerSlotLabel, playersForTeam, rosterNumber } from "./format"
 
 function player(
   partial: Partial<PlayerState> & Pick<PlayerState, "steamId" | "teamId" | "side">
@@ -24,6 +24,17 @@ function player(
     ...partial,
   }
 }
+
+describe("mapDisplayName", () => {
+  test("strips the de_ prefix", () => {
+    expect(mapDisplayName("de_anubis")).toBe("Anubis")
+  })
+
+  test("uses a hyphen when the map name is empty", () => {
+    expect(mapDisplayName("")).toBe(EMPTY_MARK)
+    expect(EMPTY_MARK).toBe("-")
+  })
+})
 
 describe("observerSlotLabel", () => {
   test("maps GSI 0 to keyboard 10", () => {

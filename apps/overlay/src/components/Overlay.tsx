@@ -7,6 +7,7 @@ import { ConnectionIndicator } from "./ConnectionIndicator"
 import { Radar } from "./Radar"
 import { RoundHistory } from "./RoundHistory"
 import { Scoreboard } from "./Scoreboard"
+import { SponsorSlot } from "./SponsorSlot"
 import { TeamView } from "./TeamView"
 
 export function Overlay() {
@@ -32,11 +33,16 @@ export function Overlay() {
         <>
           {show.chrome.radar ? <Radar state={state} /> : null}
           {show.chrome.header ? (
-            <div className="absolute top-6 right-0 left-0 flex justify-center">
+            <div className="absolute top-6 right-0 left-0 z-(--mf-z-chrome) flex justify-center">
               <div className="w-[1040px]">
                 <Scoreboard state={state} show={show} />
                 <RoundHistory state={state} visible={show.chrome.history} />
               </div>
+            </div>
+          ) : null}
+          {show.chrome.header && show.sponsor?.position === "top-right" ? (
+            <div className="absolute top-6 right-8 z-(--mf-z-chrome)">
+              <SponsorSlot view={show.sponsor} variant="top-right" />
             </div>
           ) : null}
           {show.chrome.teams ? (

@@ -5,8 +5,12 @@ import type {
   Side,
 } from "@workspace/game-state"
 import { getRoundDisplayState } from "@workspace/game-state"
-import { resolveBroadcastTeam } from "@workspace/presentation"
-import type { BroadcastConfig } from "@workspace/presentation"
+import { resolveBroadcastTeam, resolveSponsorContent } from "@workspace/presentation"
+import type {
+  BroadcastConfig,
+  SponsorDisplayMode,
+  SponsorPosition,
+} from "@workspace/presentation"
 
 import { getBroadcastAsset } from "../assets/broadcast"
 
@@ -44,7 +48,7 @@ export type OverlayChrome = {
   interstitial: boolean
 }
 
-export type BrandingSlotId = "event" | "stage" | "sponsor" | "series"
+export type BrandingSlotId = "event" | "stage" | "series"
 
 export type BrandingSlot = {
   id: BrandingSlotId
@@ -89,11 +93,21 @@ export type SeriesFormat = {
   winsNeeded: number
 }
 
+export type OverlaySponsorView = {
+  position: SponsorPosition
+  displayMode: SponsorDisplayMode
+  name?: string
+  imageUrl?: string
+  showLogo: boolean
+  showText: boolean
+}
+
 export type OverlayShow = {
   phase: OverlayPhase
   branding: OverlayBranding
   broadcast: BroadcastConfig
   slots: readonly BrandingSlot[]
+  sponsor?: OverlaySponsorView
   series?: SeriesFormat
   interstitial: InterstitialModel | null
   chrome: OverlayChrome
@@ -127,11 +141,13 @@ export function overlayShow(
   const phase = getOverlayPhase(state)
   const interstitial = pickInterstitial(state, phase, broadcast)
   const series = parseSeriesFormat(branding.seriesLabel ?? broadcast.format)
+  const sponsor = overlaySponsor(branding, broadcast)
   return {
     phase,
     branding,
     broadcast,
     slots: brandingSlots(branding),
+    ...(sponsor ? { sponsor } : {}),
     ...(series && series.length > 1 ? { series } : {}),
     interstitial,
     chrome: {
@@ -215,6 +231,43 @@ export function applyBroadcastConfig(
 
 export const applyOverlayConfig = applyBroadcastConfig
 
+export function overlaySponsor(
+  branding: OverlayBranding,
+  config: BroadcastConfig
+): OverlaySponsorView | undefined {
+  const configured = config.sponsor
+  const enabled = configured
+    ? (configured.enabled ??
+        Boolean(
+          configured.name?.trim() ||
+            configured.assetId ||
+            branding.sponsorName ||
+            branding.sponsorImageUrl
+        ))
+    : Boolean(branding.sponsorName || branding.sponsorImageUrl)
+  if (!enabled) {
+    return undefined
+  }
+  const name = branding.sponsorName?.trim()
+  const imageUrl = branding.sponsorImageUrl
+  const displayMode = configured?.displayMode ?? "logo-text"
+  const position = configured?.position ?? "top-right"
+  const content = resolveSponsorContent(displayMode, {
+    name,
+    hasLogo: Boolean(imageUrl),
+  })
+  if (!content) {
+    return undefined
+  }
+  return {
+    position,
+    displayMode,
+    ...content,
+    ...(name ? { name } : {}),
+    ...(imageUrl ? { imageUrl } : {}),
+  }
+}
+
 export function teamBroadcastName(
   teams: readonly { id: string; name: string; side: "CT" | "T"; score: number }[],
   teamId: string | undefined,
@@ -234,7 +287,6 @@ export function brandingSlots(branding: OverlayBranding): BrandingSlot[] {
   const slots: BrandingSlot[] = []
   pushSlot(slots, "event", branding.eventName, branding.eventImageUrl)
   pushSlot(slots, "stage", branding.stage)
-  pushSlot(slots, "sponsor", branding.sponsorName, branding.sponsorImageUrl)
   const format = parseSeriesFormat(branding.seriesLabel)
   pushSlot(slots, "series", format && format.length > 1 ? branding.seriesLabel : undefined)
   return slots

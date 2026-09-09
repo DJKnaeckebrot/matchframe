@@ -13,6 +13,7 @@ import {
 import {
   resolveBroadcastTeam,
 } from "@workspace/presentation"
+import type { OverlaySponsorView } from "../broadcast/presentation"
 import {
   formatWinReason,
   seriesSlots,
@@ -26,12 +27,14 @@ import {
   type ObjectivePresentation,
 } from "../hud/countdown"
 import {
+  EMPTY_MARK,
   formatClock,
   formatRemaining,
   formatRoundHeadline,
   mapDisplayName,
 } from "../hud/format"
 import { ObjectiveIcon } from "../icons"
+import { SponsorSlot } from "./SponsorSlot"
 
 const ROSTER_PIPS = 5
 
@@ -54,7 +57,11 @@ export function Scoreboard({ state, show }: { state: GameState; show: OverlaySho
 
   return (
     <header className="bg-(--mf-surface)/92">
-      <MetaStrip slots={show.slots} mapName={state.map.name} />
+      <MetaStrip
+        slots={show.slots}
+        mapName={state.map.name}
+        sponsor={show.sponsor?.position === "center" ? show.sponsor : undefined}
+      />
       <div className="grid grid-cols-[1fr_168px_1fr] items-stretch">
         <TeamBlock
           team={left}
@@ -90,14 +97,20 @@ export function Scoreboard({ state, show }: { state: GameState; show: OverlaySho
   )
 }
 
-function MetaStrip({ slots, mapName }: { slots: readonly BrandingSlot[]; mapName: string }) {
+function MetaStrip({
+  slots,
+  mapName,
+  sponsor,
+}: {
+  slots: readonly BrandingSlot[]
+  mapName: string
+  sponsor?: OverlaySponsorView
+}) {
   const lead = slots.filter((slot) => slot.id === "event" || slot.id === "series")
   const stage = slots.find((slot) => slot.id === "stage")
-  const sponsor = slots.find((slot) => slot.id === "sponsor")
-  const trail = [sponsor, stage].filter((slot): slot is BrandingSlot => Boolean(slot))
 
   return (
-    <div className="flex h-[22px] items-center justify-between gap-4 border-b border-(--mf-text)/10 px-3">
+    <div className="grid h-[22px] grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 border-b border-(--mf-accent)/40 px-3">
       <div className="flex min-w-0 items-center">
         {lead.map((slot, index) => (
           <span key={slot.id} className="flex items-center">
@@ -110,15 +123,18 @@ function MetaStrip({ slots, mapName }: { slots: readonly BrandingSlot[]; mapName
           </span>
         ))}
       </div>
-      <div className="flex min-w-0 shrink-0 items-center">
-        {trail.map((slot) => (
-          <span key={slot.id} className="flex items-center">
-            <BrandingMark slot={slot} preferImage={slot.id === "sponsor"} />
+      <div className="flex min-w-0 items-center justify-center">
+        {sponsor ? <SponsorSlot view={sponsor} variant="center" /> : null}
+      </div>
+      <div className="flex min-w-0 items-center justify-end">
+        {stage ? (
+          <span className="flex items-center">
+            <BrandingMark slot={stage} />
             <span className="mx-2.5 text-(--mf-text)/25" aria-hidden="true">
               ·
             </span>
           </span>
-        ))}
+        ) : null}
         <span className="text-[10px] tracking-[0.18em] text-(--mf-text-muted) uppercase">
           {mapDisplayName(mapName)}
         </span>
@@ -325,7 +341,7 @@ function CenterWell({
           teamBroadcastName(state.teams, display.winnerTeamId, broadcast) ??
           display.winnerName ??
           display.winTeam ??
-          "—"
+          EMPTY_MARK
         }
       />
     )
@@ -335,7 +351,7 @@ function CenterWell({
   const bombRemaining = presented.bomb?.remaining
   const clock = planted
     ? bombRemaining === undefined
-      ? "—"
+      ? EMPTY_MARK
       : formatRemaining(bombRemaining)
     : display.timeRemaining !== undefined
       ? formatClock(display.timeRemaining)
@@ -346,10 +362,13 @@ function CenterWell({
 
   return (
     <div
-      className={`flex flex-col items-center justify-center px-2 py-1.5 ${
+      className={`relative flex flex-col items-center justify-center px-2 py-1.5 ${
         planted ? "bg-(--mf-t)/18" : "bg-(--mf-background)/55"
       }`}
     >
+      {planted ? null : (
+        <span className="absolute inset-x-0 top-0 h-0.5 bg-(--mf-accent)" aria-hidden="true" />
+      )}
       <div
         className={`flex items-center gap-1 text-[10px] font-semibold tracking-[0.16em] uppercase ${
           planted ? "text-(--mf-t)" : "text-(--mf-text-muted)"
@@ -435,15 +454,14 @@ function ObjectiveBar({
         {label}
       </span>
       <div
-        className={`relative min-w-0 flex-1 bg-(--mf-text)/15 ${bombTrack ? "h-2" : "h-[3px]"}`}
+        className={`relative min-w-0 flex-1 overflow-hidden bg-(--mf-text)/15 ${bombTrack ? "h-2" : "h-[3px]"}`}
       >
         {ratio !== undefined ? (
           <div
-            className="absolute top-0 h-full"
+            className={`mf-meter-fast ${mirrored ? "mf-meter-rtl" : "mf-meter"}`}
             style={{
-              width: `${ratio * 100}%`,
               background: color,
-              ...(mirrored ? { right: 0 } : { left: 0 }),
+              transform: `scaleX(${ratio})`,
             }}
           />
         ) : shown === undefined ? (

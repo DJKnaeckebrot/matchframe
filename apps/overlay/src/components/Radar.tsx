@@ -47,9 +47,6 @@ function RadarMap({
     getRadarBomb(state, metadata),
     getRadarGrenades(state, metadata)
   )
-  const smokes = grenades.filter((grenade) => grenade.type === "smoke")
-  const areas = smokes.filter((grenade) => grenade.active)
-  const flying = smokes.filter((grenade) => !grenade.active)
 
   return (
     <div
@@ -62,13 +59,10 @@ function RadarMap({
           alt=""
           className="pointer-events-none absolute inset-0 h-full w-full object-contain"
         />
-        {areas.map((grenade) => (
-          <SmokeArea key={grenade.id} grenade={grenade} />
+        {grenades.map((grenade) => (
+          <RadarGrenade key={grenade.id} grenade={grenade} />
         ))}
         {bomb ? <BombMarker bomb={bomb} /> : null}
-        {flying.map((grenade) => (
-          <SmokeProjectile key={grenade.id} grenade={grenade} />
-        ))}
         {players.map((player) => (
           <PlayerMarker key={player.steamId} player={player} />
         ))}
@@ -79,6 +73,16 @@ function RadarMap({
 
 function radarTranslate(x: number, y: number): string {
   return `translate3d(${clampRadarCoord(x) * RADAR_PX}px, ${clampRadarCoord(y) * RADAR_PX}px, 0)`
+}
+
+function RadarGrenade({ grenade }: { grenade: RadarGrenadeView }) {
+  if (grenade.type !== "smoke") {
+    return null
+  }
+  if (grenade.state === "active") {
+    return <SmokeRadarEffect grenade={grenade} />
+  }
+  return <ProjectileMarker grenade={grenade} />
 }
 
 function PlayerMarker({ player }: { player: RadarPlayerView }) {
@@ -169,67 +173,61 @@ function BombMarker({ bomb }: { bomb: RadarBombView }) {
   )
 }
 
-function SmokeArea({ grenade }: { grenade: RadarGrenadeView }) {
+function SmokeRadarEffect({ grenade }: { grenade: RadarGrenadeView }) {
+  const radius = grenade.radius
+  if (radius === undefined || radius <= 0) {
+    return null
+  }
+  const size = radius * 2 * RADAR_PX
   return (
     <div
-      className="pointer-events-none absolute overflow-visible"
+      className="pointer-events-none absolute"
       style={{
         left: 0,
         top: 0,
         zIndex: RADAR_LAYER.smokeArea,
-        transform: `${radarTranslate(grenade.x, grenade.y)} translate(-16px, -16px)`,
-        filter: "drop-shadow(0 1px 2px rgb(0 0 0 / 0.85))",
+        width: size,
+        height: size,
+        transform: `${radarTranslate(grenade.x, grenade.y)} translate(-50%, -50%)`,
       }}
     >
-      <svg width="32" height="40" viewBox="0 0 32 40" aria-hidden="true">
-        <circle cx="16" cy="16" r="11.2" fill="#9aa3ab" />
-        <circle cx="16" cy="16" r="11.2" fill="none" stroke="#f3f6f8" strokeWidth="1.5" />
-        <line
-          x1="16"
-          y1="27.4"
-          x2="16"
-          y2="37"
-          stroke="#f3f6f8"
-          strokeWidth="1.15"
-          strokeLinecap="round"
-          opacity="0.85"
-        />
-      </svg>
+      <div className="mf-smoke-area relative h-full w-full">
+        <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-80">
+          <SmokeIcon className="h-3.5 w-3.5" />
+        </span>
+      </div>
     </div>
   )
 }
 
-function SmokeProjectile({ grenade }: { grenade: RadarGrenadeView }) {
+function ProjectileMarker({ grenade }: { grenade: RadarGrenadeView }) {
   const tint =
     grenade.ownerSide === "CT"
       ? "var(--mf-ct)"
       : grenade.ownerSide === "T"
         ? "var(--mf-t)"
-        : "var(--mf-text)"
+        : "rgb(231 235 240 / 0.55)"
 
   return (
     <div
-      className="pointer-events-none absolute size-5"
+      className="pointer-events-none absolute size-4"
       style={{
         left: 0,
         top: 0,
         zIndex: RADAR_LAYER.projectile,
         transform: `${radarTranslate(grenade.x, grenade.y)} translate(-50%, -50%)`,
-        filter: "drop-shadow(0 1px 1px rgb(0 0 0 / 0.7))",
+        filter: "drop-shadow(0 1px 1px rgb(0 0 0 / 0.75))",
       }}
     >
-      {grenade.angle !== undefined ? (
-        <svg
-          viewBox="0 0 20 20"
-          className="absolute inset-0"
-          aria-hidden="true"
-          style={{ color: tint, transform: `rotate(${grenade.angle}deg)` }}
-        >
-          <polygon points="10,1 13,6.5 7,6.5" fill="currentColor" opacity="0.85" />
-        </svg>
-      ) : null}
-      <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
-        <SmokeIcon className="h-3.5 w-3.5" />
+      <span
+        className="absolute inset-0 rounded-full"
+        style={{
+          background: "rgb(11 13 16 / 0.62)",
+          boxShadow: `0 0 0 1px ${tint}`,
+        }}
+      />
+      <span className="absolute inset-0 flex items-center justify-center">
+        <SmokeIcon className="h-2.5 w-2.5" />
       </span>
     </div>
   )

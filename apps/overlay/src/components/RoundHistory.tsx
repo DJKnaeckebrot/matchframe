@@ -69,7 +69,7 @@ function Pip({ slot }: { slot: RoundHistorySlot }) {
   return (
     <span
       className={`flex h-3.75 items-center justify-center ${
-        slot.current && !slot.winner ? "outline outline-(--mf-text)/40 -outline-offset-1" : ""
+        slot.current && !slot.winner ? "outline outline-(--mf-accent)/70 -outline-offset-1" : ""
       }`}
       style={{
         background: color ?? "color-mix(in srgb, var(--mf-text) 12%, transparent)",

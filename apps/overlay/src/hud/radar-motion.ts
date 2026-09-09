@@ -270,8 +270,8 @@ function sameView(a: RadarMotionView, b: RadarMotionView): boolean {
       left.x !== right.x ||
       left.y !== right.y ||
       left.type !== right.type ||
-      left.active !== right.active ||
-      left.angle !== right.angle ||
+      left.state !== right.state ||
+      left.radius !== right.radius ||
       left.ownerSide !== right.ownerSide
     ) {
       return false

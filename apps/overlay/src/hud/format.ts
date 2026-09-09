@@ -3,6 +3,9 @@ import type { RoundDisplayKind } from "@workspace/game-state"
 
 export const PLAYER_SLOTS = 5
 
+/** Visible empty glyph on the HUD. Hyphen only. Never an em-dash. */
+export const EMPTY_MARK = "-"
+
 /** Canonical HUD labels. Rows and the focused panel both use these. */
 const WEAPON_SHORT: Record<string, string> = {
   ak47: "AK",
@@ -46,7 +49,7 @@ const WEAPON_SHORT: Record<string, string> = {
 export function mapDisplayName(name: string): string {
   const stripped = name.replace(/^de[_-]?/i, "").replace(/_/g, " ").trim()
   if (!stripped) {
-    return "—"
+    return EMPTY_MARK
   }
   return stripped.replace(/\b\w/g, (char) => char.toUpperCase())
 }

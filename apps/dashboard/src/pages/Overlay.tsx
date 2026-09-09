@@ -7,9 +7,13 @@ import {
   parseBroadcastConfig,
   SERIES_LABELS,
   seriesWinsNeeded,
+  sponsorNeedsContent,
   type BroadcastConfig,
+  type BroadcastSponsorDraft,
   type BroadcastTeamSlot,
   type SeriesLabel,
+  type SponsorDisplayMode,
+  type SponsorPosition,
 } from "@workspace/presentation"
 import { Button } from "@workspace/ui/components/button"
 import { Input } from "@workspace/ui/components/input"
@@ -35,6 +39,30 @@ const SERIES_COPY: Record<SeriesLabel, string> = {
 }
 
 const IMAGE_ACCEPT = "image/png,image/jpeg,image/webp,image/svg+xml"
+
+const SPONSOR_POSITION_OPTIONS: readonly { id: SponsorPosition; label: string }[] = [
+  { id: "top-right", label: "Top right" },
+  { id: "center", label: "Center" },
+]
+
+const SPONSOR_DISPLAY_OPTIONS: readonly { id: SponsorDisplayMode; label: string }[] = [
+  { id: "logo", label: "Logo" },
+  { id: "text", label: "Text" },
+  { id: "logo-text", label: "Logo + text" },
+]
+
+function withSponsor(draft: BroadcastConfig, patch: BroadcastSponsorDraft): BroadcastConfig {
+  return {
+    ...draft,
+    sponsor: {
+      enabled: draft.sponsor?.enabled ?? false,
+      position: draft.sponsor?.position ?? "top-right",
+      displayMode: draft.sponsor?.displayMode ?? "logo-text",
+      ...draft.sponsor,
+      ...patch,
+    },
+  }
+}
 
 export function OverlayPage() {
   const queryClient = useQueryClient()
@@ -373,12 +401,37 @@ export function OverlayPage() {
           </section>
 
           <section className="flex flex-col gap-3">
-            <h2 className="text-sm font-medium">Sponsor</h2>
-            <p className="text-sm text-muted-foreground">One slot. Leave blank to hide it.</p>
+            <div className="flex items-baseline justify-between gap-3">
+              <h2 className="text-sm font-medium">Sponsor</h2>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={draft.sponsor?.enabled ?? false}
+                disabled={busy}
+                onClick={() =>
+                  persist(
+                    withSponsor(draftRef.current, {
+                      enabled: !(draftRef.current.sponsor?.enabled ?? false),
+                    }),
+                    true
+                  )
+                }
+                className={`border px-2.5 py-1 text-xs ${
+                  draft.sponsor?.enabled
+                    ? "border-primary bg-primary/10 text-foreground"
+                    : "border-border text-muted-foreground hover:border-primary/50 hover:text-foreground"
+                }`}
+              >
+                {draft.sponsor?.enabled ? "On" : "Off"}
+              </button>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Partner slot on the overlay. Changes apply immediately.
+            </p>
             <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
               <LogoSlot
                 assetId={draft.sponsor?.assetId}
-                label="Sponsor logo"
+                label="Logo"
                 disabled={busy}
                 onChoose={(file) => sponsorUpload.mutate(file)}
                 onClear={() => {
@@ -397,16 +450,91 @@ export function OverlayPage() {
                 maxLength={32}
                 className="min-w-0 flex-1"
                 onChange={(name) =>
-                  persist({ ...draftRef.current, sponsor: { ...draftRef.current.sponsor, name } })
+                  persist(withSponsor(draftRef.current, { name }))
                 }
                 onCommit={() => persist(draftRef.current, true)}
               />
             </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <ChoiceRow
+                label="Position"
+                value={draft.sponsor?.position ?? "top-right"}
+                options={SPONSOR_POSITION_OPTIONS}
+                disabled={busy}
+                onChange={(position) =>
+                  persist(withSponsor(draftRef.current, { position }), true)
+                }
+              />
+              <ChoiceRow
+                label="Display"
+                value={draft.sponsor?.displayMode ?? "logo-text"}
+                options={SPONSOR_DISPLAY_OPTIONS}
+                disabled={busy}
+                onChange={(displayMode) =>
+                  persist(withSponsor(draftRef.current, { displayMode }), true)
+                }
+              />
+            </div>
+            {sponsorNeedsContent(draft.sponsor) ? (
+              <p className="text-sm text-muted-foreground">
+                On, but no name or logo. Hidden on the overlay until one is set.
+              </p>
+            ) : null}
           </section>
         </>
       )}
 
       {status ? <PageStatus tone={statusTone}>{status}</PageStatus> : null}
+    </div>
+  )
+}
+
+function ChoiceRow<T extends string>({
+  label,
+  value,
+  options,
+  disabled,
+  onChange,
+}: {
+  label: string
+  value: T
+  options: readonly { id: T; label: string }[]
+  disabled: boolean
+  onChange: (value: T) => void
+}) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span className="text-sm font-medium">{label}</span>
+      <div
+        className={`grid gap-1.5 ${options.length === 3 ? "grid-cols-3" : "grid-cols-2"}`}
+        role="radiogroup"
+        aria-label={label}
+      >
+        {options.map((option) => {
+          const active = value === option.id
+          return (
+            <button
+              key={option.id}
+              type="button"
+              role="radio"
+              aria-checked={active}
+              disabled={disabled}
+              onClick={() => {
+                if (value !== option.id) {
+                  onChange(option.id)
+                }
+              }}
+              className={`border px-2.5 py-2 text-left text-sm ${
+                active
+                  ? "border-primary bg-primary/10 text-foreground"
+                  : "border-border text-muted-foreground hover:border-primary/50 hover:text-foreground"
+              }`}
+            >
+              {option.label}
+            </button>
+          )
+        })}
+      </div>
     </div>
   )
 }

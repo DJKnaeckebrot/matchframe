@@ -2,7 +2,12 @@ import { describe, expect, test } from "bun:test"
 import { DE_ANUBIS, DE_ANUBIS_OVERVIEW_SPAWNS, radarToWorld } from "@workspace/maps"
 import type { GameState, PlayerState } from "@workspace/game-state"
 
-import { getRadarBomb, getRadarGrenades, getRadarPlayers } from "./radar"
+import {
+  getRadarBomb,
+  getRadarGrenades,
+  getRadarPlayers,
+  RADAR_SMOKE_PRESENTATION_RADIUS,
+} from "./radar"
 
 function player(partial: Partial<PlayerState> & Pick<PlayerState, "steamId" | "side">): PlayerState {
   return {
@@ -162,14 +167,17 @@ describe("radar selectors", () => {
     expect(grenades[0]).toMatchObject({
       id: "401",
       type: "smoke",
-      active: true,
+      state: "active",
     })
     expect(grenades[0]?.x).toBeCloseTo(0.47, 10)
     expect(grenades[0]?.y).toBeCloseTo(0.48, 10)
-    expect(grenades[0]?.angle).toBeUndefined()
+    expect(grenades[0]?.radius).toBeCloseTo(
+      RADAR_SMOKE_PRESENTATION_RADIUS / (DE_ANUBIS.radar.scale * DE_ANUBIS.radar.width),
+      10
+    )
   })
 
-  test("in-flight smoke stays inactive and uses velocity for facing", () => {
+  test("in-flight smoke stays a projectile without an area radius", () => {
     const pos = radarToWorld({ x: 0.56, y: 0.78 }, DE_ANUBIS)
     const grenades = getRadarGrenades(
       state([], null, [
@@ -183,8 +191,8 @@ describe("radar selectors", () => {
       ]),
       DE_ANUBIS
     )
-    expect(grenades[0]?.active).toBe(false)
-    expect(grenades[0]?.angle).toBeDefined()
+    expect(grenades[0]?.state).toBe("projectile")
+    expect(grenades[0]?.radius).toBeUndefined()
   })
 
   test("owner side comes from current PlayerState, not the grenade", () => {
@@ -232,6 +240,15 @@ describe("radar selectors", () => {
       state([], null, [{ id: "8", type: "flash", position: { ...pos, z: 0 } }]),
       DE_ANUBIS
     )
-    expect(grenades[0]).toMatchObject({ id: "8", type: "flash", active: false })
+    expect(grenades[0]).toMatchObject({ id: "8", type: "flash", state: "projectile" })
+  })
+
+  test("unknown world grenades still convert and do not throw", () => {
+    const pos = radarToWorld({ x: 0.4, y: 0.4 }, DE_ANUBIS)
+    const grenades = getRadarGrenades(
+      state([], null, [{ id: "9", type: "unknown", position: { ...pos, z: 0 } }]),
+      DE_ANUBIS
+    )
+    expect(grenades[0]).toMatchObject({ id: "9", type: "unknown", state: "projectile" })
   })
 })

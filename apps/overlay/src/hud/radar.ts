@@ -1,5 +1,10 @@
 import type { GameState, Side, WorldGrenadeType } from "@workspace/game-state"
-import { getFacingAngle, worldToRadar, type MapMetadata } from "@workspace/maps"
+import {
+  getFacingAngle,
+  worldRadiusToRadar,
+  worldToRadar,
+  type MapMetadata,
+} from "@workspace/maps"
 
 import { rosterNumber } from "./format"
 
@@ -20,6 +25,8 @@ export type RadarBombView = {
   kind: "carried" | "dropped" | "planted"
 }
 
+export type SmokePresentationState = "projectile" | "active"
+
 export type RadarGrenadeView = {
   id: string
   type: WorldGrenadeType
@@ -27,19 +34,29 @@ export type RadarGrenadeView = {
   y: number
   ownerSteamId?: string
   ownerSide?: Side
-  /** Smoke: effectTime > 0. Other types stay false until their own presentation exists. */
-  active: boolean
-  /** In-flight facing from GSI velocity XY. Omitted when velocity is missing/zero. */
-  angle?: number
+  /**
+   * Smoke: `effectTime > 0` is the deployed cloud. Other types stay
+   * `projectile` until their own presentation exists.
+   */
+  state: SmokePresentationState
+  /** Normalized radar radius for area effects. Omitted for projectiles. */
+  radius?: number
 }
 
 export const RADAR_LAYER = {
   smokeArea: 1,
   projectile: 2,
-  bomb: 2,
-  player: 3,
-  observed: 4,
+  bomb: 3,
+  player: 4,
+  observed: 5,
 } as const
+
+/**
+ * Visual approximation of an active CS2 smoke, in world units.
+ * GSI grenade payloads do not include radius. Converted with
+ * `worldRadiusToRadar` — not a verified engine value.
+ */
+export const RADAR_SMOKE_PRESENTATION_RADIUS = 400
 
 /**
  * Alive players with a world position, already in radar image space.
@@ -131,12 +148,13 @@ export function getRadarGrenades(
     if (!point) {
       continue
     }
+    const active = grenade.type === "smoke" && (grenade.effectTime ?? 0) > 0
     const view: RadarGrenadeView = {
       id: grenade.id,
       type: grenade.type,
       x: point.x,
       y: point.y,
-      active: grenade.type === "smoke" && (grenade.effectTime ?? 0) > 0,
+      state: active ? "active" : "projectile",
     }
     if (grenade.ownerSteamId) {
       view.ownerSteamId = grenade.ownerSteamId
@@ -145,10 +163,10 @@ export function getRadarGrenades(
         view.ownerSide = owner.side
       }
     }
-    if (!view.active && grenade.velocity) {
-      const angle = getFacingAngle(grenade.velocity)
-      if (angle !== undefined) {
-        view.angle = angle
+    if (active) {
+      const radius = worldRadiusToRadar(RADAR_SMOKE_PRESENTATION_RADIUS, metadata)
+      if (radius !== undefined) {
+        view.radius = radius
       }
     }
     grenades.push(view)

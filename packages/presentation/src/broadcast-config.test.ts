@@ -14,7 +14,9 @@ import {
   resolveBroadcastEvent,
   resolveBroadcastSponsor,
   resolveBroadcastTeam,
+  resolveSponsorContent,
   seriesWinsNeeded,
+  sponsorNeedsContent,
 } from "./broadcast-config"
 
 describe("broadcastConfigSchema", () => {
@@ -42,7 +44,13 @@ describe("broadcastConfigSchema", () => {
         teams: { left: { name: "Northwind" }, right: { name: "Redline" } },
         series: { leftMapsWon: 1, rightMapsWon: 0 },
         event: { name: "DACH Masters", stage: "Semifinal" },
-        sponsor: { name: "Local LAN", assetId: "sponsor-ab12" },
+        sponsor: {
+          enabled: true,
+          name: "Local LAN",
+          assetId: "sponsor-ab12",
+          position: "top-right",
+          displayMode: "logo-text",
+        },
       },
     })
   })
@@ -282,7 +290,173 @@ describe("optional event and sponsor", () => {
     expect(resolveBroadcastSponsor(config)).toEqual({
       name: "Local LAN",
       assetId: "sponsor-ab12",
+      position: "top-right",
+      displayMode: "logo-text",
+      showLogo: true,
+      showText: true,
     })
     expect(referencedAssetIds(config)).toEqual(["sponsor-ab12"])
+  })
+})
+
+describe("sponsor presentation", () => {
+  test("legacy name/logo is enabled top-right logo-text", () => {
+    expect(
+      parseBroadcastConfig({
+        format: "BO1",
+        sponsor: { name: "Local LAN", assetId: "sponsor-ab12" },
+      })
+    ).toMatchObject({
+      success: true,
+      data: {
+        sponsor: {
+          enabled: true,
+          name: "Local LAN",
+          assetId: "sponsor-ab12",
+          position: "top-right",
+          displayMode: "logo-text",
+        },
+      },
+    })
+  })
+
+  test("keeps disabled sponsor with placement choices", () => {
+    expect(
+      compactBroadcastConfig({
+        format: "BO1",
+        teams: { left: {}, right: {} },
+        series: { leftMapsWon: 0, rightMapsWon: 0 },
+        sponsor: {
+          enabled: false,
+          name: "Local LAN",
+          position: "center",
+          displayMode: "logo",
+        },
+      }).sponsor
+    ).toEqual({
+      enabled: false,
+      name: "Local LAN",
+      position: "center",
+      displayMode: "logo",
+    })
+  })
+
+  test("invalid position, mode, and asset id fall back without dropping the rest", () => {
+    expect(
+      parseBroadcastConfig({
+        format: "BO1",
+        sponsor: {
+          enabled: true,
+          name: "Local LAN",
+          assetId: "https://cdn.example/x.png",
+          position: "left",
+          displayMode: "banner",
+        },
+      })
+    ).toEqual({
+      success: true,
+      data: {
+        format: "BO1",
+        teams: { left: {}, right: {} },
+        series: { leftMapsWon: 0, rightMapsWon: 0 },
+        sponsor: {
+          enabled: true,
+          name: "Local LAN",
+          position: "top-right",
+          displayMode: "logo-text",
+        },
+      },
+    })
+  })
+
+  test("disabled sponsor does not resolve onto the overlay", () => {
+    const config = compactBroadcastConfig({
+      format: "BO1",
+      teams: { left: {}, right: {} },
+      series: { leftMapsWon: 0, rightMapsWon: 0 },
+      sponsor: {
+        enabled: false,
+        name: "Local LAN",
+        assetId: "sponsor-ab12",
+        position: "top-right",
+        displayMode: "logo-text",
+      },
+    })
+    expect(resolveBroadcastSponsor(config)).toBeUndefined()
+  })
+
+  test("enabled with no name or logo stays stored and needs content", () => {
+    const config = compactBroadcastConfig({
+      format: "BO1",
+      teams: { left: {}, right: {} },
+      series: { leftMapsWon: 0, rightMapsWon: 0 },
+      sponsor: { enabled: true, position: "center", displayMode: "text" },
+    })
+    expect(config.sponsor).toEqual({
+      enabled: true,
+      position: "center",
+      displayMode: "text",
+    })
+    expect(resolveBroadcastSponsor(config)).toBeUndefined()
+    expect(sponsorNeedsContent(config.sponsor)).toBe(true)
+  })
+
+  test.each([
+    {
+      name: "logo uses the asset",
+      mode: "logo" as const,
+      input: { name: "LAN", hasLogo: true },
+      expected: { showLogo: true, showText: false },
+    },
+    {
+      name: "logo falls back to text",
+      mode: "logo" as const,
+      input: { name: "LAN", hasLogo: false },
+      expected: { showLogo: false, showText: true },
+    },
+    {
+      name: "logo hides when both missing",
+      mode: "logo" as const,
+      input: { name: "", hasLogo: false },
+      expected: undefined,
+    },
+    {
+      name: "text uses name only",
+      mode: "text" as const,
+      input: { name: "LAN", hasLogo: true },
+      expected: { showLogo: false, showText: true },
+    },
+    {
+      name: "text hides without a name",
+      mode: "text" as const,
+      input: { name: "  ", hasLogo: true },
+      expected: undefined,
+    },
+    {
+      name: "logo-text shows both",
+      mode: "logo-text" as const,
+      input: { name: "LAN", hasLogo: true },
+      expected: { showLogo: true, showText: true },
+    },
+    {
+      name: "logo-text degrades to logo",
+      mode: "logo-text" as const,
+      input: { name: "", hasLogo: true },
+      expected: { showLogo: true, showText: false },
+    },
+    {
+      name: "logo-text degrades to text",
+      mode: "logo-text" as const,
+      input: { name: "LAN", hasLogo: false },
+      expected: { showLogo: false, showText: true },
+    },
+    {
+      name: "logo-text hides when both missing",
+      mode: "logo-text" as const,
+      input: { hasLogo: false },
+      expected: undefined,
+    },
+  ])("$name", ({ mode, input, expected }) => {
+    expect(resolveSponsorContent(mode, input)).toEqual(expected)
   })
 })

@@ -1,9 +1,10 @@
+import { EMPTY_MARK } from "../hud/format"
+import { useRealtimeStore } from "../realtime/store"
 import {
   overlayDisplayName,
   overlayPortraitStack,
   type OverlayPortraitView,
 } from "./resolve"
-import { useRealtimeStore } from "../realtime/store"
 
 export function useOverlayPortraits(
   player: { steamId: string; name: string; side: "CT" | "T" } | null,
@@ -16,7 +17,7 @@ export function useOverlayPortraits(
 export function usePlayerDisplayName(player: { steamId: string; name: string } | null): string {
   const config = useRealtimeStore((store) => store.presentation)
   if (!player) {
-    return "—"
+    return EMPTY_MARK
   }
   return overlayDisplayName(player, config)
 }

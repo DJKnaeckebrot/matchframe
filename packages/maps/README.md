@@ -50,4 +50,5 @@ the primary `radar` layer only.
 
 World grenades live on `GameState.worldGrenades`. Overlay radar converts their
 world position with `worldToRadar` inside `getRadarGrenades` — not in JSX.
+Area size uses `worldRadiusToRadar` (world units → normalized image radius).
 Molotov flame points are a later slice; do not treat every nade as a circle.
