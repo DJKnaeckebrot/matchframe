@@ -4,6 +4,7 @@ import { createGsiStateManager, sanitizeGsiCapture } from "@workspace/gsi"
 import { websocket } from "hono/bun"
 
 import { createApp } from "./app"
+import { createFileAssetStore } from "./config/asset-store"
 import { createFileOverlayStore } from "./config/overlay-store"
 import { createFilePlayerStore } from "./config/player-store"
 import { createFileThemeStore } from "./config/theme-store"
@@ -46,6 +47,7 @@ const themeStore = createFileThemeStore(dataDir())
 const overlayStore = createFileOverlayStore(dataDir())
 const playerStore = createFilePlayerStore(dataDir())
 const portraitDir = join(dataDir(), "portraits")
+const assetStore = createFileAssetStore(join(dataDir(), "assets"))
 const onGsiCapture = gsiCaptureWriter()
 
 const app = createApp({
@@ -57,6 +59,7 @@ const app = createApp({
   overlayStore,
   playerStore,
   portraitDir,
+  assetStore,
   hub,
   ...(onGsiCapture ? { onGsiCapture } : {}),
 })

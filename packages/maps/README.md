@@ -16,7 +16,7 @@ CS2 world (Source):
 Valve overview (`resource/overviews/<map>.txt`):
 
 - **`pos_x` / `pos_y`**: world XY of the radar image's **top-left** pixel
-- **`scale`**: world units per pixel at the authored image size (1024×1024 for Anubis)
+- **`scale`**: world units per pixel at the authored image size (1024×1024 for Anubis / Ancient)
 - **`rotate`**: unused on Anubis (treated as 0). A non-zero value throws until a
   rotated map is implemented — the transform owns this, not CSS
 - Radar image **+X** right, **+Y** down

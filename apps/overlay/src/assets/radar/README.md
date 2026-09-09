@@ -19,7 +19,8 @@ by Matchframe's software license.
 folder (or the mapping in `pack.ts`) without touching `packages/maps` or
 GameState.
 
-v1 maps `de_anubis` → `de_anubis_radar_psd.png` (local CS2 overview extract).
+v1 maps `de_anubis` → `de_anubis_radar_psd.png` and `de_ancient` →
+`de_ancient_radar_psd.png` (local CS2 overview extracts).
 Other PNGs in this folder are unused until `packages/maps` has metadata for
 that map. Extra files do not make the radar appear.
 

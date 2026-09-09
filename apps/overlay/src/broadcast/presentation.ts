@@ -5,7 +5,10 @@ import type {
   Side,
 } from "@workspace/game-state"
 import { getRoundDisplayState } from "@workspace/game-state"
-import { overlayTeamName, type OverlayConfig } from "@workspace/presentation"
+import { resolveBroadcastTeam } from "@workspace/presentation"
+import type { BroadcastConfig } from "@workspace/presentation"
+
+import { getBroadcastAsset } from "../assets/broadcast"
 
 /**
  * Overlay show states. Derived from GameState; not a protocol change.
@@ -58,6 +61,8 @@ export type OverlayBranding = {
   seriesLabel?: string
   leftName?: string
   rightName?: string
+  leftLogoUrl?: string
+  rightLogoUrl?: string
   teamImages?: Readonly<Record<string, string>>
 }
 
@@ -87,6 +92,7 @@ export type SeriesFormat = {
 export type OverlayShow = {
   phase: OverlayPhase
   branding: OverlayBranding
+  broadcast: BroadcastConfig
   slots: readonly BrandingSlot[]
   series?: SeriesFormat
   interstitial: InterstitialModel | null
@@ -113,15 +119,20 @@ export function getOverlayPhase(state: GameState): OverlayPhase {
   return "live"
 }
 
-export function overlayShow(state: GameState, branding: OverlayBranding): OverlayShow {
+export function overlayShow(
+  state: GameState,
+  branding: OverlayBranding,
+  broadcast: BroadcastConfig
+): OverlayShow {
   const phase = getOverlayPhase(state)
-  const interstitial = pickInterstitial(state, phase, branding)
-  const series = parseSeriesFormat(branding.seriesLabel)
+  const interstitial = pickInterstitial(state, phase, broadcast)
+  const series = parseSeriesFormat(branding.seriesLabel ?? broadcast.format)
   return {
     phase,
     branding,
+    broadcast,
     slots: brandingSlots(branding),
-    ...(series ? { series } : {}),
+    ...(series && series.length > 1 ? { series } : {}),
     interstitial,
     chrome: {
       radar: true,
@@ -167,7 +178,7 @@ export function seriesSlots(
 export function parseOverlayBranding(search: string): OverlayBranding {
   const params = new URLSearchParams(stripQuery(search))
   return {
-    eventName: params.has("event") ? blank(params.get("event")) : "Matchframe",
+    ...(params.has("event") ? { eventName: blank(params.get("event")) } : {}),
     ...(url(params.get("eventImage")) ? { eventImageUrl: url(params.get("eventImage")) } : {}),
     ...(blank(params.get("stage")) ? { stage: blank(params.get("stage")) } : {}),
     ...(blank(params.get("sponsor")) ? { sponsorName: blank(params.get("sponsor")) } : {}),
@@ -176,33 +187,47 @@ export function parseOverlayBranding(search: string): OverlayBranding {
   }
 }
 
-/** Dashboard overlay config is the series and team-name source. A URL `series` still wins when present. */
-export function applyOverlayConfig(
+/** Dashboard broadcast config is the series and team source. A URL `series` still wins when present. */
+export function applyBroadcastConfig(
   branding: OverlayBranding,
-  overlay: OverlayConfig
+  config: BroadcastConfig
 ): OverlayBranding {
+  const left = config.teams?.left ?? {}
+  const right = config.teams?.right ?? {}
+  const leftLogo = left.logoAssetId ? getBroadcastAsset(left.logoAssetId) : undefined
+  const rightLogo = right.logoAssetId ? getBroadcastAsset(right.logoAssetId) : undefined
+  const sponsorImage = config.sponsor?.assetId
+    ? getBroadcastAsset(config.sponsor.assetId)
+    : undefined
   return {
     ...branding,
-    seriesLabel: branding.seriesLabel ?? overlay.series,
-    ...(overlay.leftName ? { leftName: overlay.leftName } : {}),
-    ...(overlay.rightName ? { rightName: overlay.rightName } : {}),
+    eventName: branding.eventName ?? config.event?.name,
+    stage: branding.stage ?? config.event?.stage,
+    sponsorName: branding.sponsorName ?? config.sponsor?.name,
+    sponsorImageUrl: branding.sponsorImageUrl ?? sponsorImage,
+    seriesLabel: branding.seriesLabel ?? config.format,
+    ...(left.name ? { leftName: left.name } : {}),
+    ...(right.name ? { rightName: right.name } : {}),
+    ...(leftLogo ? { leftLogoUrl: leftLogo } : {}),
+    ...(rightLogo ? { rightLogoUrl: rightLogo } : {}),
   }
 }
 
+export const applyOverlayConfig = applyBroadcastConfig
+
 export function teamBroadcastName(
-  teams: readonly { id: string; name: string }[],
+  teams: readonly { id: string; name: string; side: "CT" | "T"; score: number }[],
   teamId: string | undefined,
-  branding: OverlayBranding
+  config: BroadcastConfig
 ): string | undefined {
   if (!teamId) {
     return undefined
   }
   const index = teams.findIndex((team) => team.id === teamId)
-  const team = teams[index]
-  if (!team) {
+  if (index < 0) {
     return undefined
   }
-  return overlayTeamName(branding, index === 0 ? "left" : "right", team.name)
+  return resolveBroadcastTeam(teams, config, index === 0 ? "left" : "right").displayName
 }
 
 export function brandingSlots(branding: OverlayBranding): BrandingSlot[] {
@@ -218,12 +243,12 @@ export function brandingSlots(branding: OverlayBranding): BrandingSlot[] {
 export function pickInterstitial(
   state: GameState,
   phase: OverlayPhase,
-  branding: OverlayBranding = {}
+  config: BroadcastConfig
 ): InterstitialModel | null {
   if (phase !== "round_over") {
     return null
   }
-  return mvpFromMatchKills(state, branding)
+  return mvpFromMatchKills(state, config)
 }
 
 export function portraitInitials(name: string, number?: number): string {
@@ -269,7 +294,7 @@ export function formatWinReason(reason: RoundWinReason | undefined): string | un
  * ponytail: match K/D, not round kills. Round-stat tracking is the upgrade
  * when GSI/engine exposes per-round player stats.
  */
-function mvpFromMatchKills(state: GameState, branding: OverlayBranding): InterstitialModel | null {
+function mvpFromMatchKills(state: GameState, config: BroadcastConfig): InterstitialModel | null {
   const display = getRoundDisplayState(state)
   const teamId = display.winnerTeamId
   if (!teamId || !display.winTeam) {
@@ -291,7 +316,7 @@ function mvpFromMatchKills(state: GameState, branding: OverlayBranding): Interst
   if (!player) {
     return null
   }
-  const teamName = teamBroadcastName(state.teams, teamId, branding)
+  const teamName = teamBroadcastName(state.teams, teamId, config)
   return {
     kind: "mvp",
     headline: "MVP",

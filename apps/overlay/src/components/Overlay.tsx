@@ -1,7 +1,7 @@
 import { type CSSProperties } from "react"
 import { themeToCssVars } from "@workspace/theme"
 
-import { applyOverlayConfig, overlayShow, parseOverlayBranding } from "../broadcast/presentation"
+import { applyBroadcastConfig, overlayShow, parseOverlayBranding } from "../broadcast/presentation"
 import { useRealtimeStore } from "../realtime/store"
 import { ConnectionIndicator } from "./ConnectionIndicator"
 import { Radar } from "./Radar"
@@ -12,10 +12,10 @@ import { TeamView } from "./TeamView"
 export function Overlay() {
   const state = useRealtimeStore((store) => store.state)
   const theme = useRealtimeStore((store) => store.theme)
-  const overlay = useRealtimeStore((store) => store.overlay)
+  const overlay = useRealtimeStore((store) => store.broadcastConfig)
   const search = typeof window === "undefined" ? "" : window.location.search
-  const branding = applyOverlayConfig(parseOverlayBranding(search), overlay)
-  const show = state ? overlayShow(state, branding) : null
+  const branding = applyBroadcastConfig(parseOverlayBranding(search), overlay)
+  const show = state ? overlayShow(state, branding, overlay) : null
   const preview = new URLSearchParams(search).has("preview")
 
   return (

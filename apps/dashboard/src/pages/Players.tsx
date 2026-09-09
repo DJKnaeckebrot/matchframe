@@ -2,13 +2,14 @@ import { useEffect, useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { PlayerState, TeamState } from "@workspace/game-state"
 import {
+  defaultBroadcastConfig,
   operatorById,
   operatorsGroupedByFaction,
   overlayTeamName,
   resolvePlayerPortrait,
   SIDE_DEFAULT_OPERATOR,
   type OperatorPortrait,
-  type OverlayConfig,
+  type BroadcastConfig,
   type PlayerPresentation,
   type PortraitType,
 } from "@workspace/presentation"
@@ -497,13 +498,17 @@ function sourceLabel(entry: PlayerPresentation | undefined): string {
 function broadcastTeamName(
   teams: readonly TeamState[],
   teamId: string,
-  overlay: OverlayConfig | undefined
+  overlay: BroadcastConfig | undefined
 ): string {
   const team = teamFor(teams, teamId)
   if (!team) {
     return teamId
   }
-  return overlayTeamName(overlay ?? {}, teams[0]?.id === teamId ? "left" : "right", team.name)
+  return overlayTeamName(
+    overlay ?? defaultBroadcastConfig,
+    teams[0]?.id === teamId ? "left" : "right",
+    team.name
+  )
 }
 
 function teamFor(teams: readonly TeamState[], teamId: string): TeamState | undefined {

@@ -1,5 +1,5 @@
 import type { GameState, MapPhase } from "@workspace/game-state"
-import { overlayTeamName, type OverlayConfig } from "@workspace/presentation"
+import { defaultBroadcastConfig, overlayTeamName, seriesWinsNeeded, type BroadcastConfig } from "@workspace/presentation"
 
 const PHASE_LABEL: Record<MapPhase, string> = {
   warmup: "Warmup",
@@ -16,7 +16,7 @@ export function MatchRail({
   loading,
 }: {
   state: GameState | null | undefined
-  overlay: OverlayConfig | undefined
+  overlay: BroadcastConfig | undefined
   serverDown: boolean
   loading: boolean
 }) {
@@ -42,22 +42,25 @@ export function MatchRail({
     )
   }
 
-  const left = overlayTeamName(overlay ?? {}, "left", state.teams[0]?.name || "Left")
-  const right = overlayTeamName(overlay ?? {}, "right", state.teams[1]?.name || "Right")
-  const leftWins = state.teams[0]?.seriesWins ?? overlay?.leftWins ?? 0
-  const rightWins = state.teams[1]?.seriesWins ?? overlay?.rightWins ?? 0
+  const config = overlay
+  const left = overlayTeamName(config ?? defaultBroadcastConfig, "left", state.teams[0]?.name || "Left")
+  const right = overlayTeamName(config ?? defaultBroadcastConfig, "right", state.teams[1]?.name || "Right")
+  const leftWins = config?.series?.leftMapsWon ?? 0
+  const rightWins = config?.series?.rightMapsWon ?? 0
+  const format = config?.format ?? "BO1"
+  const series = seriesWinsNeeded(format) > 0 ? `${format} · ${shortMapName(state.map.name)}` : shortMapName(state.map.name)
 
   return (
     <div className="flex flex-col gap-2">
       <RailLamp tone="ok" label={PHASE_LABEL[state.map.phase]} />
-      <p className="font-hud text-sm tracking-wide text-foreground">{shortMapName(state.map.name)}</p>
-      <p className="text-xs text-muted-foreground">
-        <span className="text-foreground">{left}</span>
-        <span className="mx-1.5 font-hud tabular-nums text-foreground">
+      <p className="text-xs text-foreground">
+        <span>{left}</span>
+        <span className="mx-1.5 font-hud tabular-nums">
           {leftWins}-{rightWins}
         </span>
-        <span className="text-foreground">{right}</span>
+        <span>{right}</span>
       </p>
+      <p className="text-xs text-muted-foreground">{series}</p>
     </div>
   )
 }

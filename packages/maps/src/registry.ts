@@ -1,7 +1,9 @@
+import { DE_ANCIENT } from "./maps/de_ancient"
 import { DE_ANUBIS } from "./maps/de_anubis"
 import type { MapMetadata } from "./types"
 
 const MAPS: Record<string, MapMetadata> = {
+  [DE_ANCIENT.id]: DE_ANCIENT,
   [DE_ANUBIS.id]: DE_ANUBIS,
 }
 

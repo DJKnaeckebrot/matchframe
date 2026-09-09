@@ -35,7 +35,7 @@ export function TeamView({ state, show }: { state: GameState; show: OverlayShow 
         ) : show.chrome.focused && focused ? (
           <FocusedPlayer
             player={focused}
-            teamName={teamBroadcastName(state.teams, focused.teamId, show.branding)}
+            teamName={teamBroadcastName(state.teams, focused.teamId, show.broadcast)}
             number={rosterNumber(state.players, focused.teamId, focused.steamId)}
           />
         ) : (

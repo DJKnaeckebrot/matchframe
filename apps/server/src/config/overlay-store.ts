@@ -1,12 +1,16 @@
 import { copyFile, mkdir, unlink } from "node:fs/promises"
 import { existsSync, readFileSync } from "node:fs"
 import { join } from "node:path"
-import { compactOverlayConfig, defaultOverlayConfig, overlayConfigSchema } from "@workspace/presentation"
-import type { OverlayConfig } from "@workspace/presentation"
+import {
+  compactBroadcastConfig,
+  defaultBroadcastConfig,
+  parseBroadcastConfig,
+} from "@workspace/presentation"
+import type { BroadcastConfig } from "@workspace/presentation"
 
 export type OverlayStore = {
-  get(): OverlayConfig
-  set(overlay: OverlayConfig): Promise<OverlayConfig>
+  get(): BroadcastConfig
+  set(overlay: BroadcastConfig): Promise<BroadcastConfig>
 }
 
 export function createFileOverlayStore(dir: string): OverlayStore {
@@ -18,7 +22,7 @@ export function createFileOverlayStore(dir: string): OverlayStore {
       return current
     },
     async set(overlay) {
-      const next = compactOverlayConfig(overlay)
+      const next = compactBroadcastConfig(overlay)
       await mkdir(dir, { recursive: true })
       const tmp = join(dir, "overlay.json.tmp")
       await Bun.write(tmp, `${JSON.stringify(next, null, 2)}\n`)
@@ -30,20 +34,20 @@ export function createFileOverlayStore(dir: string): OverlayStore {
   }
 }
 
-function loadOverlay(file: string): OverlayConfig {
+function loadOverlay(file: string): BroadcastConfig {
   if (!existsSync(file)) {
-    return { ...defaultOverlayConfig }
+    return compactBroadcastConfig(defaultBroadcastConfig)
   }
 
   try {
-    const parsed = overlayConfigSchema.safeParse(JSON.parse(readFileSync(file, "utf8")))
+    const parsed = parseBroadcastConfig(JSON.parse(readFileSync(file, "utf8")))
     if (parsed.success) {
-      return compactOverlayConfig(parsed.data)
+      return parsed.data
     }
   } catch {
     // JSON.parse or read failure falls through to the same warning.
   }
 
   console.warn("Matchframe: ignoring malformed overlay config, using defaults")
-  return { ...defaultOverlayConfig }
+  return compactBroadcastConfig(defaultBroadcastConfig)
 }

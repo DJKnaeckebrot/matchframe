@@ -3,6 +3,8 @@ import {
   overlayConfigSchema,
   playerPresentationConfigSchema,
   playerPresentationSchema,
+  localAssetIdSchema,
+  type BroadcastConfig,
   type OverlayConfig,
   type PlayerPresentation,
   type PlayerPresentationConfig,
@@ -50,8 +52,8 @@ export async function saveTheme(theme: MatchframeTheme): Promise<MatchframeTheme
   return parsed.data
 }
 
-export async function fetchOverlayConfig(): Promise<OverlayConfig> {
-  const response = await fetch(api("/api/config/overlay"))
+export async function fetchOverlayConfig(): Promise<BroadcastConfig> {
+  const response = await fetch(api("/api/config/broadcast"))
   if (!response.ok) {
     throw new Error("Could not load overlay settings")
   }
@@ -62,8 +64,8 @@ export async function fetchOverlayConfig(): Promise<OverlayConfig> {
   return parsed.data
 }
 
-export async function saveOverlayConfig(overlay: OverlayConfig): Promise<OverlayConfig> {
-  const response = await fetch(api("/api/config/overlay"), {
+export async function saveOverlayConfig(overlay: BroadcastConfig): Promise<BroadcastConfig> {
+  const response = await fetch(api("/api/config/broadcast"), {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(overlay),
@@ -76,6 +78,60 @@ export async function saveOverlayConfig(overlay: OverlayConfig): Promise<Overlay
     throw new Error("Server returned invalid overlay settings")
   }
   return parsed.data
+}
+
+export async function uploadTeamLogo(
+  slot: "left" | "right",
+  file: File
+): Promise<{ id: string; config: BroadcastConfig }> {
+  const body = new FormData()
+  body.set("slot", slot)
+  body.set("file", file)
+  return postAsset("/api/assets/team-logo", body)
+}
+
+export async function uploadSponsorLogo(file: File): Promise<{ id: string; config: BroadcastConfig }> {
+  const body = new FormData()
+  body.set("file", file)
+  return postAsset("/api/assets/sponsor", body)
+}
+
+export async function deleteBroadcastAsset(id: string): Promise<BroadcastConfig> {
+  const response = await fetch(api(`/api/assets/${encodeURIComponent(id)}`), { method: "DELETE" })
+  if (!response.ok) {
+    throw new Error("Could not remove image")
+  }
+  const parsed = overlayConfigSchema.safeParse(await response.json())
+  if (!parsed.success) {
+    throw new Error("Server returned invalid overlay settings")
+  }
+  return parsed.data
+}
+
+export function getBroadcastAsset(id: string): string | undefined {
+  if (!localAssetIdSchema.safeParse(id).success) {
+    return undefined
+  }
+  return api(`/api/assets/${id}`)
+}
+
+async function postAsset(
+  path: string,
+  body: FormData
+): Promise<{ id: string; config: BroadcastConfig }> {
+  const response = await fetch(api(path), { method: "POST", body })
+  if (!response.ok) {
+    throw new Error("Could not store image")
+  }
+  const raw: unknown = await response.json()
+  if (!isRecord(raw) || typeof raw.id !== "string") {
+    throw new Error("Server returned an invalid asset")
+  }
+  const parsed = overlayConfigSchema.safeParse(raw.config)
+  if (!parsed.success) {
+    throw new Error("Server returned invalid overlay settings")
+  }
+  return { id: raw.id, config: parsed.data }
 }
 
 export async function fetchGameState(): Promise<GameState | null> {
@@ -145,6 +201,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 export { defaultTheme, THEME_TOKEN_LABELS, THEME_TOKENS }
 export type {
+  BroadcastConfig,
   MatchframeTheme,
   OverlayConfig,
   PlayerPresentation,

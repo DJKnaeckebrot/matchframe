@@ -35,16 +35,39 @@ export {
 } from "./schema"
 
 export {
+  broadcastConfigSchema,
+  clampSeriesMapsWon,
+  compactBroadcastConfig,
   compactOverlayConfig,
+  defaultBroadcastConfig,
   defaultOverlayConfig,
+  getSeriesWinTarget,
   overlayConfigSchema,
   overlaySeriesWins,
   overlaySeriesWinsChanged,
   overlayTeamName,
+  parseBroadcastConfig,
+  referencedAssetIds,
+  resolveBroadcastEvent,
+  resolveBroadcastSponsor,
+  resolveBroadcastTeam,
   SERIES_LABELS,
   seriesWinsNeeded,
-} from "./overlay-config"
-export type { OverlayConfig, OverlaySeriesWins, OverlayTeamSlot, SeriesLabel } from "./overlay-config"
+} from "./broadcast-config"
+export type {
+  BroadcastConfig,
+  BroadcastEventConfig,
+  BroadcastSeriesScore,
+  BroadcastSponsorConfig,
+  BroadcastTeamConfig,
+  BroadcastTeamSlot,
+  BroadcastTeamSource,
+  OverlayConfig,
+  OverlaySeriesWins,
+  OverlayTeamSlot,
+  ResolvedBroadcastTeam,
+  SeriesLabel,
+} from "./broadcast-config"
 
 export {
   portraitCrop,

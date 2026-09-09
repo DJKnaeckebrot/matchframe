@@ -5,11 +5,12 @@ import { afterEach, describe, expect, test } from "bun:test"
 import { createGameStateEngine, parseServerMessage } from "@workspace/game-state"
 import type { GameState } from "@workspace/game-state"
 import { createGsiStateManager } from "@workspace/gsi"
-import { defaultOverlayConfig, emptyPlayerPresentationConfig } from "@workspace/presentation"
+import { defaultBroadcastConfig, emptyPlayerPresentationConfig } from "@workspace/presentation"
 import { defaultTheme } from "@workspace/theme"
 import { websocket } from "hono/bun"
 
 import { createApp } from "./app"
+import { createFileAssetStore } from "./config/asset-store"
 import { createFileOverlayStore } from "./config/overlay-store"
 import { createFilePlayerStore } from "./config/player-store"
 import { createFileThemeStore } from "./config/theme-store"
@@ -38,6 +39,7 @@ function testApp(dir: string) {
     overlayStore,
     playerStore,
     portraitDir: join(dir, "portraits"),
+    assetStore: createFileAssetStore(join(dir, "assets")),
     hub,
   })
   return { app, hub, themeStore, overlayStore, playerStore }
@@ -115,20 +117,24 @@ describe("theme config", () => {
 describe("overlay config", () => {
   test("GET returns BO1 when no config file exists", async () => {
     const { app } = testApp(await tempDir())
-    const response = await app.request("/api/config/overlay")
+    const response = await app.request("/api/config/broadcast")
     expect(response.status).toBe(200)
-    expect(await response.json()).toEqual(defaultOverlayConfig)
+    expect(await response.json()).toEqual(defaultBroadcastConfig)
   })
 
   test("PUT replaces a valid series and survives restart", async () => {
     const dir = await tempDir()
     const { app } = testApp(dir)
-    const next = { series: "BO3" as const }
+    const next = {
+      format: "BO3" as const,
+      teams: { left: {}, right: {} },
+      series: { leftMapsWon: 0, rightMapsWon: 0 },
+    }
 
-    const response = await app.request("/api/config/overlay", {
+    const response = await app.request("/api/config/broadcast", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(next),
+      body: JSON.stringify({ format: "BO3" }),
     })
 
     expect(response.status).toBe(200)
@@ -136,19 +142,26 @@ describe("overlay config", () => {
     expect(JSON.parse(await readFile(join(dir, "overlay.json"), "utf8"))).toEqual(next)
 
     const { app: restarted } = testApp(dir)
-    const loaded = await restarted.request("/api/config/overlay")
+    const loaded = await restarted.request("/api/config/broadcast")
     expect(await loaded.json()).toEqual(next)
   })
 
   test("PUT stores team display names", async () => {
     const dir = await tempDir()
     const { app } = testApp(dir)
-    const next = { series: "BO3" as const, leftName: "FaZe", rightName: "NaVi" }
+    const next = {
+      format: "BO3" as const,
+      teams: { left: { name: "FaZe" }, right: { name: "NaVi" } },
+      series: { leftMapsWon: 0, rightMapsWon: 0 },
+    }
 
-    const response = await app.request("/api/config/overlay", {
+    const response = await app.request("/api/config/broadcast", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...next, leftName: "  FaZe  " }),
+      body: JSON.stringify({
+        format: "BO3",
+        teams: { left: { name: "  FaZe  " }, right: { name: "NaVi" } },
+      }),
     })
 
     expect(response.status).toBe(200)
@@ -158,14 +171,48 @@ describe("overlay config", () => {
 
   test("PUT rejects unknown series lengths", async () => {
     const { app } = testApp(await tempDir())
+    const response = await app.request("/api/config/broadcast", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ format: "BO2" }),
+    })
+    expect(response.status).toBe(400)
+    const body = (await response.json()) as { error: string; details: unknown[] }
+    expect(body.error).toBe("Invalid broadcast config")
+    expect(body.details.length).toBeGreaterThan(0)
+  })
+
+  test("legacy overlay PUT still migrates", async () => {
+    const { app } = testApp(await tempDir())
     const response = await app.request("/api/config/overlay", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ series: "BO2" }),
+      body: JSON.stringify({ series: "BO3", leftName: "FaZe", leftWins: 1, rightWins: 0 }),
     })
-    expect(response.status).toBe(400)
-    const body = (await response.json()) as { error: string }
-    expect(body.error).toBe("Invalid overlay config")
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({
+      format: "BO3",
+      teams: { left: { name: "FaZe" }, right: {} },
+      series: { leftMapsWon: 1, rightMapsWon: 0 },
+    })
+  })
+
+  test("malformed overlay.json falls back to defaults", async () => {
+    const dir = await tempDir()
+    await Bun.write(join(dir, "overlay.json"), "{not json")
+    const warnings: string[] = []
+    const original = console.warn
+    console.warn = (...args: unknown[]) => {
+      warnings.push(args.map(String).join(" "))
+    }
+    try {
+      const { app } = testApp(dir)
+      const response = await app.request("/api/config/broadcast")
+      expect(await response.json()).toEqual(defaultBroadcastConfig)
+    } finally {
+      console.warn = original
+    }
+    expect(warnings.some((line) => line.includes("malformed overlay config"))).toBe(true)
   })
 
   test("PUT map wins seeds the live series score", async () => {
@@ -178,13 +225,20 @@ describe("overlay config", () => {
     })
     expect(posted.status).toBe(204)
 
-    const response = await app.request("/api/config/overlay", {
+    const response = await app.request("/api/config/broadcast", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ series: "BO3", leftWins: 1, rightWins: 0 }),
+      body: JSON.stringify({
+        format: "BO3",
+        series: { leftMapsWon: 1, rightMapsWon: 0 },
+      }),
     })
     expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ series: "BO3", leftWins: 1, rightWins: 0 })
+    expect(await response.json()).toEqual({
+      format: "BO3",
+      teams: { left: {}, right: {} },
+      series: { leftMapsWon: 1, rightMapsWon: 0 },
+    })
 
     const state = (await (await app.request("/api/state")).json()) as {
       connected: boolean
@@ -192,10 +246,14 @@ describe("overlay config", () => {
     }
     expect(state.state.teams.map((team) => team.seriesWins)).toEqual([1, 0])
 
-    const namesOnly = await app.request("/api/config/overlay", {
+    const namesOnly = await app.request("/api/config/broadcast", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ series: "BO3", leftName: "FaZe", leftWins: 1, rightWins: 0 }),
+      body: JSON.stringify({
+        format: "BO3",
+        teams: { left: { name: "FaZe" }, right: {} },
+        series: { leftMapsWon: 1, rightMapsWon: 0 },
+      }),
     })
     expect(namesOnly.status).toBe(200)
     const unchanged = (await (await app.request("/api/state")).json()) as {
@@ -203,10 +261,13 @@ describe("overlay config", () => {
     }
     expect(unchanged.state.teams.map((team) => team.seriesWins)).toEqual([1, 0])
 
-    const reset = await app.request("/api/config/overlay", {
+    const reset = await app.request("/api/config/broadcast", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ series: "BO3", leftWins: 0, rightWins: 0 }),
+      body: JSON.stringify({
+        format: "BO3",
+        series: { leftMapsWon: 0, rightMapsWon: 0 },
+      }),
     })
     expect(reset.status).toBe(200)
     const cleared = (await (await app.request("/api/state")).json()) as {
@@ -218,10 +279,13 @@ describe("overlay config", () => {
   test("stored map wins seed the first GSI snapshot after restart", async () => {
     const dir = await tempDir()
     const { app } = testApp(dir)
-    const saved = await app.request("/api/config/overlay", {
+    const saved = await app.request("/api/config/broadcast", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ series: "BO3", leftWins: 1, rightWins: 0 }),
+      body: JSON.stringify({
+        format: "BO3",
+        series: { leftMapsWon: 1, rightMapsWon: 0 },
+      }),
     })
     expect(saved.status).toBe(200)
 
@@ -255,11 +319,11 @@ describe("realtime theme", () => {
       "connection",
       "theme",
       "presentation",
-      "overlay",
+      "broadcast-config",
     ])
     expect(messages[1]).toEqual({ type: "theme", data: defaultTheme })
     expect(messages[2]).toEqual({ type: "presentation", data: emptyPlayerPresentationConfig })
-    expect(messages[3]).toEqual({ type: "overlay", data: defaultOverlayConfig })
+    expect(messages[3]).toEqual({ type: "broadcast-config", data: defaultBroadcastConfig })
   })
 
   test("theme update is broadcast to connected clients", async () => {
@@ -316,7 +380,7 @@ describe("realtime theme", () => {
       "connection",
       "theme",
       "presentation",
-      "overlay",
+      "broadcast-config",
       "snapshot",
     ])
   })
@@ -592,7 +656,7 @@ describe("realtime presentation", () => {
 })
 
 describe("realtime overlay", () => {
-  test("overlay series update is broadcast to connected clients", async () => {
+  test("broadcast config update is sent to connected clients", async () => {
     const { app } = testApp(await tempDir())
     const server = Bun.serve({
       port: 0,
@@ -613,10 +677,10 @@ describe("realtime overlay", () => {
     await opened
     await waitFor(() => received.length >= 4)
 
-    const response = await app.request("/api/config/overlay", {
+    const response = await app.request("/api/config/broadcast", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ series: "BO5" }),
+      body: JSON.stringify({ format: "BO5" }),
     })
     expect(response.status).toBe(200)
     await waitFor(() =>
@@ -625,15 +689,81 @@ describe("realtime overlay", () => {
           typeof message === "object" &&
           message !== null &&
           "type" in message &&
-          message.type === "overlay" &&
+          message.type === "broadcast-config" &&
           "data" in message &&
           typeof message.data === "object" &&
           message.data !== null &&
-          "series" in message.data &&
-          message.data.series === "BO5"
+          "format" in message.data &&
+          message.data.format === "BO5"
       )
     )
     ws.close()
+  })
+})
+
+describe("broadcast assets", () => {
+  const png = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 0])
+
+  test("uploads a team logo, serves it, and clears it", async () => {
+    const { app } = testApp(await tempDir())
+    const form = new FormData()
+    form.set("slot", "left")
+    form.set("file", new File([png], "logo.png", { type: "image/png" }))
+    const uploaded = await app.request("/api/assets/team-logo", { method: "POST", body: form })
+    expect(uploaded.status).toBe(200)
+    const body = (await uploaded.json()) as {
+      id: string
+      config: { teams: { left: { logoAssetId?: string } } }
+    }
+    expect(body.id.startsWith("team-left-")).toBe(true)
+    expect(body.config.teams.left.logoAssetId).toBe(body.id)
+
+    const served = await app.request(`/api/assets/${body.id}`)
+    expect(served.status).toBe(200)
+    expect(served.headers.get("Content-Type")).toBe("image/png")
+
+    const traversal = await app.request("/api/assets/../theme")
+    expect(traversal.status).toBe(404)
+
+    const cleared = await app.request(`/api/assets/${body.id}`, { method: "DELETE" })
+    expect(cleared.status).toBe(200)
+    expect(await cleared.json()).toMatchObject({ teams: { left: {} } })
+    expect((await app.request(`/api/assets/${body.id}`)).status).toBe(404)
+  })
+
+  test("rejects missing slot, remote-looking files, and missing assets", async () => {
+    const { app } = testApp(await tempDir())
+    const noSlot = new FormData()
+    noSlot.set("file", new File([png], "logo.png", { type: "image/png" }))
+    const missingSlot = await app.request("/api/assets/team-logo", { method: "POST", body: noSlot })
+    expect(missingSlot.status).toBe(400)
+
+    const junk = new FormData()
+    junk.set("slot", "left")
+    junk.set("file", new File([new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])], "x.bin"))
+    const bad = await app.request("/api/assets/team-logo", { method: "POST", body: junk })
+    expect(bad.status).toBe(400)
+
+    const missing = await app.request("/api/assets/team-left-missing", { method: "DELETE" })
+    expect(missing.status).toBe(404)
+  })
+
+  test("sponsor upload writes an asset id into broadcast config", async () => {
+    const { app } = testApp(await tempDir())
+    await app.request("/api/config/broadcast", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ format: "BO1", sponsor: { name: "Local LAN" } }),
+    })
+    const form = new FormData()
+    form.set("file", new File([png], "sponsor.png", { type: "image/png" }))
+    const uploaded = await app.request("/api/assets/sponsor", { method: "POST", body: form })
+    expect(uploaded.status).toBe(200)
+    const body = (await uploaded.json()) as {
+      id: string
+      config: { sponsor?: { name?: string; assetId?: string } }
+    }
+    expect(body.config.sponsor).toEqual({ name: "Local LAN", assetId: body.id })
   })
 })
 

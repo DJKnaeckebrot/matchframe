@@ -1,3 +1,4 @@
+import ancientRadar from "./de_ancient_radar_psd.png"
 import anubisRadar from "./de_anubis_radar_psd.png"
 
 /**
@@ -5,6 +6,7 @@ import anubisRadar from "./de_anubis_radar_psd.png"
  * Unknown / missing assets → overlay hides the radar.
  */
 const RADAR_ASSETS: Record<string, string> = {
+  de_ancient: ancientRadar,
   de_anubis: anubisRadar,
 }
 

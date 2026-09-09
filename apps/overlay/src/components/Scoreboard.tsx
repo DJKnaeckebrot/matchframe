@@ -10,13 +10,14 @@ import {
   getTeamObjectiveProgress,
 } from "@workspace/game-state"
 
-import { overlayTeamName } from "@workspace/presentation"
+import {
+  resolveBroadcastTeam,
+} from "@workspace/presentation"
 import {
   formatWinReason,
   seriesSlots,
   teamBroadcastName,
   type BrandingSlot,
-  type OverlayBranding,
   type OverlayShow,
 } from "../broadcast/presentation"
 import {
@@ -48,6 +49,8 @@ export function Scoreboard({ state, show }: { state: GameState; show: OverlaySho
   )
   const showBars = leftProgress.kind !== "none" || rightProgress.kind !== "none"
   const plantedBar = leftProgress.kind === "bomb" || rightProgress.kind === "bomb"
+  const leftTeam = resolveBroadcastTeam(state.teams, show.broadcast, "left")
+  const rightTeam = resolveBroadcastTeam(state.teams, show.broadcast, "right")
 
   return (
     <header className="bg-(--mf-surface)/92">
@@ -55,23 +58,25 @@ export function Scoreboard({ state, show }: { state: GameState; show: OverlaySho
       <div className="grid grid-cols-[1fr_168px_1fr] items-stretch">
         <TeamBlock
           team={left}
-          name={left ? overlayTeamName(show.branding, "left", left.name) : undefined}
+          name={leftTeam.displayName}
+          logoUrl={show.branding.leftLogoUrl}
           align="left"
           alive={left ? getLogicalTeamAliveCount(state, left.id) : 0}
-          maps={seriesSlots(show.series, left?.seriesWins)}
+          maps={seriesSlots(show.series, leftTeam.mapsWon)}
         />
         <CenterWell
           state={state}
-          branding={show.branding}
+          broadcast={show.broadcast}
           presented={presented}
           result={show.chrome.result}
         />
         <TeamBlock
           team={right}
-          name={right ? overlayTeamName(show.branding, "right", right.name) : undefined}
+          name={rightTeam.displayName}
+          logoUrl={show.branding.rightLogoUrl}
           align="right"
           alive={right ? getLogicalTeamAliveCount(state, right.id) : 0}
-          maps={seriesSlots(show.series, right?.seriesWins)}
+          maps={seriesSlots(show.series, rightTeam.mapsWon)}
         />
         {showBars ? (
           <>
@@ -86,10 +91,15 @@ export function Scoreboard({ state, show }: { state: GameState; show: OverlaySho
 }
 
 function MetaStrip({ slots, mapName }: { slots: readonly BrandingSlot[]; mapName: string }) {
+  const lead = slots.filter((slot) => slot.id === "event" || slot.id === "series")
+  const stage = slots.find((slot) => slot.id === "stage")
+  const sponsor = slots.find((slot) => slot.id === "sponsor")
+  const trail = [sponsor, stage].filter((slot): slot is BrandingSlot => Boolean(slot))
+
   return (
     <div className="flex h-[22px] items-center justify-between gap-4 border-b border-(--mf-text)/10 px-3">
-      <div className="flex min-w-0 items-center gap-0">
-        {slots.map((slot, index) => (
+      <div className="flex min-w-0 items-center">
+        {lead.map((slot, index) => (
           <span key={slot.id} className="flex items-center">
             {index > 0 ? (
               <span className="mx-2.5 text-(--mf-text)/25" aria-hidden="true">
@@ -100,26 +110,72 @@ function MetaStrip({ slots, mapName }: { slots: readonly BrandingSlot[]; mapName
           </span>
         ))}
       </div>
-      <span className="shrink-0 text-[10px] tracking-[0.18em] text-(--mf-text-muted) uppercase">
-        {mapDisplayName(mapName)}
-      </span>
+      <div className="flex min-w-0 shrink-0 items-center">
+        {trail.map((slot) => (
+          <span key={slot.id} className="flex items-center">
+            <BrandingMark slot={slot} preferImage={slot.id === "sponsor"} />
+            <span className="mx-2.5 text-(--mf-text)/25" aria-hidden="true">
+              ·
+            </span>
+          </span>
+        ))}
+        <span className="text-[10px] tracking-[0.18em] text-(--mf-text-muted) uppercase">
+          {mapDisplayName(mapName)}
+        </span>
+      </div>
     </div>
   )
 }
 
-function BrandingMark({ slot }: { slot: BrandingSlot }) {
+function BrandingMark({ slot, preferImage = false }: { slot: BrandingSlot; preferImage?: boolean }) {
+  return (
+    <SlotMark
+      text={slot.text}
+      imageUrl={slot.imageUrl}
+      fallbackAlt={slot.id}
+      hideTextWhenImage={preferImage}
+    />
+  )
+}
+
+function SlotMark({
+  text,
+  imageUrl,
+  fallbackAlt,
+  hideTextWhenImage,
+}: {
+  text?: string
+  imageUrl?: string
+  fallbackAlt: string
+  hideTextWhenImage: boolean
+}) {
   return (
     <span className="flex items-center gap-1.5">
-      {slot.imageUrl ? (
+      {imageUrl ? (
         <img
-          src={slot.imageUrl}
-          alt={slot.text ? "" : slot.id}
+          src={imageUrl}
+          alt={text ? "" : fallbackAlt}
           className="h-3.5 max-w-16 object-contain object-left"
+          onError={(event) => {
+            const image = event.currentTarget
+            image.style.display = "none"
+            if (!hideTextWhenImage) {
+              return
+            }
+            const label = image.parentElement?.querySelector("[data-slot-fallback]")
+            if (label instanceof HTMLElement) {
+              label.hidden = !text
+            }
+          }}
         />
       ) : null}
-      {slot.text ? (
-        <span className="truncate text-[10px] tracking-[0.18em] text-(--mf-text)/80 uppercase">
-          {slot.text}
+      {text ? (
+        <span
+          data-slot-fallback
+          hidden={hideTextWhenImage && Boolean(imageUrl)}
+          className="truncate text-[10px] tracking-[0.18em] text-(--mf-text)/80 uppercase"
+        >
+          {text}
         </span>
       ) : null}
     </span>
@@ -129,12 +185,14 @@ function BrandingMark({ slot }: { slot: BrandingSlot }) {
 function TeamBlock({
   team,
   name,
+  logoUrl,
   align,
   alive,
   maps,
 }: {
   team: TeamState | undefined
   name?: string
+  logoUrl?: string
   align: "left" | "right"
   alive: number
   maps: readonly boolean[] | undefined
@@ -155,6 +213,7 @@ function TeamBlock({
           mirrored ? "flex-row-reverse pr-3 pl-4" : "pr-4 pl-3"
         }`}
       >
+        <TeamLogo url={logoUrl} />
         <div className={`min-w-0 flex-1 ${mirrored ? "text-right" : ""}`}>
           <div className="text-[10px] tracking-[0.22em] uppercase" style={{ color: sideColor }}>
             {team.side}
@@ -176,6 +235,22 @@ function TeamBlock({
         </div>
       </div>
     </div>
+  )
+}
+
+function TeamLogo({ url }: { url?: string }) {
+  if (!url) {
+    return null
+  }
+  return (
+    <img
+      src={url}
+      alt=""
+      className="h-8 w-8 shrink-0 object-contain"
+      onError={(event) => {
+        event.currentTarget.style.display = "none"
+      }}
+    />
   )
 }
 
@@ -232,12 +307,12 @@ function AlivePips({
 
 function CenterWell({
   state,
-  branding,
+  broadcast,
   presented,
   result,
 }: {
   state: GameState
-  branding: OverlayBranding
+  broadcast: OverlayShow["broadcast"]
   presented: ObjectivePresentation
   result: boolean
 }) {
@@ -247,7 +322,7 @@ function CenterWell({
       <WinnerWell
         display={display}
         name={
-          teamBroadcastName(state.teams, display.winnerTeamId, branding) ??
+          teamBroadcastName(state.teams, display.winnerTeamId, broadcast) ??
           display.winnerName ??
           display.winTeam ??
           "—"

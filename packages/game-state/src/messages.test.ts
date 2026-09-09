@@ -40,7 +40,14 @@ describe("server messages", () => {
       },
       { type: "theme" as const, data: defaultTheme },
       { type: "presentation" as const, data: emptyPlayerPresentationConfig },
-      { type: "overlay" as const, data: { series: "BO3" as const } },
+      {
+        type: "broadcast-config" as const,
+        data: {
+          format: "BO3" as const,
+          teams: { left: {}, right: {} },
+          series: { leftMapsWon: 0, rightMapsWon: 0 },
+        },
+      },
       {
         type: "presentation" as const,
         data: {
@@ -67,6 +74,14 @@ describe("server messages", () => {
     expect(parseServerMessage({ type: "event", data: { type: "player_died" } })).toBeNull()
     expect(parseServerMessage({ type: "theme", data: { accent: "nope" } })).toBeNull()
     expect(parseServerMessage({ type: "presentation", data: { a: { portrait: { type: "operator", value: "nope" } } } })).toBeNull()
-    expect(parseServerMessage({ type: "overlay", data: { series: "BO2" } })).toBeNull()
+    expect(parseServerMessage({ type: "broadcast-config", data: { format: "BO2" } })).toBeNull()
+    expect(parseServerMessage({ type: "overlay", data: { series: "BO3" } })).toEqual({
+      type: "broadcast-config",
+      data: {
+        format: "BO3",
+        teams: { left: {}, right: {} },
+        series: { leftMapsWon: 0, rightMapsWon: 0 },
+      },
+    })
   })
 })

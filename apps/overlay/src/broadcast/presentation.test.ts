@@ -1,8 +1,9 @@
 import { describe, expect, test } from "bun:test"
 import type { GameState, PlayerState, Side } from "@workspace/game-state"
+import { compactBroadcastConfig, defaultBroadcastConfig } from "@workspace/presentation"
 
 import {
-  applyOverlayConfig,
+  applyBroadcastConfig,
   brandingSlots,
   formatWinReason,
   getOverlayPhase,
@@ -69,8 +70,8 @@ function state(overrides: Omit<Partial<GameState>, "map" | "round"> & {
 }
 
 describe("parseOverlayBranding", () => {
-  test("defaults the event slot to Matchframe", () => {
-    expect(parseOverlayBranding("")).toEqual({ eventName: "Matchframe" })
+  test("does not invent an event name", () => {
+    expect(parseOverlayBranding("")).toEqual({})
   })
 
   test("reads configurable slots from the overlay URL", () => {
@@ -116,29 +117,66 @@ describe("brandingSlots", () => {
   })
 })
 
-describe("applyOverlayConfig", () => {
+describe("applyBroadcastConfig", () => {
   test("fills series from overlay config when the URL omits it", () => {
-    expect(applyOverlayConfig({ eventName: "Matchframe" }, { series: "BO3" }).seriesLabel).toBe("BO3")
+    expect(applyBroadcastConfig({}, compactBroadcastConfig({
+      format: "BO3",
+      teams: { left: {}, right: {} },
+      series: { leftMapsWon: 0, rightMapsWon: 0 },
+    })).seriesLabel).toBe("BO3")
   })
 
   test("keeps an explicit URL series", () => {
     expect(
-      applyOverlayConfig({ eventName: "Matchframe", seriesLabel: "BO5" }, { series: "BO3" }).seriesLabel
+      applyBroadcastConfig({ seriesLabel: "BO5" }, compactBroadcastConfig({
+        format: "BO3",
+        teams: { left: {}, right: {} },
+        series: { leftMapsWon: 0, rightMapsWon: 0 },
+      })).seriesLabel
     ).toBe("BO5")
   })
 
-  test("merges team names even when a URL series is set", () => {
+  test("merges team names, event, and sponsor from broadcast config", () => {
     expect(
-      applyOverlayConfig({ eventName: "Matchframe", seriesLabel: "BO5" }, {
-        series: "BO3",
-        leftName: "FaZe",
-        rightName: "NaVi",
-      })
+      applyBroadcastConfig({ seriesLabel: "BO5" }, compactBroadcastConfig({
+        format: "BO3",
+        teams: { left: { name: "FaZe" }, right: { name: "NaVi" } },
+        series: { leftMapsWon: 1, rightMapsWon: 0 },
+        event: { name: "DACH Masters", stage: "Semifinal" },
+        sponsor: { name: "Local LAN" },
+      }))
     ).toMatchObject({
       seriesLabel: "BO5",
       leftName: "FaZe",
       rightName: "NaVi",
+      eventName: "DACH Masters",
+      stage: "Semifinal",
+      sponsorName: "Local LAN",
     })
+  })
+
+  test("empty event and sponsor stay omitted", () => {
+    const branding = applyBroadcastConfig({}, defaultBroadcastConfig)
+    expect(branding.eventName).toBeUndefined()
+    expect(branding.sponsorName).toBeUndefined()
+    expect(branding.sponsorImageUrl).toBeUndefined()
+  })
+
+  test("partial config without teams does not throw", () => {
+    expect(applyBroadcastConfig({}, { format: "BO3" } as never).seriesLabel).toBe("BO3")
+  })
+
+  test("resolves local logo urls and omits missing logos", () => {
+    const branding = applyBroadcastConfig(
+      {},
+      compactBroadcastConfig({
+        format: "BO1",
+        teams: { left: { logoAssetId: "team-left-ab12cd34" }, right: {} },
+        series: { leftMapsWon: 0, rightMapsWon: 0 },
+      })
+    )
+    expect(branding.leftLogoUrl).toContain("/api/assets/team-left-ab12cd34")
+    expect(branding.rightLogoUrl).toBeUndefined()
   })
 })
 
@@ -217,7 +255,7 @@ describe("getOverlayPhase", () => {
 
 describe("overlayShow", () => {
   test("keeps focused player during live play", () => {
-    const show = overlayShow(state(), { eventName: "Matchframe" })
+    const show = overlayShow(state(), { eventName: "Matchframe" }, defaultBroadcastConfig)
     expect(show.chrome).toEqual({
       radar: true,
       header: true,
@@ -232,7 +270,7 @@ describe("overlayShow", () => {
   })
 
   test("exposes a series format from branding", () => {
-    expect(overlayShow(state(), { seriesLabel: "BO3" }).series).toEqual({
+    expect(overlayShow(state(), { seriesLabel: "BO3" }, defaultBroadcastConfig).series).toEqual({
       length: 3,
       winsNeeded: 2,
     })
@@ -243,7 +281,8 @@ describe("overlayShow", () => {
       state({
         round: { phase: "over", winTeam: "CT", winReason: "bomb_defused", alive: { ct: 2, t: 0 } },
       }),
-      { eventName: "Matchframe" }
+      { eventName: "Matchframe" },
+      defaultBroadcastConfig
     )
     expect(show.chrome.focused).toBe(false)
     expect(show.chrome.result).toBe(true)
@@ -259,7 +298,12 @@ describe("overlayShow", () => {
       state({
         round: { phase: "over", winTeam: "CT", winReason: "bomb_defused", alive: { ct: 2, t: 0 } },
       }),
-      { leftName: "FaZe" }
+      { eventName: "Matchframe" },
+      compactBroadcastConfig({
+        format: "BO1",
+        teams: { left: { name: "FaZe" }, right: {} },
+        series: { leftMapsWon: 0, rightMapsWon: 0 },
+      })
     )
     expect(show.interstitial?.teamName).toBe("FaZe")
   })
@@ -267,24 +311,30 @@ describe("overlayShow", () => {
   test("shows round history before the round is live", () => {
     const freeze = overlayShow(
       state({ round: { phase: "freezetime", winTeam: null, alive: { ct: 5, t: 5 } } }),
-      {}
+      {},
+      defaultBroadcastConfig
     )
     expect(freeze.chrome.history).toBe(true)
 
-    const planted = overlayShow(state({ bomb: { state: "planted", countdown: 30 } }), {})
+    const planted = overlayShow(
+      state({ bomb: { state: "planted", countdown: 30 } }),
+      {},
+      defaultBroadcastConfig
+    )
     expect(planted.chrome.history).toBe(false)
   })
 })
 
 describe("pickInterstitial", () => {
   test("does not invent MVP during live play", () => {
-    expect(pickInterstitial(state(), "live")).toBeNull()
+    expect(pickInterstitial(state(), "live", defaultBroadcastConfig)).toBeNull()
   })
 
   test("picks the winning side, not the global kill leader", () => {
     const card = pickInterstitial(
       state({ round: { phase: "over", winTeam: "CT", alive: { ct: 1, t: 0 } } }),
-      "round_over"
+      "round_over",
+      defaultBroadcastConfig
     )
     expect(card?.playerName).toBe("Ash")
     expect(card?.headline).toBe("MVP")
@@ -329,7 +379,8 @@ describe("side", () => {
           player({ steamId: "c", teamId: "redline", side: "CT", name: "Viper", kills: 30 }),
         ],
       }),
-      "round_over"
+      "round_over",
+      defaultBroadcastConfig
     )
     expect(card?.teamId).toBe("northwind")
     expect(card?.playerName).toBe("Nova")

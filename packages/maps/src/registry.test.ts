@@ -17,6 +17,20 @@ describe("getMapMetadata", () => {
     expect(meta?.levels).toBeUndefined()
   })
 
+  test("resolves de_ancient", () => {
+    const meta = getMapMetadata("de_ancient")
+    expect(meta?.id).toBe("de_ancient")
+    expect(meta?.displayName).toBe("Ancient")
+    expect(meta?.radar).toEqual({
+      posX: -2953,
+      posY: 2164,
+      scale: 5,
+      width: 1024,
+      height: 1024,
+    })
+    expect(meta?.levels).toBeUndefined()
+  })
+
   test("unknown maps return undefined", () => {
     expect(getMapMetadata("de_dust2")).toBeUndefined()
     expect(getMapMetadata("")).toBeUndefined()

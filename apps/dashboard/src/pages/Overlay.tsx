@@ -1,11 +1,14 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import {
-  compactOverlayConfig,
+  compactBroadcastConfig,
+  defaultBroadcastConfig,
   overlayTeamName,
+  parseBroadcastConfig,
   SERIES_LABELS,
   seriesWinsNeeded,
-  type OverlayConfig,
+  type BroadcastConfig,
+  type BroadcastTeamSlot,
   type SeriesLabel,
 } from "@workspace/presentation"
 import { Button } from "@workspace/ui/components/button"
@@ -14,7 +17,15 @@ import { Label } from "@workspace/ui/components/label"
 
 import { PageStatus } from "@/components/page-status.tsx"
 import { Pulse } from "@/components/pulse.tsx"
-import { fetchGameState, fetchOverlayConfig, saveOverlayConfig } from "@/lib/api.ts"
+import {
+  deleteBroadcastAsset,
+  fetchGameState,
+  fetchOverlayConfig,
+  getBroadcastAsset,
+  saveOverlayConfig,
+  uploadSponsorLogo,
+  uploadTeamLogo,
+} from "@/lib/api.ts"
 
 const SERIES_COPY: Record<SeriesLabel, string> = {
   BO1: "One map",
@@ -22,6 +33,8 @@ const SERIES_COPY: Record<SeriesLabel, string> = {
   BO5: "First to 3",
   BO7: "First to 4",
 }
+
+const IMAGE_ACCEPT = "image/png,image/jpeg,image/webp,image/svg+xml"
 
 export function OverlayPage() {
   const queryClient = useQueryClient()
@@ -38,76 +51,150 @@ export function OverlayPage() {
     retryDelay: 400,
     refetchInterval: 1000,
   })
+  const [draft, setDraft] = useState<BroadcastConfig>(defaultBroadcastConfig)
+  const dirty = useRef(false)
+  const draftRef = useRef(draft)
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  draftRef.current = draft
+
   const mutation = useMutation({
     mutationFn: saveOverlayConfig,
     onSuccess: (overlay) => {
       queryClient.setQueryData(["overlay-config"], overlay)
-      void queryClient.invalidateQueries({ queryKey: ["game-state"] })
+      if (!dirty.current) {
+        setDraft(overlay)
+      }
+    },
+  })
+  const uploadMutation = useMutation({
+    mutationFn: ({ slot, file }: { slot: BroadcastTeamSlot; file: File }) =>
+      uploadTeamLogo(slot, file),
+    onSuccess: (result) => {
+      queryClient.setQueryData(["overlay-config"], result.config)
+      setDraft(result.config)
+      dirty.current = false
+    },
+  })
+  const sponsorUpload = useMutation({
+    mutationFn: uploadSponsorLogo,
+    onSuccess: (result) => {
+      queryClient.setQueryData(["overlay-config"], result.config)
+      setDraft(result.config)
+      dirty.current = false
+    },
+  })
+  const clearAsset = useMutation({
+    mutationFn: deleteBroadcastAsset,
+    onSuccess: (overlay) => {
+      queryClient.setQueryData(["overlay-config"], overlay)
+      setDraft(overlay)
+      dirty.current = false
     },
   })
 
-  const selected = overlayQuery.data?.series
-  const leftLive = stateQuery.data?.teams[0]?.name
-  const rightLive = stateQuery.data?.teams[1]?.name
-  const [leftName, setLeftName] = useState("")
-  const [rightName, setRightName] = useState("")
+  useEffect(() => {
+    if (!overlayQuery.data || dirty.current) {
+      return
+    }
+    const parsed = parseBroadcastConfig(overlayQuery.data)
+    setDraft(parsed.success ? parsed.data : defaultBroadcastConfig)
+  }, [overlayQuery.data])
 
   useEffect(() => {
-    setLeftName(overlayQuery.data?.leftName ?? "")
-    setRightName(overlayQuery.data?.rightName ?? "")
-  }, [overlayQuery.data])
+    return () => {
+      if (saveTimer.current) {
+        clearTimeout(saveTimer.current)
+      }
+    }
+  }, [])
+
+  const busy =
+    mutation.isPending ||
+    uploadMutation.isPending ||
+    sponsorUpload.isPending ||
+    clearAsset.isPending
+  const selected = draft.format
+  const winsNeeded = seriesWinsNeeded(selected)
+  const leftLive = stateQuery.data?.teams[0]?.name
+  const rightLive = stateQuery.data?.teams[1]?.name
+  const leftLabel = overlayTeamName(draft, "left", leftLive || "Left")
+  const rightLabel = overlayTeamName(draft, "right", rightLive || "Right")
 
   const status = useMemo(() => {
     if (overlayQuery.isError) {
       return "Could not load overlay settings. Is the server running?"
     }
-    if (mutation.isError) {
+    if (mutation.isError || uploadMutation.isError || sponsorUpload.isError || clearAsset.isError) {
       return "Could not apply overlay settings."
     }
-    if (mutation.isSuccess) {
-      return "Applied to the live overlay."
+    if (busy) {
+      return "Saving."
+    }
+    if (mutation.isSuccess || uploadMutation.isSuccess || sponsorUpload.isSuccess || clearAsset.isSuccess) {
+      return "Live on the overlay."
     }
     return null
-  }, [overlayQuery.isError, mutation.isError, mutation.isSuccess])
+  }, [
+    overlayQuery.isError,
+    mutation.isError,
+    mutation.isSuccess,
+    uploadMutation.isError,
+    uploadMutation.isSuccess,
+    sponsorUpload.isError,
+    sponsorUpload.isSuccess,
+    clearAsset.isError,
+    clearAsset.isSuccess,
+    busy,
+  ])
 
-  const winsNeeded = selected ? seriesWinsNeeded(selected) : 0
-  const leftWins = stateQuery.data?.teams[0]?.seriesWins ?? overlayQuery.data?.leftWins ?? 0
-  const rightWins = stateQuery.data?.teams[1]?.seriesWins ?? overlayQuery.data?.rightWins ?? 0
-  const leftLabel = overlayTeamName(
-    { leftName, rightName },
-    "left",
-    leftLive || "Left"
-  )
-  const rightLabel = overlayTeamName(
-    { leftName, rightName },
-    "right",
-    rightLive || "Right"
-  )
-
-  function save(next: OverlayConfig) {
-    mutation.mutate(compactOverlayConfig(next))
-  }
-
-  function config(overrides: Partial<OverlayConfig> = {}): OverlayConfig {
-    const overlay = overlayQuery.data
-    return {
-      series: selected ?? "BO1",
-      leftName,
-      rightName,
-      ...(overlay?.leftWins !== undefined ? { leftWins: overlay.leftWins } : {}),
-      ...(overlay?.rightWins !== undefined ? { rightWins: overlay.rightWins } : {}),
-      ...overrides,
+  function persist(next: BroadcastConfig, immediate = false) {
+    const compacted = compactBroadcastConfig(next)
+    draftRef.current = compacted
+    setDraft(compacted)
+    dirty.current = true
+    if (saveTimer.current) {
+      clearTimeout(saveTimer.current)
+      saveTimer.current = null
     }
+    const send = () => {
+      mutation.mutate(compacted, {
+        onSettled: () => {
+          dirty.current = false
+        },
+      })
+    }
+    if (immediate) {
+      send()
+      return
+    }
+    saveTimer.current = setTimeout(send, 400)
   }
 
-  const statusTone = overlayQuery.isError || mutation.isError ? "bad" : mutation.isSuccess ? "ok" : "muted"
+  function patch(next: BroadcastConfig) {
+    persist(next, true)
+  }
+
+  const statusTone =
+    overlayQuery.isError ||
+    mutation.isError ||
+    uploadMutation.isError ||
+    sponsorUpload.isError ||
+    clearAsset.isError
+      ? "bad"
+      : mutation.isSuccess ||
+          uploadMutation.isSuccess ||
+          sponsorUpload.isSuccess ||
+          clearAsset.isSuccess
+        ? "ok"
+        : "muted"
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-8">
       <header className="flex flex-col gap-1">
         <h1 className="font-hud text-xl font-semibold tracking-wide">Overlay</h1>
         <p className="max-w-[65ch] text-sm leading-relaxed text-muted-foreground">
-          Best of and team names for tonight. The HUD updates immediately. No OBS reload.
+          Broadcast setup for tonight. Names, logos, series marks, and context hit the HUD
+          immediately. No OBS reload.
         </p>
       </header>
 
@@ -130,10 +217,10 @@ export function OverlayPage() {
                     type="button"
                     role="radio"
                     aria-checked={active}
-                    disabled={mutation.isPending}
+                    disabled={busy}
                     onClick={() => {
                       if (selected !== series) {
-                        save(config({ series }))
+                        patch({ ...draft, format: series })
                       }
                     }}
                     className={`flex flex-col gap-3 border px-3 py-4 text-left ${
@@ -156,33 +243,47 @@ export function OverlayPage() {
             <p className="text-sm text-muted-foreground">
               Left and right stay put at half-time. Blank uses the in-game name.
             </p>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <TeamNameField
-                id="overlay-left-name"
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+              <TeamEditor
+                slot="left"
                 label="Left"
-                value={leftName}
+                draft={draft}
                 placeholder={leftLive || "In-game name"}
-                disabled={mutation.isPending}
-                onChange={setLeftName}
-                onCommit={() => {
-                  if (leftName.trim() === (overlayQuery.data?.leftName ?? "")) {
-                    return
+                disabled={busy}
+                onName={(name) =>
+                  persist({
+                    ...draftRef.current,
+                    teams: { ...draftRef.current.teams, left: { ...draftRef.current.teams.left, name } },
+                  })
+                }
+                onCommit={() => persist(draftRef.current, true)}
+                onChoose={(file) => uploadMutation.mutate({ slot: "left", file })}
+                onClear={() => {
+                  const id = draft.teams.left.logoAssetId
+                  if (id) {
+                    clearAsset.mutate(id)
                   }
-                  save(config())
                 }}
               />
-              <TeamNameField
-                id="overlay-right-name"
+              <TeamEditor
+                slot="right"
                 label="Right"
-                value={rightName}
+                draft={draft}
                 placeholder={rightLive || "In-game name"}
-                disabled={mutation.isPending}
-                onChange={setRightName}
-                onCommit={() => {
-                  if (rightName.trim() === (overlayQuery.data?.rightName ?? "")) {
-                    return
+                disabled={busy}
+                onName={(name) =>
+                  persist({
+                    ...draftRef.current,
+                    teams: { ...draftRef.current.teams, right: { ...draftRef.current.teams.right, name } },
+                  })
+                }
+                onCommit={() => persist(draftRef.current, true)}
+                onChoose={(file) => uploadMutation.mutate({ slot: "right", file })}
+                onClear={() => {
+                  const id = draft.teams.right.logoAssetId
+                  if (id) {
+                    clearAsset.mutate(id)
                   }
-                  save(config())
                 }}
               />
             </div>
@@ -191,40 +292,117 @@ export function OverlayPage() {
           {winsNeeded > 0 ? (
             <section className="flex flex-col gap-3">
               <div className="flex items-baseline justify-between gap-3">
-                <h2 className="text-sm font-medium">Maps won</h2>
-                {leftWins > 0 || rightWins > 0 ? (
+                <h2 className="text-sm font-medium">Series</h2>
+                {draft.series.leftMapsWon > 0 || draft.series.rightMapsWon > 0 ? (
                   <Button
                     type="button"
                     variant="ghost"
                     size="sm"
-                    disabled={mutation.isPending}
-                    onClick={() => save(config({ leftWins: 0, rightWins: 0 }))}
+                    disabled={busy}
+                    onClick={() =>
+                      patch({ ...draft, series: { leftMapsWon: 0, rightMapsWon: 0 } })
+                    }
                   >
                     Reset
                   </Button>
                 ) : null}
               </div>
               <p className="text-sm text-muted-foreground">
-                Auto-fills from the match. Click a mark to correct it.
+                Track the series score here. Changes appear on the live overlay immediately.
               </p>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <MapWinsField
                   label={leftLabel}
-                  wins={leftWins}
+                  wins={draft.series.leftMapsWon}
                   max={winsNeeded}
-                  disabled={mutation.isPending}
-                  onChange={(wins) => save(config({ leftWins: wins, rightWins }))}
+                  disabled={busy}
+                  onChange={(wins) =>
+                    patch({ ...draft, series: { ...draft.series, leftMapsWon: wins } })
+                  }
                 />
                 <MapWinsField
                   label={rightLabel}
-                  wins={rightWins}
+                  wins={draft.series.rightMapsWon}
                   max={winsNeeded}
-                  disabled={mutation.isPending}
-                  onChange={(wins) => save(config({ leftWins, rightWins: wins }))}
+                  disabled={busy}
+                  onChange={(wins) =>
+                    patch({ ...draft, series: { ...draft.series, rightMapsWon: wins } })
+                  }
                 />
               </div>
             </section>
           ) : null}
+
+          <section className="flex flex-col gap-3 border-t border-border pt-8">
+            <h2 className="text-sm font-medium">Broadcast context</h2>
+            <p className="text-sm text-muted-foreground">
+              Optional. Empty fields stay off the overlay.
+            </p>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <TextField
+                id="overlay-event"
+                label="Event"
+                value={draft.event?.name ?? ""}
+                placeholder="Matchframe Cup"
+                disabled={false}
+                maxLength={48}
+                onChange={(name) =>
+                  persist({
+                    ...draftRef.current,
+                    event: { ...draftRef.current.event, name },
+                  })
+                }
+                onCommit={() => persist(draftRef.current, true)}
+              />
+              <TextField
+                id="overlay-stage"
+                label="Stage"
+                value={draft.event?.stage ?? ""}
+                placeholder="Semifinal"
+                disabled={false}
+                maxLength={48}
+                onChange={(stage) =>
+                  persist({
+                    ...draftRef.current,
+                    event: { ...draftRef.current.event, stage },
+                  })
+                }
+                onCommit={() => persist(draftRef.current, true)}
+              />
+            </div>
+          </section>
+
+          <section className="flex flex-col gap-3">
+            <h2 className="text-sm font-medium">Sponsor</h2>
+            <p className="text-sm text-muted-foreground">One slot. Leave blank to hide it.</p>
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
+              <LogoSlot
+                assetId={draft.sponsor?.assetId}
+                label="Sponsor logo"
+                disabled={busy}
+                onChoose={(file) => sponsorUpload.mutate(file)}
+                onClear={() => {
+                  const id = draft.sponsor?.assetId
+                  if (id) {
+                    clearAsset.mutate(id)
+                  }
+                }}
+              />
+              <TextField
+                id="overlay-sponsor"
+                label="Name"
+                value={draft.sponsor?.name ?? ""}
+                placeholder="Optional"
+                disabled={false}
+                maxLength={32}
+                className="min-w-0 flex-1"
+                onChange={(name) =>
+                  persist({ ...draftRef.current, sponsor: { ...draftRef.current.sponsor, name } })
+                }
+                onCommit={() => persist(draftRef.current, true)}
+              />
+            </div>
+          </section>
         </>
       )}
 
@@ -243,19 +421,137 @@ function OverlaySkeleton() {
         <Pulse className="h-28" />
       </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <Pulse className="h-16" />
-        <Pulse className="h-16" />
+        <Pulse className="h-24" />
+        <Pulse className="h-24" />
       </div>
     </div>
   )
 }
 
-function TeamNameField({
+function TeamEditor({
+  slot,
+  label,
+  draft,
+  placeholder,
+  disabled,
+  onName,
+  onCommit,
+  onChoose,
+  onClear,
+}: {
+  slot: BroadcastTeamSlot
+  label: string
+  draft: BroadcastConfig
+  placeholder: string
+  disabled: boolean
+  onName: (value: string) => void
+  onCommit: () => void
+  onChoose: (file: File) => void
+  onClear: () => void
+}) {
+  const team = draft.teams[slot]
+  return (
+    <div className="flex flex-col gap-3">
+      <div className={`flex items-end gap-3 ${slot === "right" ? "sm:flex-row-reverse" : ""}`}>
+        <LogoSlot
+          assetId={team.logoAssetId}
+          label={`${label} logo`}
+          disabled={disabled}
+          onChoose={onChoose}
+          onClear={onClear}
+        />
+        <TextField
+          id={`overlay-${slot}-name`}
+          label={label}
+          value={team.name ?? ""}
+          placeholder={placeholder}
+          disabled={false}
+          maxLength={32}
+          className="min-w-0 flex-1"
+          onChange={onName}
+          onCommit={onCommit}
+        />
+      </div>
+    </div>
+  )
+}
+
+function LogoSlot({
+  assetId,
+  label,
+  disabled,
+  onChoose,
+  onClear,
+}: {
+  assetId?: string
+  label: string
+  disabled: boolean
+  onChoose: (file: File) => void
+  onClear: () => void
+}) {
+  const inputRef = useRef<HTMLInputElement>(null)
+  const src = assetId ? getBroadcastAsset(assetId) : undefined
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span className="text-sm font-medium">{label}</span>
+      <div className="flex items-center gap-2">
+        <div className="flex size-12 items-center justify-center border border-border bg-muted/40">
+          {src ? (
+            <img
+              src={src}
+              alt=""
+              className="max-h-10 max-w-10 object-contain"
+              onError={(event) => {
+                event.currentTarget.style.display = "none"
+              }}
+            />
+          ) : (
+            <span className="text-[10px] tracking-wide text-muted-foreground">None</span>
+          )}
+        </div>
+        <div className="flex flex-col gap-1">
+          <input
+            ref={inputRef}
+            type="file"
+            accept={IMAGE_ACCEPT}
+            className="sr-only"
+            disabled={disabled}
+            onChange={(event) => {
+              const file = event.target.files?.[0]
+              event.target.value = ""
+              if (file) {
+                onChoose(file)
+              }
+            }}
+          />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={disabled}
+            onClick={() => inputRef.current?.click()}
+          >
+            Choose
+          </Button>
+          {assetId ? (
+            <Button type="button" variant="ghost" size="sm" disabled={disabled} onClick={onClear}>
+              Clear
+            </Button>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function TextField({
   id,
   label,
   value,
   placeholder,
   disabled,
+  maxLength,
+  className,
   onChange,
   onCommit,
 }: {
@@ -264,16 +560,18 @@ function TeamNameField({
   value: string
   placeholder: string
   disabled: boolean
+  maxLength: number
+  className?: string
   onChange: (value: string) => void
   onCommit: () => void
 }) {
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className={`flex flex-col gap-1.5 ${className ?? ""}`}>
       <Label htmlFor={id}>{label}</Label>
       <Input
         id={id}
         value={value}
-        maxLength={32}
+        maxLength={maxLength}
         placeholder={placeholder}
         disabled={disabled}
         autoComplete="off"
@@ -311,7 +609,7 @@ function MapWinsField({
           {wins} / {max}
         </p>
       </div>
-      <div className="flex gap-1" role="group" aria-label={`${label} maps won`}>
+      <div className="flex gap-1.5" role="group" aria-label={`${label} maps won`}>
         {Array.from({ length: max }, (_, index) => {
           const filled = index < wins
           const value = index + 1
@@ -323,10 +621,10 @@ function MapWinsField({
               aria-label={`${value} ${value === 1 ? "map" : "maps"}`}
               disabled={disabled}
               onClick={() => onChange(wins === value ? index : value)}
-              className="flex h-11 min-w-11 flex-1 items-center justify-center border border-border hover:border-primary/50 disabled:opacity-50"
+              className="flex h-9 min-w-9 flex-1 items-center justify-center border border-border hover:border-primary/50 disabled:opacity-50"
             >
               <span
-                className="h-1 w-6"
+                className="h-2 w-2"
                 style={{
                   background: filled
                     ? "var(--primary)"
@@ -351,7 +649,7 @@ function SeriesMarks({ series, active }: { series: SeriesLabel; active: boolean 
       {Array.from({ length: winsNeeded }, (_, index) => (
         <span
           key={index}
-          className="h-[3px] w-3.5"
+          className="h-1.5 w-1.5"
           style={{
             background: active
               ? "currentColor"
