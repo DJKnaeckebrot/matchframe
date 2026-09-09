@@ -21,7 +21,7 @@ export function TeamView({ state, show }: { state: GameState; show: OverlayShow 
   const focused = focusedPlayer(state)
 
   return (
-    <div className="flex items-end gap-1 bg-(--mf-background)/72 px-2 pt-1">
+    <div className="flex items-end gap-1 px-2">
       <TeamStrip
         team={left}
         players={state.players}
@@ -67,7 +67,7 @@ function TeamStrip({
   const slots = playersForTeam(players, team.id)
 
   return (
-    <ul className="flex min-w-0 flex-1 items-end gap-0.5">
+    <ul className="flex min-w-0 flex-1 items-end">
       {slots.map((player, index) => (
         <PlayerCard
           key={player?.steamId ?? `${team.id}-${index}`}
