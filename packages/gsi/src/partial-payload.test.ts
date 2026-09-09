@@ -380,6 +380,45 @@ describe("sequential GSI ingest", () => {
     expect(state.worldGrenades).toEqual([])
   })
 
+  test("present grenades with updated inferno flames keeps the sibling smoke", () => {
+    const gsi = createGsiStateManager()
+    const engine = createGameStateEngine()
+    ingest(gsi, engine, initialPayload)
+    const { state } = ingest(gsi, engine, {
+      grenades: {
+        "291": {
+          owner: CT,
+          type: "smoke",
+          position: "100, 200, 16",
+          velocity: "0, 0, 0",
+          lifetime: "10.5",
+          effecttime: "2.4",
+        },
+        "505": {
+          owner: T,
+          type: "inferno",
+          position: "300, 400, 16",
+          lifetime: "2.1",
+          flames: {
+            flame_0: "300, 400, 16",
+            flame_1: "312, 408, 16",
+          },
+        },
+      },
+    })
+
+    expect(state.worldGrenades.map((grenade) => grenade.id)).toEqual(["291", "505"])
+    expect(state.worldGrenades[0]?.type).toBe("smoke")
+    expect(state.worldGrenades[1]).toMatchObject({
+      id: "505",
+      type: "molotov",
+      flames: [
+        { x: 300, y: 400, z: 16 },
+        { x: 312, y: 408, z: 16 },
+      ],
+    })
+  })
+
   test("previously, added, and auth never enter merged raw or GameState", () => {
     const gsi = createGsiStateManager()
     const engine = createGameStateEngine()

@@ -90,8 +90,12 @@ export async function uploadTeamLogo(
   return postAsset("/api/assets/team-logo", body)
 }
 
-export async function uploadSponsorLogo(file: File): Promise<{ id: string; config: BroadcastConfig }> {
+export async function uploadSponsorLogo(
+  index: number,
+  file: File
+): Promise<{ id: string; config: BroadcastConfig }> {
   const body = new FormData()
+  body.set("index", String(index))
   body.set("file", file)
   return postAsset("/api/assets/sponsor", body)
 }

@@ -63,6 +63,8 @@ export const defaultSponsorConfig: BroadcastSponsorConfig = {
   displayMode: "logo-text",
 }
 
+export const MAX_SPONSORS = 4
+
 export type BroadcastConfig = {
   format: SeriesLabel
   teams: {
@@ -71,7 +73,7 @@ export type BroadcastConfig = {
   }
   series: BroadcastSeriesScore
   event?: BroadcastEventConfig
-  sponsor?: BroadcastSponsorConfig
+  sponsors?: BroadcastSponsorConfig[]
 }
 
 export type OverlayTeamSlot = BroadcastTeamSlot
@@ -135,6 +137,7 @@ const nestedBroadcastConfigSchema = z
       .default({ leftMapsWon: 0, rightMapsWon: 0 }),
     event: eventConfigSchema.optional(),
     sponsor: sponsorConfigSchema.optional(),
+    sponsors: z.array(sponsorConfigSchema).optional(),
   })
   .strict()
 
@@ -185,12 +188,15 @@ export function overlaySeriesWinsChanged(a: BroadcastConfig, b: BroadcastConfig)
 }
 
 export function compactBroadcastConfig(
-  config: Omit<BroadcastConfig, "sponsor"> & { sponsor?: BroadcastSponsorDraft }
+  config: Omit<BroadcastConfig, "sponsors"> & {
+    sponsor?: BroadcastSponsorDraft
+    sponsors?: BroadcastSponsorDraft[]
+  }
 ): BroadcastConfig {
   const left = compactTeam(config.teams.left)
   const right = compactTeam(config.teams.right)
   const event = compactEvent(config.event)
-  const sponsor = compactSponsor(config.sponsor)
+  const sponsors = compactSponsors(sponsorDrafts(config))
   return {
     format: config.format,
     teams: { left, right },
@@ -199,8 +205,14 @@ export function compactBroadcastConfig(
       rightMapsWon: clampSeriesMapsWon(config.format, config.series.rightMapsWon),
     },
     ...(event ? { event } : {}),
-    ...(sponsor ? { sponsor } : {}),
+    ...(sponsors ? { sponsors } : {}),
   }
+}
+
+export function broadcastSponsors(
+  config: Pick<BroadcastConfig, "sponsors"> | undefined | null
+): readonly BroadcastSponsorConfig[] {
+  return config?.sponsors ?? []
 }
 
 export const compactOverlayConfig = compactBroadcastConfig
@@ -296,44 +308,35 @@ export function sponsorNeedsContent(sponsor: BroadcastSponsorConfig | undefined)
   return !sponsor.name?.trim() && !sponsor.assetId
 }
 
+export function resolveBroadcastSponsors(
+  config: BroadcastConfig
+): ResolvedBroadcastSponsor[] {
+  return broadcastSponsors(config).flatMap((sponsor) => {
+    const resolved = resolveOneSponsor(sponsor)
+    return resolved ? [resolved] : []
+  })
+}
+
 export function resolveBroadcastSponsor(
   config: BroadcastConfig
 ): ResolvedBroadcastSponsor | undefined {
-  const sponsor = compactSponsor(config.sponsor)
-  if (!sponsor?.enabled) {
-    return undefined
-  }
-  const name = sponsor.name
-  const assetId = sponsor.assetId
-  const content = resolveSponsorContent(sponsor.displayMode, {
-    name,
-    hasLogo: Boolean(assetId),
-  })
-  if (!content) {
-    return undefined
-  }
-  return {
-    position: sponsor.position,
-    displayMode: sponsor.displayMode,
-    ...content,
-    ...(name ? { name } : {}),
-    ...(assetId ? { assetId } : {}),
-  }
+  return resolveBroadcastSponsors(config)[0]
 }
 
 export function referencedAssetIds(config: BroadcastConfig): readonly string[] {
   const ids: string[] = []
   const left = config.teams.left.logoAssetId
   const right = config.teams.right.logoAssetId
-  const sponsor = config.sponsor?.assetId
   if (left) {
     ids.push(left)
   }
   if (right) {
     ids.push(right)
   }
-  if (sponsor) {
-    ids.push(sponsor)
+  for (const sponsor of broadcastSponsors(config)) {
+    if (sponsor.assetId) {
+      ids.push(sponsor.assetId)
+    }
   }
   return ids
 }
@@ -376,7 +379,7 @@ export const overlayConfigSchema = broadcastConfigSchema
 function toBroadcastConfig(
   value: z.infer<typeof nestedBroadcastConfigSchema>
 ): BroadcastConfig {
-  const sponsor = compactSponsor(value.sponsor)
+  const sponsors = compactSponsors(sponsorDrafts(value))
   return {
     format: value.format,
     teams: {
@@ -388,7 +391,7 @@ function toBroadcastConfig(
       rightMapsWon: value.series.rightMapsWon,
     },
     ...(value.event ? { event: value.event } : {}),
-    ...(sponsor ? { sponsor } : {}),
+    ...(sponsors ? { sponsors } : {}),
   }
 }
 
@@ -433,6 +436,54 @@ function compactEvent(event: BroadcastEventConfig | undefined): BroadcastEventCo
   return {
     ...(name ? { name } : {}),
     ...(stage ? { stage } : {}),
+  }
+}
+
+function sponsorDrafts(config: {
+  sponsor?: BroadcastSponsorDraft
+  sponsors?: BroadcastSponsorDraft[]
+}): BroadcastSponsorDraft[] {
+  if (config.sponsors) {
+    return config.sponsors
+  }
+  return config.sponsor ? [config.sponsor] : []
+}
+
+function compactSponsors(drafts: BroadcastSponsorDraft[]): BroadcastSponsorConfig[] | undefined {
+  const next: BroadcastSponsorConfig[] = []
+  for (const draft of drafts) {
+    if (next.length >= MAX_SPONSORS) {
+      break
+    }
+    const sponsor = compactSponsor(draft)
+    if (sponsor) {
+      next.push(sponsor)
+    }
+  }
+  return next.length > 0 ? next : undefined
+}
+
+function resolveOneSponsor(
+  sponsor: BroadcastSponsorConfig
+): ResolvedBroadcastSponsor | undefined {
+  if (!sponsor.enabled) {
+    return undefined
+  }
+  const name = sponsor.name
+  const assetId = sponsor.assetId
+  const content = resolveSponsorContent(sponsor.displayMode, {
+    name,
+    hasLogo: Boolean(assetId),
+  })
+  if (!content) {
+    return undefined
+  }
+  return {
+    position: sponsor.position,
+    displayMode: sponsor.displayMode,
+    ...content,
+    ...(name ? { name } : {}),
+    ...(assetId ? { assetId } : {}),
   }
 }
 

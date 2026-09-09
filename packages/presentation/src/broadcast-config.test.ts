@@ -13,6 +13,7 @@ import {
   referencedAssetIds,
   resolveBroadcastEvent,
   resolveBroadcastSponsor,
+  resolveBroadcastSponsors,
   resolveBroadcastTeam,
   resolveSponsorContent,
   seriesWinsNeeded,
@@ -44,13 +45,15 @@ describe("broadcastConfigSchema", () => {
         teams: { left: { name: "Northwind" }, right: { name: "Redline" } },
         series: { leftMapsWon: 1, rightMapsWon: 0 },
         event: { name: "DACH Masters", stage: "Semifinal" },
-        sponsor: {
-          enabled: true,
-          name: "Local LAN",
-          assetId: "sponsor-ab12",
-          position: "top-right",
-          displayMode: "logo-text",
-        },
+        sponsors: [
+          {
+            enabled: true,
+            name: "Local LAN",
+            assetId: "sponsor-ab12",
+            position: "top-right",
+            displayMode: "logo-text",
+          },
+        ],
       },
     })
   })
@@ -309,13 +312,15 @@ describe("sponsor presentation", () => {
     ).toMatchObject({
       success: true,
       data: {
-        sponsor: {
-          enabled: true,
-          name: "Local LAN",
-          assetId: "sponsor-ab12",
-          position: "top-right",
-          displayMode: "logo-text",
-        },
+        sponsors: [
+          {
+            enabled: true,
+            name: "Local LAN",
+            assetId: "sponsor-ab12",
+            position: "top-right",
+            displayMode: "logo-text",
+          },
+        ],
       },
     })
   })
@@ -332,13 +337,15 @@ describe("sponsor presentation", () => {
           position: "center",
           displayMode: "logo",
         },
-      }).sponsor
-    ).toEqual({
-      enabled: false,
-      name: "Local LAN",
-      position: "center",
-      displayMode: "logo",
-    })
+      }).sponsors
+    ).toEqual([
+      {
+        enabled: false,
+        name: "Local LAN",
+        position: "center",
+        displayMode: "logo",
+      },
+    ])
   })
 
   test("invalid position, mode, and asset id fall back without dropping the rest", () => {
@@ -359,12 +366,14 @@ describe("sponsor presentation", () => {
         format: "BO1",
         teams: { left: {}, right: {} },
         series: { leftMapsWon: 0, rightMapsWon: 0 },
-        sponsor: {
-          enabled: true,
-          name: "Local LAN",
-          position: "top-right",
-          displayMode: "logo-text",
-        },
+        sponsors: [
+          {
+            enabled: true,
+            name: "Local LAN",
+            position: "top-right",
+            displayMode: "logo-text",
+          },
+        ],
       },
     })
   })
@@ -392,13 +401,33 @@ describe("sponsor presentation", () => {
       series: { leftMapsWon: 0, rightMapsWon: 0 },
       sponsor: { enabled: true, position: "center", displayMode: "text" },
     })
-    expect(config.sponsor).toEqual({
-      enabled: true,
-      position: "center",
-      displayMode: "text",
-    })
+    expect(config.sponsors).toEqual([
+      {
+        enabled: true,
+        position: "center",
+        displayMode: "text",
+      },
+    ])
     expect(resolveBroadcastSponsor(config)).toBeUndefined()
-    expect(sponsorNeedsContent(config.sponsor)).toBe(true)
+    expect(sponsorNeedsContent(config.sponsors?.[0])).toBe(true)
+  })
+
+  test("stores multiple sponsors and resolves only the enabled ones", () => {
+    const config = compactBroadcastConfig({
+      format: "BO1",
+      teams: { left: {}, right: {} },
+      series: { leftMapsWon: 0, rightMapsWon: 0 },
+      sponsors: [
+        { enabled: true, name: "Local LAN", position: "top-right", displayMode: "text" },
+        { enabled: true, name: "SquadVault", position: "center", displayMode: "logo-text" },
+        { enabled: false, name: "Hidden", position: "top-right", displayMode: "text" },
+      ],
+    })
+    expect(config.sponsors).toHaveLength(3)
+    expect(resolveBroadcastSponsors(config).map((sponsor) => sponsor.name)).toEqual([
+      "Local LAN",
+      "SquadVault",
+    ])
   })
 
   test.each([

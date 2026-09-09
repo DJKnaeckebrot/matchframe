@@ -22,6 +22,9 @@ export {
   SPONSOR_DISPLAY_MODES,
   SPONSOR_POSITIONS,
   sponsorNeedsContent,
+  MAX_SPONSORS,
+  broadcastSponsors,
+  resolveBroadcastSponsors,
 } from "./broadcast-config"
 export type {
   BroadcastConfig,

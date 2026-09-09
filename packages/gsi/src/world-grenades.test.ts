@@ -9,26 +9,25 @@ const CT = "76561198000000001"
 const T = "76561198000000002"
 
 describe("asWorldGrenadeType", () => {
-  const cases: { raw: string; ownerSide?: "CT" | "T"; expected: WorldGrenadeType }[] = [
+  const cases: { raw: string; expected: WorldGrenadeType }[] = [
     { raw: "smoke", expected: "smoke" },
     { raw: "weapon_smokegrenade", expected: "smoke" },
     { raw: "flashbang", expected: "flash" },
+    { raw: "flash", expected: "flash" },
     { raw: "frag", expected: "he" },
     { raw: "hegrenade", expected: "he" },
     { raw: "molotov", expected: "molotov" },
     { raw: "incgrenade", expected: "incendiary" },
     { raw: "decoy", expected: "decoy" },
-    { raw: "firebomb", ownerSide: "T", expected: "molotov" },
-    { raw: "firebomb", ownerSide: "CT", expected: "incendiary" },
-    { raw: "inferno", ownerSide: "T", expected: "molotov" },
-    { raw: "inferno", expected: "unknown" },
+    { raw: "firebomb", expected: "molotov" },
+    { raw: "inferno", expected: "molotov" },
     { raw: "SMOKE", expected: "smoke" },
     { raw: "future_sensor", expected: "unknown" },
   ]
 
-  for (const { raw, ownerSide, expected } of cases) {
-    test(`${raw}${ownerSide ? ` ${ownerSide}` : ""} → ${expected}`, () => {
-      expect(asWorldGrenadeType(raw, ownerSide)).toBe(expected)
+  for (const { raw, expected } of cases) {
+    test(`${raw} → ${expected}`, () => {
+      expect(asWorldGrenadeType(raw)).toBe(expected)
     })
   }
 
@@ -71,6 +70,53 @@ describe("normalizeWorldGrenades", () => {
     ])
   })
 
+  test("flashbang raw type becomes flash", () => {
+    const parsed = parseGsiPayload({
+      grenades: {
+        "354": { owner: T, type: "flashbang", position: "1, 2, 3", lifetime: "0.8" },
+      },
+    })
+    expect(parsed.success).toBe(true)
+    if (!parsed.success) {
+      return
+    }
+    expect(normalizeWorldGrenades(parsed.data)[0]).toMatchObject({
+      id: "354",
+      type: "flash",
+      ownerSteamId: T,
+    })
+  })
+
+  test("frag raw type becomes he", () => {
+    const parsed = parseGsiPayload({
+      grenades: {
+        "12": { type: "frag", position: "8, 9, 10", velocity: "1, 2, 3" },
+      },
+    })
+    expect(parsed.success).toBe(true)
+    if (!parsed.success) {
+      return
+    }
+    expect(normalizeWorldGrenades(parsed.data)[0]).toMatchObject({
+      id: "12",
+      type: "he",
+      position: { x: 8, y: 9, z: 10 },
+    })
+  })
+
+  test("decoy stays decoy", () => {
+    const parsed = parseGsiPayload({
+      grenades: {
+        "77": { type: "decoy", position: "4, 5, 6", lifetime: "12.0" },
+      },
+    })
+    expect(parsed.success).toBe(true)
+    if (!parsed.success) {
+      return
+    }
+    expect(normalizeWorldGrenades(parsed.data)[0]?.type).toBe("decoy")
+  })
+
   test("unknown types still ingest when position is valid", () => {
     const parsed = parseGsiPayload({
       grenades: {
@@ -97,7 +143,7 @@ describe("normalizeWorldGrenades", () => {
     ).toEqual([])
   })
 
-  test("firebomb type follows owner side", () => {
+  test("firebomb and inferno stay conservative molotov, not owner-side weapon identity", () => {
     const parsed = parseGsiPayload({
       allplayers: {
         [CT]: { team: "CT" },
@@ -106,6 +152,7 @@ describe("normalizeWorldGrenades", () => {
       grenades: {
         "1": { owner: CT, type: "firebomb", position: "1, 2, 3" },
         "2": { owner: T, type: "inferno", position: "4, 5, 6" },
+        "3": { type: "inferno", position: "7, 8, 9" },
       },
     })
     expect(parsed.success).toBe(true)
@@ -114,9 +161,12 @@ describe("normalizeWorldGrenades", () => {
     }
     const grenades = normalizeWorldGrenades(parsed.data)
     expect(grenades.map((grenade) => [grenade.id, grenade.type])).toEqual([
-      ["1", "incendiary"],
+      ["1", "molotov"],
       ["2", "molotov"],
+      ["3", "molotov"],
     ])
+    expect(grenades[0]?.ownerSteamId).toBe(CT)
+    expect(grenades[1]?.ownerSteamId).toBe(T)
   })
 
   test("empty grenades map is no world grenades", () => {
@@ -141,14 +191,20 @@ describe("normalizeWorldGrenades", () => {
     ])
   })
 
-  test("flames on inferno do not break parse and are not copied into GameState", () => {
+  test("copies valid inferno flame positions as Vector3 and skips malformed entries", () => {
     const parsed = parseGsiPayload({
       grenades: {
         "7": {
           owner: T,
           type: "inferno",
           position: "10, 20, 30",
-          flames: { flame_0: "10, 20, 30", flame_1: "12, 22, 30" },
+          flames: {
+            flame_0: "10, 20, 30",
+            flame_1: "12, 22, 30",
+            flame_bad: "nope",
+            flame_empty: "",
+            flame_obj: { x: 1 },
+          },
         },
       },
     })
@@ -161,12 +217,48 @@ describe("normalizeWorldGrenades", () => {
       owner: T,
       type: "inferno",
       position: "10, 20, 30",
-      flames: { flame_0: "10, 20, 30", flame_1: "12, 22, 30" },
+      flames: {
+        flame_0: "10, 20, 30",
+        flame_1: "12, 22, 30",
+        flame_bad: "nope",
+        flame_empty: "",
+        flame_obj: { x: 1 },
+      },
     })
     const state = normalizeGsiPayload(parsed.data)
     expect(state.worldGrenades).toEqual([
-      { id: "7", type: "unknown", ownerSteamId: T, position: { x: 10, y: 20, z: 30 } },
+      {
+        id: "7",
+        type: "molotov",
+        ownerSteamId: T,
+        position: { x: 10, y: 20, z: 30 },
+        flames: [
+          { x: 10, y: 20, z: 30 },
+          { x: 12, y: 22, z: 30 },
+        ],
+      },
     ])
-    expect(JSON.stringify(state.worldGrenades)).not.toContain("flame")
+    expect(JSON.stringify(state.worldGrenades)).not.toContain("flame_0")
+  })
+
+  test("keeps flash, he, decoy, and firebomb in one collection", () => {
+    const parsed = parseGsiPayload({
+      grenades: {
+        "1": { type: "flashbang", position: "1, 1, 1" },
+        "2": { type: "frag", position: "2, 2, 2" },
+        "3": { type: "decoy", position: "3, 3, 3" },
+        "4": { type: "firebomb", position: "4, 4, 4" },
+      },
+    })
+    expect(parsed.success).toBe(true)
+    if (!parsed.success) {
+      return
+    }
+    expect(normalizeWorldGrenades(parsed.data).map((grenade) => grenade.type)).toEqual([
+      "flash",
+      "he",
+      "decoy",
+      "molotov",
+    ])
   })
 })

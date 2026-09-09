@@ -176,12 +176,14 @@ describe("overlay config", () => {
       format: "BO1" as const,
       teams: { left: {}, right: {} },
       series: { leftMapsWon: 0, rightMapsWon: 0 },
-      sponsor: {
-        enabled: true,
-        name: "Local LAN",
-        position: "center" as const,
-        displayMode: "logo" as const,
-      },
+      sponsors: [
+        {
+          enabled: true,
+          name: "Local LAN",
+          position: "center" as const,
+          displayMode: "logo" as const,
+        },
+      ],
     }
 
     const response = await app.request("/api/config/broadcast", {
@@ -429,9 +431,9 @@ describe("realtime theme", () => {
       received.some(
         (message) =>
           isBroadcastConfig(message) &&
-          message.data.sponsor?.enabled === true &&
-          message.data.sponsor?.name === "Local LAN" &&
-          message.data.sponsor?.position === "center"
+          message.data.sponsors?.[0]?.enabled === true &&
+          message.data.sponsors?.[0]?.name === "Local LAN" &&
+          message.data.sponsors?.[0]?.position === "center"
       )
     )
     ws.close()
@@ -841,22 +843,24 @@ describe("broadcast assets", () => {
     const body = (await uploaded.json()) as {
       id: string
       config: {
-        sponsor?: {
+        sponsors?: Array<{
           enabled?: boolean
           name?: string
           assetId?: string
           position?: string
           displayMode?: string
-        }
+        }>
       }
     }
-    expect(body.config.sponsor).toEqual({
-      enabled: true,
-      name: "Local LAN",
-      assetId: body.id,
-      position: "top-right",
-      displayMode: "logo-text",
-    })
+    expect(body.config.sponsors).toEqual([
+      {
+        enabled: true,
+        name: "Local LAN",
+        assetId: body.id,
+        position: "top-right",
+        displayMode: "logo-text",
+      },
+    ])
   })
 })
 
@@ -886,7 +890,7 @@ function isBroadcastConfig(
   message: unknown
 ): message is {
   type: "broadcast-config"
-  data: { sponsor?: { enabled?: boolean; name?: string; position?: string } }
+  data: { sponsors?: Array<{ enabled?: boolean; name?: string; position?: string }> }
 } {
   return (
     typeof message === "object" &&

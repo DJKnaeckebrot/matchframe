@@ -64,6 +64,29 @@ describe("parseGsiPayload", () => {
     })
   })
 
+  test("keeps inferno flames as an untyped map on the raw grenade", () => {
+    const result = parseGsiPayload({
+      grenades: {
+        "7": {
+          owner: "76561198000000002",
+          type: "inferno",
+          position: "10, 20, 30",
+          flames: { flame_0: "10, 20, 30", flame_1: "12, 22, 30" },
+        },
+      },
+    })
+    expect(result.success).toBe(true)
+    if (!result.success) {
+      return
+    }
+    expect(result.data.grenades?.["7"]).toEqual({
+      owner: "76561198000000002",
+      type: "inferno",
+      position: "10, 20, 30",
+      flames: { flame_0: "10, 20, 30", flame_1: "12, 22, 30" },
+    })
+  })
+
   test("rejects invalid top-level input", () => {
     for (const input of [null, [], "", 42]) {
       const result = parseGsiPayload(input)

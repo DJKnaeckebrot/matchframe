@@ -1,4 +1,4 @@
-import type { Side, WorldGrenadeState, WorldGrenadeType } from "@workspace/game-state"
+import type { Vector3, WorldGrenadeState, WorldGrenadeType } from "@workspace/game-state"
 
 import { gsiGrenadeSchema, type GsiGrenade, type GsiPayload } from "./schema"
 import { parseGsiNumber, parseVector3 } from "./values"
@@ -7,18 +7,17 @@ import { parseGsiNumber, parseVector3 } from "./values"
  * Valve world-grenade `type` strings → Matchframe ids.
  * Unknown future values must not fail ingest.
  *
- * Observed on a live Anubis spectator feed: `owner`, `position`, `velocity`,
- * `type`, `lifetime`; smokes also send `effecttime` (0 in flight, counting
- * once the cloud exists). Flash/HE omitted `effecttime`. Inferno `flames`
- * are parsed but not copied into GameState yet.
+ * Observed on a live Anubis spectator feed:
+ * `owner`, `position`, `velocity`, `type`, `lifetime`.
+ * Types seen: `smoke`, `flashbang`, `frag`. Smokes send `effecttime`
+ * (0 in flight, counting once the cloud exists). Flash/HE omitted it.
  *
- * `firebomb` / `inferno` are both molotov and incendiary; GSI does not name
- * them separately. Owner side is the only reliable split (CT incendiary, T molotov).
+ * `firebomb` (projectile) and `inferno` (active fire with `flames`) are
+ * documented Valve names. No molotov/incendiary capture is in-repo;
+ * mapping below is conservative. Owner side is not encoded into type —
+ * presentation picks molotov vs incendiary icon from PlayerState.
  */
-export function asWorldGrenadeType(
-  raw: string | undefined,
-  ownerSide?: Side | null
-): WorldGrenadeType {
+export function asWorldGrenadeType(raw: string | undefined): WorldGrenadeType {
   const id = raw?.trim().toLowerCase()
   if (!id) {
     return "unknown"
@@ -42,13 +41,7 @@ export function asWorldGrenadeType(
     return "decoy"
   }
   if (id === "firebomb" || id === "inferno") {
-    if (ownerSide === "CT") {
-      return "incendiary"
-    }
-    if (ownerSide === "T") {
-      return "molotov"
-    }
-    return "unknown"
+    return "molotov"
   }
   return "unknown"
 }
@@ -64,7 +57,7 @@ export function normalizeWorldGrenades(payload: GsiPayload): WorldGrenadeState[]
     if (!parsed.success) {
       continue
     }
-    const grenade = normalizeWorldGrenade(id, parsed.data, payload)
+    const grenade = normalizeWorldGrenade(id, parsed.data)
     if (grenade) {
       grenades.push(grenade)
     }
@@ -72,21 +65,16 @@ export function normalizeWorldGrenades(payload: GsiPayload): WorldGrenadeState[]
   return grenades
 }
 
-function normalizeWorldGrenade(
-  id: string,
-  raw: GsiGrenade,
-  payload: GsiPayload
-): WorldGrenadeState | null {
+function normalizeWorldGrenade(id: string, raw: GsiGrenade): WorldGrenadeState | null {
   const position = parseVector3(raw.position)
   if (!position) {
     return null
   }
 
   const ownerSteamId = raw.owner?.trim() || undefined
-  const ownerSide = ownerSteamId ? asSide(payload.allplayers?.[ownerSteamId]?.team) : null
   const grenade: WorldGrenadeState = {
     id,
-    type: asWorldGrenadeType(raw.type, ownerSide),
+    type: asWorldGrenadeType(raw.type),
     position,
   }
   if (ownerSteamId) {
@@ -104,12 +92,31 @@ function normalizeWorldGrenade(
   if (effectTime !== undefined) {
     grenade.effectTime = effectTime
   }
+  const flames = parseGrenadeFlames(raw.flames)
+  if (flames) {
+    grenade.flames = flames
+  }
   return grenade
 }
 
-function asSide(value: string | undefined): Side | null {
-  if (value === "CT" || value === "T") {
-    return value
+/**
+ * Inferno `flames` is a map of flame_N → "x, y, z". Skip bad entries;
+ * a broken flame must not drop the grenade or the payload.
+ */
+function parseGrenadeFlames(raw: unknown): readonly Vector3[] | undefined {
+  if (raw === null || raw === undefined || typeof raw !== "object") {
+    return undefined
   }
-  return null
+  const values = Array.isArray(raw) ? raw : Object.values(raw)
+  const points: Vector3[] = []
+  for (const entry of values) {
+    if (typeof entry !== "string") {
+      continue
+    }
+    const point = parseVector3(entry)
+    if (point) {
+      points.push(point)
+    }
+  }
+  return points.length > 0 ? points : undefined
 }

@@ -100,8 +100,9 @@ export type GrenadeState = {
 /**
  * World entity, not inventory. Inventory nades stay on PlayerEquipment.
  *
- * Flame points (`flames` in raw GSI) are not modeled yet — molotov/incendiary
- * area effects should not assume a single circle.
+ * `molotov` is also the conservative type for Valve `firebomb` / `inferno`.
+ * Molotov vs incendiary is a presentation choice from owner side, not
+ * weapon identity. Inferno footprint is `flames`, not a smoke-style circle.
  */
 export type WorldGrenadeType =
   | "smoke"
@@ -120,6 +121,8 @@ export type WorldGrenadeState = {
   velocity?: Vector3
   lifetime?: number
   effectTime?: number
+  /** Inferno flame anchors in world space. Omitted when GSI sent none valid. */
+  flames?: readonly Vector3[]
 }
 
 export type PlayerEquipment = {

@@ -9,6 +9,7 @@ import {
   getOverlayPhase,
   overlayShow,
   overlaySponsor,
+  overlaySponsors,
   parseOverlayBranding,
   parseSeriesFormat,
   pickInterstitial,
@@ -134,7 +135,7 @@ describe("overlaySponsor", () => {
     })
     const branding = applyBroadcastConfig({}, config)
     expect(overlaySponsor(branding, config)).toBeUndefined()
-    expect(overlayShow(state(), branding, config).sponsor).toBeUndefined()
+    expect(overlayShow(state(), branding, config).sponsors).toEqual([])
   })
 
   test("places a text-only sponsor top-right", () => {
@@ -188,6 +189,23 @@ describe("overlaySponsor", () => {
       showLogo: false,
       showText: true,
     })
+  })
+
+  test("renders multiple sponsors at their chosen positions", () => {
+    const config = compactBroadcastConfig({
+      format: "BO1",
+      teams: { left: {}, right: {} },
+      series: { leftMapsWon: 0, rightMapsWon: 0 },
+      sponsors: [
+        { enabled: true, name: "Local LAN", position: "top-right", displayMode: "text" },
+        { enabled: true, name: "SquadVault", position: "center", displayMode: "text" },
+      ],
+    })
+    const branding = applyBroadcastConfig({}, config)
+    expect(overlaySponsors(branding, config).map((sponsor) => sponsor.position)).toEqual([
+      "top-right",
+      "center",
+    ])
   })
 
   test("does not put sponsor in the event/stage meta slots", () => {

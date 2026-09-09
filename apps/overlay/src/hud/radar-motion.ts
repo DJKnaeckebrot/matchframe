@@ -239,6 +239,26 @@ function copyGrenade(grenade: RadarGrenadeView): RadarGrenadeView {
   return { ...grenade }
 }
 
+function sameFlamePoints(
+  a: RadarGrenadeView["flamePoints"],
+  b: RadarGrenadeView["flamePoints"]
+): boolean {
+  if (a === b) {
+    return true
+  }
+  if (!a || !b || a.length !== b.length) {
+    return false
+  }
+  for (let i = 0; i < a.length; i++) {
+    const left = a[i]
+    const right = b[i]
+    if (!left || !right || left.x !== right.x || left.y !== right.y) {
+      return false
+    }
+  }
+  return true
+}
+
 function sameView(a: RadarMotionView, b: RadarMotionView): boolean {
   if (a.players.length !== b.players.length || a.grenades.length !== b.grenades.length) {
     return false
@@ -272,7 +292,8 @@ function sameView(a: RadarMotionView, b: RadarMotionView): boolean {
       left.type !== right.type ||
       left.state !== right.state ||
       left.radius !== right.radius ||
-      left.ownerSide !== right.ownerSide
+      left.ownerSide !== right.ownerSide ||
+      !sameFlamePoints(left.flamePoints, right.flamePoints)
     ) {
       return false
     }

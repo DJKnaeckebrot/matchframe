@@ -118,4 +118,22 @@ describe("presentRadarMotion", () => {
     expect(mid.grenades[0]?.x).toBeCloseTo(0.05)
     expect(mid.grenades[0]?.id).toBe("401")
   })
+
+  test("inferno flame points stay on the sample, not the lerped origin", () => {
+    const tracks = emptyRadarTracks()
+    const grenade = {
+      id: "505",
+      type: "molotov" as const,
+      x: 0.5,
+      y: 0.45,
+      state: "active" as const,
+      flamePoints: [{ x: 0.5, y: 0.45 }, { x: 0.52, y: 0.46 }],
+    }
+    presentRadarMotion({ players: [], bomb: null, grenades: [grenade] }, tracks, 0)
+    const next = { ...grenade, x: 0.51, flamePoints: [{ x: 0.51, y: 0.45 }, { x: 0.53, y: 0.46 }] }
+    presentRadarMotion({ players: [], bomb: null, grenades: [next] }, tracks, 1000)
+    const mid = presentRadarMotion({ players: [], bomb: null, grenades: [next] }, tracks, 1050)
+    expect(mid.grenades[0]?.x).toBeCloseTo(0.505)
+    expect(mid.grenades[0]?.flamePoints).toEqual(next.flamePoints)
+  })
 })

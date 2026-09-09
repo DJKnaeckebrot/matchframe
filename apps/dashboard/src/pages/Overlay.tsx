@@ -3,12 +3,15 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import {
   compactBroadcastConfig,
   defaultBroadcastConfig,
+  defaultSponsorConfig,
+  MAX_SPONSORS,
   overlayTeamName,
   parseBroadcastConfig,
   SERIES_LABELS,
   seriesWinsNeeded,
   sponsorNeedsContent,
   type BroadcastConfig,
+  type BroadcastSponsorConfig,
   type BroadcastSponsorDraft,
   type BroadcastTeamSlot,
   type SeriesLabel,
@@ -51,17 +54,18 @@ const SPONSOR_DISPLAY_OPTIONS: readonly { id: SponsorDisplayMode; label: string 
   { id: "logo-text", label: "Logo + text" },
 ]
 
-function withSponsor(draft: BroadcastConfig, patch: BroadcastSponsorDraft): BroadcastConfig {
-  return {
-    ...draft,
-    sponsor: {
-      enabled: draft.sponsor?.enabled ?? false,
-      position: draft.sponsor?.position ?? "top-right",
-      displayMode: draft.sponsor?.displayMode ?? "logo-text",
-      ...draft.sponsor,
-      ...patch,
-    },
+function patchSponsor(
+  draft: BroadcastConfig,
+  index: number,
+  patch: BroadcastSponsorDraft
+): BroadcastConfig {
+  const sponsors = [...(draft.sponsors ?? [])]
+  const current: BroadcastSponsorConfig = sponsors[index] ?? {
+    ...defaultSponsorConfig,
+    enabled: true,
   }
+  sponsors[index] = { ...current, ...patch }
+  return { ...draft, sponsors }
 }
 
 export function OverlayPage() {
@@ -104,7 +108,8 @@ export function OverlayPage() {
     },
   })
   const sponsorUpload = useMutation({
-    mutationFn: uploadSponsorLogo,
+    mutationFn: ({ index, file }: { index: number; file: File }) =>
+      uploadSponsorLogo(index, file),
     onSuccess: (result) => {
       queryClient.setQueryData(["overlay-config"], result.config)
       setDraft(result.config)
@@ -176,18 +181,22 @@ export function OverlayPage() {
   ])
 
   function persist(next: BroadcastConfig, immediate = false) {
-    const compacted = compactBroadcastConfig(next)
-    draftRef.current = compacted
-    setDraft(compacted)
+    // Compact (trim) only on commit. Doing it on every keystroke eats the
+    // trailing space you need to type a second word.
+    const draftNext = immediate ? compactBroadcastConfig(next) : next
+    draftRef.current = draftNext
+    setDraft(draftNext)
     dirty.current = true
     if (saveTimer.current) {
       clearTimeout(saveTimer.current)
       saveTimer.current = null
     }
     const send = () => {
-      mutation.mutate(compacted, {
+      mutation.mutate(compactBroadcastConfig(draftRef.current), {
         onSettled: () => {
-          dirty.current = false
+          if (immediate) {
+            dirty.current = false
+          }
         },
       })
     }
@@ -402,89 +411,159 @@ export function OverlayPage() {
 
           <section className="flex flex-col gap-3">
             <div className="flex items-baseline justify-between gap-3">
-              <h2 className="text-sm font-medium">Sponsor</h2>
-              <button
+              <h2 className="text-sm font-medium">Sponsors</h2>
+              <Button
                 type="button"
-                role="switch"
-                aria-checked={draft.sponsor?.enabled ?? false}
-                disabled={busy}
+                variant="outline"
+                size="sm"
+                disabled={busy || (draft.sponsors?.length ?? 0) >= MAX_SPONSORS}
                 onClick={() =>
                   persist(
-                    withSponsor(draftRef.current, {
-                      enabled: !(draftRef.current.sponsor?.enabled ?? false),
-                    }),
+                    {
+                      ...draftRef.current,
+                      sponsors: [
+                        ...(draftRef.current.sponsors ?? []),
+                        { ...defaultSponsorConfig, enabled: true },
+                      ],
+                    },
                     true
                   )
                 }
-                className={`border px-2.5 py-1 text-xs ${
-                  draft.sponsor?.enabled
-                    ? "border-primary bg-primary/10 text-foreground"
-                    : "border-border text-muted-foreground hover:border-primary/50 hover:text-foreground"
-                }`}
               >
-                {draft.sponsor?.enabled ? "On" : "Off"}
-              </button>
+                Add
+              </Button>
             </div>
             <p className="text-sm text-muted-foreground">
-              Partner slot on the overlay. Changes apply immediately.
+              Partner slots on the overlay. Each can be top-right or center. Changes apply
+              immediately.
             </p>
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
-              <LogoSlot
-                assetId={draft.sponsor?.assetId}
-                label="Logo"
-                disabled={busy}
-                onChoose={(file) => sponsorUpload.mutate(file)}
-                onClear={() => {
-                  const id = draft.sponsor?.assetId
-                  if (id) {
-                    clearAsset.mutate(id)
-                  }
-                }}
-              />
-              <TextField
-                id="overlay-sponsor"
-                label="Name"
-                value={draft.sponsor?.name ?? ""}
-                placeholder="Optional"
-                disabled={false}
-                maxLength={32}
-                className="min-w-0 flex-1"
-                onChange={(name) =>
-                  persist(withSponsor(draftRef.current, { name }))
-                }
-                onCommit={() => persist(draftRef.current, true)}
-              />
-            </div>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <ChoiceRow
-                label="Position"
-                value={draft.sponsor?.position ?? "top-right"}
-                options={SPONSOR_POSITION_OPTIONS}
-                disabled={busy}
-                onChange={(position) =>
-                  persist(withSponsor(draftRef.current, { position }), true)
-                }
-              />
-              <ChoiceRow
-                label="Display"
-                value={draft.sponsor?.displayMode ?? "logo-text"}
-                options={SPONSOR_DISPLAY_OPTIONS}
-                disabled={busy}
-                onChange={(displayMode) =>
-                  persist(withSponsor(draftRef.current, { displayMode }), true)
-                }
-              />
-            </div>
-            {sponsorNeedsContent(draft.sponsor) ? (
-              <p className="text-sm text-muted-foreground">
-                On, but no name or logo. Hidden on the overlay until one is set.
-              </p>
-            ) : null}
+            {(draft.sponsors ?? []).length === 0 ? (
+              <p className="text-sm text-muted-foreground">None yet. Add one for a partner slot.</p>
+            ) : (
+              <div className="flex flex-col gap-6">
+                {(draft.sponsors ?? []).map((sponsor, index) => (
+                  <SponsorEditor
+                    key={`${sponsor.assetId ?? "slot"}-${index}`}
+                    index={index}
+                    sponsor={sponsor}
+                    disabled={busy}
+                    onPatch={(patch, immediate) =>
+                      persist(patchSponsor(draftRef.current, index, patch), immediate)
+                    }
+                    onChoose={(file) => sponsorUpload.mutate({ index, file })}
+                    onClearLogo={() => {
+                      const id = sponsor.assetId
+                      if (id) {
+                        clearAsset.mutate(id)
+                      }
+                    }}
+                    onRemove={() => {
+                      const id = sponsor.assetId
+                      persist(
+                        {
+                          ...draftRef.current,
+                          sponsors: (draftRef.current.sponsors ?? []).filter(
+                            (_, item) => item !== index
+                          ),
+                        },
+                        true
+                      )
+                      if (id) {
+                        clearAsset.mutate(id)
+                      }
+                    }}
+                  />
+                ))}
+              </div>
+            )}
           </section>
         </>
       )}
 
       {status ? <PageStatus tone={statusTone}>{status}</PageStatus> : null}
+    </div>
+  )
+}
+
+function SponsorEditor({
+  index,
+  sponsor,
+  disabled,
+  onPatch,
+  onChoose,
+  onClearLogo,
+  onRemove,
+}: {
+  index: number
+  sponsor: BroadcastSponsorConfig
+  disabled: boolean
+  onPatch: (patch: BroadcastSponsorDraft, immediate?: boolean) => void
+  onChoose: (file: File) => void
+  onClearLogo: () => void
+  onRemove: () => void
+}) {
+  return (
+    <div className="flex flex-col gap-3 border-t border-border pt-4">
+      <div className="flex items-center justify-between gap-3">
+        <button
+          type="button"
+          role="switch"
+          aria-checked={sponsor.enabled}
+          disabled={disabled}
+          onClick={() => onPatch({ enabled: !sponsor.enabled }, true)}
+          className={`border px-2.5 py-1 text-xs ${
+            sponsor.enabled
+              ? "border-primary bg-primary/10 text-foreground"
+              : "border-border text-muted-foreground hover:border-primary/50 hover:text-foreground"
+          }`}
+        >
+          {sponsor.enabled ? "On" : "Off"}
+        </button>
+        <Button type="button" variant="ghost" size="sm" disabled={disabled} onClick={onRemove}>
+          Remove
+        </Button>
+      </div>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
+        <LogoSlot
+          assetId={sponsor.assetId}
+          label="Logo"
+          disabled={disabled}
+          onChoose={onChoose}
+          onClear={onClearLogo}
+        />
+        <TextField
+          id={`overlay-sponsor-${index}`}
+          label="Name"
+          value={sponsor.name ?? ""}
+          placeholder="Optional"
+          disabled={false}
+          maxLength={32}
+          className="min-w-0 flex-1"
+          onChange={(name) => onPatch({ name })}
+          onCommit={() => onPatch({}, true)}
+        />
+      </div>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <ChoiceRow
+          label="Position"
+          value={sponsor.position}
+          options={SPONSOR_POSITION_OPTIONS}
+          disabled={disabled}
+          onChange={(position) => onPatch({ position }, true)}
+        />
+        <ChoiceRow
+          label="Display"
+          value={sponsor.displayMode}
+          options={SPONSOR_DISPLAY_OPTIONS}
+          disabled={disabled}
+          onChange={(displayMode) => onPatch({ displayMode }, true)}
+        />
+      </div>
+      {sponsorNeedsContent(sponsor) ? (
+        <p className="text-sm text-muted-foreground">
+          On, but no name or logo. Hidden on the overlay until one is set.
+        </p>
+      ) : null}
     </div>
   )
 }

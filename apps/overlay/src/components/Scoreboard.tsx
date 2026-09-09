@@ -60,7 +60,7 @@ export function Scoreboard({ state, show }: { state: GameState; show: OverlaySho
       <MetaStrip
         slots={show.slots}
         mapName={state.map.name}
-        sponsor={show.sponsor?.position === "center" ? show.sponsor : undefined}
+        sponsor={show.sponsors.filter((sponsor) => sponsor.position === "center")}
       />
       <div className="grid grid-cols-[1fr_168px_1fr] items-stretch">
         <TeamBlock
@@ -104,7 +104,7 @@ function MetaStrip({
 }: {
   slots: readonly BrandingSlot[]
   mapName: string
-  sponsor?: OverlaySponsorView
+  sponsor: readonly OverlaySponsorView[]
 }) {
   const lead = slots.filter((slot) => slot.id === "event" || slot.id === "series")
   const stage = slots.find((slot) => slot.id === "stage")
@@ -124,7 +124,7 @@ function MetaStrip({
         ))}
       </div>
       <div className="flex min-w-0 items-center justify-center">
-        {sponsor ? <SponsorSlot view={sponsor} variant="center" /> : null}
+        {sponsor.length > 0 ? <SponsorSlot views={sponsor} variant="center" /> : null}
       </div>
       <div className="flex min-w-0 items-center justify-end">
         {stage ? (

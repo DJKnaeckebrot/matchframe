@@ -5,7 +5,7 @@ import type {
   Side,
 } from "@workspace/game-state"
 import { getRoundDisplayState } from "@workspace/game-state"
-import { resolveBroadcastTeam, resolveSponsorContent } from "@workspace/presentation"
+import { broadcastSponsors, resolveBroadcastTeam, resolveSponsorContent } from "@workspace/presentation"
 import type {
   BroadcastConfig,
   SponsorDisplayMode,
@@ -107,7 +107,7 @@ export type OverlayShow = {
   branding: OverlayBranding
   broadcast: BroadcastConfig
   slots: readonly BrandingSlot[]
-  sponsor?: OverlaySponsorView
+  sponsors: readonly OverlaySponsorView[]
   series?: SeriesFormat
   interstitial: InterstitialModel | null
   chrome: OverlayChrome
@@ -141,13 +141,13 @@ export function overlayShow(
   const phase = getOverlayPhase(state)
   const interstitial = pickInterstitial(state, phase, broadcast)
   const series = parseSeriesFormat(branding.seriesLabel ?? broadcast.format)
-  const sponsor = overlaySponsor(branding, broadcast)
+  const sponsors = overlaySponsors(branding, broadcast)
   return {
     phase,
     branding,
     broadcast,
     slots: brandingSlots(branding),
-    ...(sponsor ? { sponsor } : {}),
+    sponsors,
     ...(series && series.length > 1 ? { series } : {}),
     interstitial,
     chrome: {
@@ -212,14 +212,13 @@ export function applyBroadcastConfig(
   const right = config.teams?.right ?? {}
   const leftLogo = left.logoAssetId ? getBroadcastAsset(left.logoAssetId) : undefined
   const rightLogo = right.logoAssetId ? getBroadcastAsset(right.logoAssetId) : undefined
-  const sponsorImage = config.sponsor?.assetId
-    ? getBroadcastAsset(config.sponsor.assetId)
-    : undefined
+  const first = broadcastSponsors(config)[0]
+  const sponsorImage = first?.assetId ? getBroadcastAsset(first.assetId) : undefined
   return {
     ...branding,
     eventName: branding.eventName ?? config.event?.name,
     stage: branding.stage ?? config.event?.stage,
-    sponsorName: branding.sponsorName ?? config.sponsor?.name,
+    sponsorName: branding.sponsorName ?? first?.name,
     sponsorImageUrl: branding.sponsorImageUrl ?? sponsorImage,
     seriesLabel: branding.seriesLabel ?? config.format,
     ...(left.name ? { leftName: left.name } : {}),
@@ -231,28 +230,53 @@ export function applyBroadcastConfig(
 
 export const applyOverlayConfig = applyBroadcastConfig
 
+export function overlaySponsors(
+  branding: OverlayBranding,
+  config: BroadcastConfig
+): OverlaySponsorView[] {
+  const configured = broadcastSponsors(config)
+  if (configured.length === 0) {
+    const fromUrl = sponsorView({
+      enabled: Boolean(branding.sponsorName || branding.sponsorImageUrl),
+      name: branding.sponsorName,
+      imageUrl: branding.sponsorImageUrl,
+      displayMode: "logo-text",
+      position: "top-right",
+    })
+    return fromUrl ? [fromUrl] : []
+  }
+  return configured.flatMap((sponsor) => {
+    const view = sponsorView({
+      enabled: sponsor.enabled,
+      name: sponsor.name,
+      imageUrl: sponsor.assetId ? getBroadcastAsset(sponsor.assetId) : undefined,
+      displayMode: sponsor.displayMode,
+      position: sponsor.position,
+    })
+    return view ? [view] : []
+  })
+}
+
 export function overlaySponsor(
   branding: OverlayBranding,
   config: BroadcastConfig
 ): OverlaySponsorView | undefined {
-  const configured = config.sponsor
-  const enabled = configured
-    ? (configured.enabled ??
-        Boolean(
-          configured.name?.trim() ||
-            configured.assetId ||
-            branding.sponsorName ||
-            branding.sponsorImageUrl
-        ))
-    : Boolean(branding.sponsorName || branding.sponsorImageUrl)
-  if (!enabled) {
+  return overlaySponsors(branding, config)[0]
+}
+
+function sponsorView(input: {
+  enabled: boolean
+  name?: string
+  imageUrl?: string
+  displayMode: SponsorDisplayMode
+  position: SponsorPosition
+}): OverlaySponsorView | undefined {
+  if (!input.enabled) {
     return undefined
   }
-  const name = branding.sponsorName?.trim()
-  const imageUrl = branding.sponsorImageUrl
-  const displayMode = configured?.displayMode ?? "logo-text"
-  const position = configured?.position ?? "top-right"
-  const content = resolveSponsorContent(displayMode, {
+  const name = input.name?.trim()
+  const imageUrl = input.imageUrl
+  const content = resolveSponsorContent(input.displayMode, {
     name,
     hasLogo: Boolean(imageUrl),
   })
@@ -260,8 +284,8 @@ export function overlaySponsor(
     return undefined
   }
   return {
-    position,
-    displayMode,
+    position: input.position,
+    displayMode: input.displayMode,
     ...content,
     ...(name ? { name } : {}),
     ...(imageUrl ? { imageUrl } : {}),

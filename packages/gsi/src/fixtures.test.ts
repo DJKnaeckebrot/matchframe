@@ -295,4 +295,51 @@ describe("GSI fixture variants", () => {
     const removed = await normalized("radar-anubis-smoke-removed")
     expect(removed.worldGrenades).toEqual([])
   })
+
+  test("radar grenade fixtures expose HE, flash, decoy, fire, inferno, mixed, and cleared", async () => {
+    const he = await normalized("radar-he-flight")
+    expect(he.worldGrenades).toEqual([
+      expect.objectContaining({
+        id: "501",
+        type: "he",
+        ownerSteamId: "76561198000000004",
+      }),
+    ])
+    expect(he.worldGrenades[0]?.flames).toBeUndefined()
+
+    const flash = await normalized("radar-flash-flight")
+    expect(flash.worldGrenades[0]).toMatchObject({ id: "502", type: "flash" })
+
+    const decoy = await normalized("radar-decoy-active")
+    expect(decoy.worldGrenades[0]).toMatchObject({ id: "503", type: "decoy" })
+
+    const fire = await normalized("radar-fire-flight")
+    expect(fire.worldGrenades[0]).toMatchObject({
+      id: "504",
+      type: "molotov",
+      ownerSteamId: "76561198000000004",
+    })
+    expect(fire.worldGrenades[0]?.flames).toBeUndefined()
+
+    const inferno = await normalized("radar-inferno-active")
+    expect(inferno.worldGrenades[0]?.type).toBe("molotov")
+    expect(inferno.worldGrenades[0]?.flames?.length).toBe(4)
+
+    const multi = await normalized("radar-inferno-multi-flame")
+    expect(multi.worldGrenades[0]?.flames?.length).toBe(10)
+    expect(multi.worldGrenades[0]?.flames?.[0]).not.toEqual(multi.worldGrenades[0]?.flames?.[9])
+
+    const mixed = await normalized("radar-grenades-mixed")
+    expect(mixed.worldGrenades.map((grenade) => grenade.type)).toEqual([
+      "smoke",
+      "he",
+      "flash",
+      "decoy",
+      "molotov",
+    ])
+    expect(mixed.worldGrenades.find((grenade) => grenade.id === "505")?.flames?.length).toBe(10)
+
+    const cleared = await normalized("radar-grenades-cleared")
+    expect(cleared.worldGrenades).toEqual([])
+  })
 })

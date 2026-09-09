@@ -76,13 +76,25 @@ function radarTranslate(x: number, y: number): string {
 }
 
 function RadarGrenade({ grenade }: { grenade: RadarGrenadeView }) {
-  if (grenade.type !== "smoke") {
-    return null
+  if (grenade.flamePoints && grenade.flamePoints.length > 0) {
+    return <FireRadarEffect grenade={grenade} />
   }
-  if (grenade.state === "active") {
+  if (grenade.type === "smoke" && grenade.state === "active") {
     return <SmokeRadarEffect grenade={grenade} />
   }
-  return <ProjectileMarker grenade={grenade} />
+  if (grenade.type === "decoy") {
+    return <DecoyRadarMarker grenade={grenade} />
+  }
+  if (
+    grenade.type === "he" ||
+    grenade.type === "flash" ||
+    grenade.type === "smoke" ||
+    grenade.type === "molotov" ||
+    grenade.type === "incendiary"
+  ) {
+    return <GrenadeProjectileMarker grenade={grenade} />
+  }
+  return null
 }
 
 function PlayerMarker({ player }: { player: RadarPlayerView }) {
@@ -193,14 +205,46 @@ function SmokeRadarEffect({ grenade }: { grenade: RadarGrenadeView }) {
     >
       <div className="mf-smoke-area relative h-full w-full">
         <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-80">
-          <SmokeIcon className="h-3.5 w-3.5" />
+          <GrenadeIcon id="smoke" className="h-3.5 w-3.5" />
         </span>
       </div>
     </div>
   )
 }
 
-function ProjectileMarker({ grenade }: { grenade: RadarGrenadeView }) {
+function FireRadarEffect({ grenade }: { grenade: RadarGrenadeView }) {
+  const points = grenade.flamePoints
+  const radius = grenade.radius
+  if (!points?.length || radius === undefined || radius <= 0) {
+    return null
+  }
+  const size = radius * 2 * RADAR_PX
+  return (
+    <div className="pointer-events-none absolute inset-0" style={{ zIndex: RADAR_LAYER.fireArea }}>
+      {points.map((point, index) => (
+        <div
+          key={`${grenade.id}-${index}`}
+          className="absolute"
+          style={{
+            left: 0,
+            top: 0,
+            width: size,
+            height: size,
+            transform: `${radarTranslate(point.x, point.y)} translate(-50%, -50%)`,
+          }}
+        >
+          <div className="mf-fire-cell h-full w-full" />
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function DecoyRadarMarker({ grenade }: { grenade: RadarGrenadeView }) {
+  return <GrenadeProjectileMarker grenade={grenade} />
+}
+
+function GrenadeProjectileMarker({ grenade }: { grenade: RadarGrenadeView }) {
   const tint =
     grenade.ownerSide === "CT"
       ? "var(--mf-ct)"
@@ -227,16 +271,28 @@ function ProjectileMarker({ grenade }: { grenade: RadarGrenadeView }) {
         }}
       />
       <span className="absolute inset-0 flex items-center justify-center">
-        <SmokeIcon className="h-2.5 w-2.5" />
+        <GrenadeIcon id={projectileIconId(grenade)} className="h-2.5 w-2.5" />
       </span>
     </div>
   )
 }
 
-function SmokeIcon({ className }: { className: string }) {
-  const src = resolveUtilityIcon("smoke")
-  if (!src) {
-    return <span className={`text-[8px] tracking-wide uppercase ${className}`}>SMK</span>
+function projectileIconId(grenade: RadarGrenadeView): string {
+  if (grenade.type === "molotov" || grenade.type === "incendiary") {
+    if (grenade.ownerSide === "CT") {
+      return "incendiary"
+    }
+    if (grenade.ownerSide === "T") {
+      return "molotov"
+    }
   }
-  return <PackImage src={src} label={iconLabel("smoke")} decorative className={className} />
+  return grenade.type
+}
+
+function GrenadeIcon({ id, className }: { id: string; className: string }) {
+  const src = resolveUtilityIcon(id)
+  if (!src) {
+    return <span className={`text-[8px] tracking-wide uppercase ${className}`}>{id.slice(0, 3)}</span>
+  }
+  return <PackImage src={src} label={iconLabel(id)} decorative className={className} />
 }

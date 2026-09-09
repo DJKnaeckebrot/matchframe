@@ -97,12 +97,14 @@ describe("server messages", () => {
         format: "BO1",
         teams: { left: {}, right: {} },
         series: { leftMapsWon: 0, rightMapsWon: 0 },
-        sponsor: {
-          enabled: true,
-          name: "Local LAN",
-          position: "center",
-          displayMode: "text",
-        },
+        sponsors: [
+          {
+            enabled: true,
+            name: "Local LAN",
+            position: "center",
+            displayMode: "text",
+          },
+        ],
       },
     })
   })

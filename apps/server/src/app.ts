@@ -6,6 +6,7 @@ import {
 } from "@workspace/gsi"
 import {
   compactBroadcastConfig,
+  MAX_SPONSORS,
   overlaySeriesWins,
   overlaySeriesWinsChanged,
   parseBroadcastConfig,
@@ -195,15 +196,13 @@ export function createApp(deps: ServerAppDeps): Hono {
     if (!form) {
       return invalidUpload(c, "Expected multipart form data")
     }
+    const index = parseSponsorIndex(formString(form, "index"))
+    const current = deps.overlayStore.get()
     return saveBroadcastImage(c, deps, form, {
       kind: "sponsors",
       id: newSponsorId(),
-      apply: (config, id) =>
-        compactBroadcastConfig({
-          ...config,
-          sponsor: { ...config.sponsor, assetId: id },
-        }),
-      previousId: deps.overlayStore.get().sponsor?.assetId,
+      apply: (config, id) => setSponsorAsset(config, index, id),
+      previousId: (current.sponsors ?? [])[index]?.assetId,
     })
   })
 
@@ -450,8 +449,9 @@ function stripAsset(config: BroadcastConfig, id: string): BroadcastConfig {
           ? { ...config.teams.right, logoAssetId: undefined }
           : config.teams.right,
     },
-    sponsor:
-      config.sponsor?.assetId === id ? { ...config.sponsor, assetId: undefined } : config.sponsor,
+    sponsors: (config.sponsors ?? []).map((sponsor) =>
+      sponsor.assetId === id ? { ...sponsor, assetId: undefined } : sponsor
+    ),
   }
 }
 
@@ -459,8 +459,38 @@ function referencedIdsEqual(a: BroadcastConfig, b: BroadcastConfig): boolean {
   return (
     a.teams.left.logoAssetId === b.teams.left.logoAssetId &&
     a.teams.right.logoAssetId === b.teams.right.logoAssetId &&
-    a.sponsor?.assetId === b.sponsor?.assetId
+    sponsorAssetKey(a) === sponsorAssetKey(b)
   )
+}
+
+function sponsorAssetKey(config: BroadcastConfig): string {
+  return (config.sponsors ?? []).map((sponsor) => sponsor.assetId ?? "").join("|")
+}
+
+function setSponsorAsset(config: BroadcastConfig, index: number, id: string): BroadcastConfig {
+  const sponsors = [...(config.sponsors ?? [])]
+  if (index >= 0 && index < sponsors.length) {
+    sponsors[index] = { ...sponsors[index], assetId: id }
+  } else if (sponsors.length < MAX_SPONSORS) {
+    sponsors.push({
+      enabled: true,
+      position: "top-right",
+      displayMode: "logo-text",
+      assetId: id,
+    })
+  }
+  return compactBroadcastConfig({ ...config, sponsors })
+}
+
+function parseSponsorIndex(value: string | undefined): number {
+  if (value === undefined || value === "") {
+    return 0
+  }
+  const parsed = Number.parseInt(value, 10)
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return 0
+  }
+  return Math.min(MAX_SPONSORS - 1, Math.trunc(parsed))
 }
 
 function parseTeamSlot(value: string | undefined): BroadcastTeamSlot | null {
