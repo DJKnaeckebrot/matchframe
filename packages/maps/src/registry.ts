@@ -29,3 +29,15 @@ export function getMapMetadata(mapName: string): MapMetadata | undefined {
   }
   return MAPS[mapIdFromName(mapName)]
 }
+
+export function isRadarSupported(mapName: string): boolean {
+  return getMapMetadata(mapName) !== undefined
+}
+
+export function mapDisplayName(mapName: string): string {
+  const meta = getMapMetadata(mapName)
+  if (meta) {
+    return meta.displayName
+  }
+  return mapIdFromName(mapName) || mapName
+}

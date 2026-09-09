@@ -1,8 +1,7 @@
-import { useQuery } from "@tanstack/react-query"
 import { useState } from "react"
 
 import { MatchRail } from "@/components/match-rail.tsx"
-import { fetchGameState, fetchOverlayConfig } from "@/lib/api.ts"
+import { resolvedBroadcastStatus, useBroadcastStatus } from "@/components/broadcast-status.tsx"
 import { AppearancePage } from "@/pages/Appearance.tsx"
 import { OverlayPage } from "@/pages/Overlay.tsx"
 import { PlayersPage } from "@/pages/Players.tsx"
@@ -18,19 +17,12 @@ function pageFromSearch(): Page {
 
 export function App() {
   const [page, setPage] = useState<Page>(pageFromSearch)
-  const stateQuery = useQuery({
-    queryKey: ["game-state"],
-    queryFn: fetchGameState,
-    retry: 8,
-    retryDelay: 400,
-    refetchInterval: 1000,
-  })
-  const overlayQuery = useQuery({
-    queryKey: ["overlay-config"],
-    queryFn: fetchOverlayConfig,
-    retry: 8,
-    retryDelay: 400,
-  })
+  const statusQuery = useBroadcastStatus()
+  const status = resolvedBroadcastStatus(
+    statusQuery.data,
+    statusQuery.isError,
+    statusQuery.isPending
+  )
 
   function openPage(next: Page) {
     setPage(next)
@@ -44,12 +36,7 @@ export function App() {
   }
 
   const rail = (
-    <MatchRail
-      state={stateQuery.data}
-      overlay={overlayQuery.data}
-      serverDown={stateQuery.isError}
-      loading={stateQuery.isPending}
-    />
+    <MatchRail status={status} loading={statusQuery.isPending} />
   )
 
   return (

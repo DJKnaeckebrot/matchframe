@@ -11,6 +11,7 @@
   "dependencies": {
     "@workspace/game-state": "workspace:*",
     "@workspace/gsi": "workspace:*",
+    "@workspace/maps": "workspace:*",
     "@workspace/presentation": "workspace:*",
     "@workspace/theme": "workspace:*",
     "hono": "^4.9.6"

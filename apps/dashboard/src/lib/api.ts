@@ -1,4 +1,5 @@
-import type { GameState } from "@workspace/game-state"
+import type { BroadcastStatus, GameState } from "@workspace/game-state"
+import { parseBroadcastStatus } from "@workspace/game-state"
 import {
   overlayConfigSchema,
   playerPresentationConfigSchema,
@@ -20,8 +21,33 @@ import type { MatchframeTheme, ThemeToken } from "@workspace/theme"
 /** Empty in Vite so `/api` is same-origin and proxied. Set VITE_API_URL to call the server directly. */
 const API_BASE = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "")
 
+/** OBS browser source. VITE_OVERLAY_URL wins; otherwise this host on the overlay port. */
+export function overlayPublicUrl(): string {
+  const explicit = import.meta.env.VITE_OVERLAY_URL?.replace(/\/$/, "")
+  if (explicit) {
+    return explicit
+  }
+  const port = import.meta.env.VITE_OVERLAY_PORT || "5174"
+  if (typeof window === "undefined") {
+    return `http://localhost:${port}`
+  }
+  return `${window.location.protocol}//${window.location.hostname}:${port}`
+}
+
 function api(path: string): string {
   return `${API_BASE}${path}`
+}
+
+export async function fetchBroadcastStatus(): Promise<BroadcastStatus> {
+  const response = await fetch(api("/api/status"))
+  if (!response.ok) {
+    throw new Error("Could not load broadcast status")
+  }
+  const parsed = parseBroadcastStatus(await response.json())
+  if (!parsed) {
+    throw new Error("Server returned invalid broadcast status")
+  }
+  return parsed
 }
 
 export async function fetchTheme(): Promise<MatchframeTheme> {
@@ -206,6 +232,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 export { defaultTheme, THEME_TOKEN_LABELS, THEME_TOKENS }
 export type {
   BroadcastConfig,
+  BroadcastStatus,
   MatchframeTheme,
   OverlayConfig,
   PlayerPresentation,

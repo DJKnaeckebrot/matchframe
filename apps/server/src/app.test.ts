@@ -2,7 +2,7 @@ import { mkdtemp, readFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, describe, expect, test } from "bun:test"
-import { createGameStateEngine, parseServerMessage } from "@workspace/game-state"
+import { createGameStateEngine, parseBroadcastStatus, parseServerMessage } from "@workspace/game-state"
 import type { GameState } from "@workspace/game-state"
 import { createGsiStateManager, loadGsiFixture } from "@workspace/gsi"
 import { defaultBroadcastConfig, emptyPlayerPresentationConfig } from "@workspace/presentation"
@@ -907,6 +907,98 @@ describe("broadcast assets", () => {
   })
 })
 
+describe("broadcast status", () => {
+  test("GET /api/status is waiting before any GSI arrives", async () => {
+    const { app } = testApp(await tempDir())
+    const response = await app.request("/api/status")
+    expect(response.status).toBe(200)
+    const body = parseBroadcastStatus(await response.json())
+    expect(body).not.toBeNull()
+    expect(body?.server).toEqual({ healthy: true })
+    expect(body?.gsi).toEqual({ connected: false, stale: false, freshness: "waiting" })
+    expect(body?.overlay.connectedClients).toBe(0)
+    expect(body?.match).toEqual({ playerCount: 0, radar: "none" })
+    expect(body?.readiness.state).toBe("offline")
+    expect(Object.keys(body ?? {}).sort()).toEqual(["gsi", "match", "overlay", "readiness", "server"])
+    expect(Object.keys(body?.gsi ?? {}).sort()).toEqual(["connected", "freshness", "stale"])
+  })
+
+  test("GET /api/status reports a live match after a fixture", async () => {
+    const { app } = testApp(await tempDir())
+    const posted = await app.request("/api/gsi", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(await Bun.file(liveFixturePath).json()),
+    })
+    expect(posted.status).toBe(204)
+
+    const body = parseBroadcastStatus(await (await app.request("/api/status")).json())
+    expect(body?.gsi.connected).toBe(true)
+    expect(body?.gsi.freshness).toBe("live")
+    expect(body?.gsi.lastUpdateAt).toBeGreaterThan(Date.now() - 2000)
+    expect(body?.match.map).toBe("Inferno")
+    expect(body?.match.mapId).toBe("de_inferno")
+    expect(body?.match.phase).toBe("LIVE")
+    expect(body?.match.round).toBe(15)
+    expect(body?.match.playerCount).toBe(6)
+    expect(body?.match.leftName).toBe("Northwind")
+    expect(body?.match.rightName).toBe("Redline")
+    expect(body?.match.radar).toBe("ready")
+    expect(body?.overlay.connectedClients).toBe(0)
+    expect(body?.readiness.state).toBe("warning")
+    expect(body?.readiness.issues.map((issue) => issue.code)).toEqual(["overlay_disconnected"])
+  })
+
+  test("configured team names appear on /api/status", async () => {
+    const { app } = testApp(await tempDir())
+    await app.request("/api/config/broadcast", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        format: "BO1",
+        teams: { left: { name: "SquadVault" }, right: { name: "Velos" } },
+      }),
+    })
+    await app.request("/api/gsi", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(await Bun.file(liveFixturePath).json()),
+    })
+    const body = parseBroadcastStatus(await (await app.request("/api/status")).json())
+    expect(body?.match.leftName).toBe("SquadVault")
+    expect(body?.match.rightName).toBe("Velos")
+  })
+
+  test("overlay client count follows WebSocket connect and close", async () => {
+    const { app } = testApp(await tempDir())
+    const server = Bun.serve({
+      port: 0,
+      fetch: (req, server) => app.fetch(req, server),
+      websocket,
+    })
+    servers.push(server)
+
+    const before = parseBroadcastStatus(await (await app.request("/api/status")).json())
+    expect(before?.overlay.connectedClients).toBe(0)
+
+    const ws = new WebSocket(`ws://127.0.0.1:${server.port}/ws`)
+    await new Promise<void>((resolve, reject) => {
+      ws.onopen = () => resolve()
+      ws.onerror = () => reject(new Error("websocket error"))
+    })
+    await waitFor(async () => {
+      const body = parseBroadcastStatus(await (await app.request("/api/status")).json())
+      return body?.overlay.connectedClients === 1
+    })
+
+    ws.close()
+    await waitFor(async () => {
+      const body = parseBroadcastStatus(await (await app.request("/api/status")).json())
+      return body?.overlay.connectedClients === 0
+    })
+  })
+})
+
 function isPresentation(
   message: unknown
 ): message is { type: "presentation"; data: Record<string, { portrait?: { value: string } }> } {
@@ -982,9 +1074,9 @@ async function collectWsMessages(url: string, count: number) {
   return messages
 }
 
-async function waitFor(predicate: () => boolean): Promise<void> {
+async function waitFor(predicate: () => boolean | Promise<boolean>): Promise<void> {
   const started = Date.now()
-  while (!predicate()) {
+  while (!(await predicate())) {
     if (Date.now() - started > 3000) {
       throw new Error("timed out waiting for condition")
     }

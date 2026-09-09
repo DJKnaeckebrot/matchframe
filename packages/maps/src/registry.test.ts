@@ -6,7 +6,7 @@ import { DE_MIRAGE } from "./maps/de_mirage"
 import { DE_NUKE } from "./maps/de_nuke"
 import { DE_OVERPASS } from "./maps/de_overpass"
 import { DE_VERTIGO } from "./maps/de_vertigo"
-import { getMapMetadata, mapIdFromName } from "./registry"
+import { getMapMetadata, isRadarSupported, mapDisplayName, mapIdFromName } from "./registry"
 
 describe("getMapMetadata", () => {
   test("resolves de_anubis", () => {
@@ -48,6 +48,19 @@ describe("getMapMetadata", () => {
   test("unknown maps return undefined", () => {
     expect(getMapMetadata("de_dust2")).toBeUndefined()
     expect(getMapMetadata("")).toBeUndefined()
+  })
+
+  test("radar support follows the registry, not a dashboard list", () => {
+    expect(isRadarSupported("de_mirage")).toBe(true)
+    expect(isRadarSupported("workshop/1/de_anubis")).toBe(true)
+    expect(isRadarSupported("de_cache")).toBe(false)
+    expect(isRadarSupported("")).toBe(false)
+  })
+
+  test("display names come from metadata, with the map id as fallback", () => {
+    expect(mapDisplayName("de_mirage")).toBe("Mirage")
+    expect(mapDisplayName("workshop/123/de_nuke")).toBe("Nuke")
+    expect(mapDisplayName("de_cache")).toBe("de_cache")
   })
 
   test("workshop-style names still match the map id", () => {

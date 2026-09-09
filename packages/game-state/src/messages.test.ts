@@ -58,7 +58,7 @@ describe("server messages", () => {
             teamId: "team-1",
             playerSteamId: "A",
             roundKills: 5,
-            side: "CT",
+            side: "CT" as const,
           },
           expiresAt: 4500,
         },

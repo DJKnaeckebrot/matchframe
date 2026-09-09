@@ -24,6 +24,7 @@ import { Label } from "@workspace/ui/components/label"
 
 import { PageStatus } from "@/components/page-status.tsx"
 import { Pulse } from "@/components/pulse.tsx"
+import { BroadcastStatusStrip, resolvedBroadcastStatus, useBroadcastStatus } from "@/components/broadcast-status.tsx"
 import {
   deleteBroadcastAsset,
   fetchGameState,
@@ -83,6 +84,12 @@ export function OverlayPage() {
     retryDelay: 400,
     refetchInterval: 1000,
   })
+  const statusQuery = useBroadcastStatus()
+  const broadcastStatus = resolvedBroadcastStatus(
+    statusQuery.data,
+    statusQuery.isError,
+    statusQuery.isPending
+  )
   const [draft, setDraft] = useState<BroadcastConfig>(defaultBroadcastConfig)
   const dirty = useRef(false)
   const draftRef = useRef(draft)
@@ -227,13 +234,17 @@ export function OverlayPage() {
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-8">
-      <header className="flex flex-col gap-1">
-        <h1 className="font-hud text-xl font-semibold tracking-wide">Overlay</h1>
-        <p className="max-w-[65ch] text-sm leading-relaxed text-muted-foreground">
-          Broadcast setup for tonight. Names, logos, series marks, and context hit the HUD
-          immediately. No OBS reload.
-        </p>
-      </header>
+      <div className="flex flex-col gap-4">
+        <header className="flex flex-col gap-1">
+          <h1 className="font-hud text-xl font-semibold tracking-wide">Overlay</h1>
+          <p className="max-w-[65ch] text-sm leading-relaxed text-muted-foreground">
+            Broadcast setup for tonight. Names, logos, series marks, and context hit the HUD
+            immediately. No OBS reload.
+          </p>
+        </header>
+
+        {broadcastStatus ? <BroadcastStatusStrip status={broadcastStatus} /> : null}
+      </div>
 
       {overlayQuery.isLoading ? (
         <OverlaySkeleton />

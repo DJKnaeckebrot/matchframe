@@ -1,5 +1,5 @@
 import type { GameState, GameStateEngine } from "@workspace/game-state"
-import { createInterstitialDirector } from "@workspace/game-state"
+import { buildBroadcastStatus, createInterstitialDirector } from "@workspace/game-state"
 import {
   buildGrenadePipelineDebug,
   normalizeGsiPayload,
@@ -7,6 +7,7 @@ import {
   type GsiStateManager,
   type GrenadePipelineDebug,
 } from "@workspace/gsi"
+import { isRadarSupported, mapDisplayName, mapIdFromName } from "@workspace/maps"
 import {
   compactBroadcastConfig,
   MAX_SPONSORS,
@@ -56,7 +57,24 @@ export function createApp(deps: ServerAppDeps): Hono {
   const interstitials = createInterstitialDirector()
   let interstitialTimer: ReturnType<typeof setTimeout> | null = null
   let lastGrenadeDebug: GrenadePipelineDebug | null = null
+  let lastGsiUpdateAt: number | undefined
   seedStoredSeriesWins(deps)
+
+  function currentBroadcastStatus(now = Date.now()) {
+    const state = deps.getState()
+    const mapName = state?.map.name?.trim()
+    return buildBroadcastStatus({
+      now,
+      overlayClientCount: deps.hub.clientCount(),
+      state,
+      broadcast: deps.overlayStore.get(),
+      radarSupported: mapName ? isRadarSupported(mapName) : false,
+      ...(lastGsiUpdateAt !== undefined ? { lastGsiUpdateAt } : {}),
+      ...(mapName
+        ? { mapId: mapIdFromName(mapName), mapDisplayName: mapDisplayName(mapName) }
+        : {}),
+    })
+  }
 
   function publishInterstitial(
     action: ReturnType<typeof interstitials.apply>
@@ -110,6 +128,8 @@ export function createApp(deps: ServerAppDeps): Hono {
 
   app.get("/health", (c) => c.json({ status: "ok" }))
 
+  app.get("/api/status", (c) => c.json(currentBroadcastStatus()))
+
   app.post("/api/gsi", async (c) => {
     let body: unknown
     try {
@@ -153,6 +173,7 @@ export function createApp(deps: ServerAppDeps): Hono {
       deps.onGrenadeDebug(debug)
     }
     deps.setState(result.state)
+    lastGsiUpdateAt = Date.now()
     deps.hub.broadcast({ type: "snapshot", data: result.state })
     for (const event of result.events) {
       deps.hub.broadcast({ type: "event", data: event })

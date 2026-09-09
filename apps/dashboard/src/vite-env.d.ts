@@ -2,6 +2,8 @@
 
 interface ImportMetaEnv {
   readonly VITE_API_URL?: string
+  readonly VITE_OVERLAY_URL?: string
+  readonly VITE_OVERLAY_PORT?: string
 }
 
 interface ImportMeta {

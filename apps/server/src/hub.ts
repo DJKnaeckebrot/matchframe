@@ -5,6 +5,7 @@ import type { WSContext } from "hono/ws"
 export type RealtimeHub = {
   addClient(ws: WSContext): void
   removeClient(ws: WSContext): void
+  clientCount(): number
   sendMessage(ws: WSContext, message: ServerMessage): void
   broadcast(message: ServerMessage): void
 }
@@ -22,6 +23,9 @@ export function createRealtimeHub(): RealtimeHub {
     },
     removeClient(ws) {
       clients.delete(clientKey(ws))
+    },
+    clientCount() {
+      return clients.size
     },
     sendMessage(ws, message) {
       ws.send(serializeServerMessage(message))
