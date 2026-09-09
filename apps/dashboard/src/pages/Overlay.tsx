@@ -12,6 +12,8 @@ import { Button } from "@workspace/ui/components/button"
 import { Input } from "@workspace/ui/components/input"
 import { Label } from "@workspace/ui/components/label"
 
+import { PageStatus } from "@/components/page-status.tsx"
+import { Pulse } from "@/components/pulse.tsx"
 import { fetchGameState, fetchOverlayConfig, saveOverlayConfig } from "@/lib/api.ts"
 
 const SERIES_COPY: Record<SeriesLabel, string> = {
@@ -98,17 +100,19 @@ export function OverlayPage() {
     }
   }
 
+  const statusTone = overlayQuery.isError || mutation.isError ? "bad" : mutation.isSuccess ? "ok" : "muted"
+
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-8">
       <header className="flex flex-col gap-1">
-        <h1 className="text-lg font-medium">Overlay</h1>
-        <p className="text-sm text-muted-foreground">
-          Best of and team names for tonight. The HUD updates immediately — no OBS reload.
+        <h1 className="font-hud text-xl font-semibold tracking-wide">Overlay</h1>
+        <p className="max-w-[65ch] text-sm leading-relaxed text-muted-foreground">
+          Best of and team names for tonight. The HUD updates immediately. No OBS reload.
         </p>
       </header>
 
       {overlayQuery.isLoading ? (
-        <p className="text-sm text-muted-foreground">Loading overlay settings…</p>
+        <OverlaySkeleton />
       ) : (
         <>
           <section className="flex flex-col gap-3">
@@ -132,13 +136,13 @@ export function OverlayPage() {
                         save(config({ series }))
                       }
                     }}
-                    className={`flex flex-col gap-3 border px-3 py-4 text-left transition-colors ${
+                    className={`flex flex-col gap-3 border px-3 py-4 text-left ${
                       active
-                        ? "border-foreground text-foreground"
-                        : "border-border text-muted-foreground hover:border-foreground/40 hover:text-foreground"
+                        ? "border-primary bg-primary/10 text-foreground"
+                        : "border-border text-muted-foreground hover:border-primary/50 hover:text-foreground"
                     }`}
                   >
-                    <span className="text-[11px] tracking-[0.22em]">{series}</span>
+                    <span className="font-hud text-sm tracking-wide">{series}</span>
                     <span className="text-sm font-medium text-inherit">{SERIES_COPY[series]}</span>
                     <SeriesMarks series={series} active={active} />
                   </button>
@@ -224,11 +228,24 @@ export function OverlayPage() {
         </>
       )}
 
-      {status ? (
-        <p className="text-sm text-muted-foreground" role="status">
-          {status}
-        </p>
-      ) : null}
+      {status ? <PageStatus tone={statusTone}>{status}</PageStatus> : null}
+    </div>
+  )
+}
+
+function OverlaySkeleton() {
+  return (
+    <div className="flex flex-col gap-8" aria-hidden="true">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <Pulse className="h-28" />
+        <Pulse className="h-28" />
+        <Pulse className="h-28" />
+        <Pulse className="h-28" />
+      </div>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <Pulse className="h-16" />
+        <Pulse className="h-16" />
+      </div>
     </div>
   )
 }
@@ -306,13 +323,13 @@ function MapWinsField({
               aria-label={`${value} ${value === 1 ? "map" : "maps"}`}
               disabled={disabled}
               onClick={() => onChange(wins === value ? index : value)}
-              className="flex h-11 min-w-11 flex-1 items-center justify-center border border-border transition-colors hover:border-foreground/40 disabled:opacity-50"
+              className="flex h-11 min-w-11 flex-1 items-center justify-center border border-border hover:border-primary/50 disabled:opacity-50"
             >
               <span
                 className="h-1 w-6"
                 style={{
                   background: filled
-                    ? "var(--foreground)"
+                    ? "var(--primary)"
                     : "color-mix(in srgb, var(--foreground) 22%, transparent)",
                 }}
               />
@@ -327,7 +344,7 @@ function MapWinsField({
 function SeriesMarks({ series, active }: { series: SeriesLabel; active: boolean }) {
   const winsNeeded = seriesWinsNeeded(series)
   if (winsNeeded === 0) {
-    return <span className="text-[11px] tracking-[0.14em] uppercase">No map marks</span>
+    return <span className="text-xs text-muted-foreground">No map marks</span>
   }
   return (
     <span className="flex gap-1" aria-hidden="true">

@@ -12,6 +12,8 @@ import { Button } from "@workspace/ui/components/button"
 import { Input } from "@workspace/ui/components/input"
 import { Label } from "@workspace/ui/components/label"
 
+import { PageStatus } from "@/components/page-status.tsx"
+import { Pulse } from "@/components/pulse.tsx"
 import {
   defaultTheme,
   fetchTheme,
@@ -65,18 +67,20 @@ export function AppearancePage() {
     return null
   }, [query.isError, mutation.isError, mutation.isSuccess, dirty, valid])
 
+  const statusTone = query.isError || mutation.isError || !valid ? "bad" : mutation.isSuccess && !dirty ? "ok" : "muted"
+
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-6">
       <header className="flex flex-col gap-1">
-        <h1 className="text-lg font-medium">Appearance</h1>
-        <p className="text-sm text-muted-foreground">
-          Pick a palette, then tune tokens if tonight needs it. Apply when ready — the
+        <h1 className="font-hud text-xl font-semibold tracking-wide">Appearance</h1>
+        <p className="max-w-[65ch] text-sm leading-relaxed text-muted-foreground">
+          Pick a palette, then tune tokens if tonight needs it. Apply when ready. The
           overlay changes without a reload.
         </p>
       </header>
 
       {query.isLoading ? (
-        <p className="text-sm text-muted-foreground">Loading overlay colors…</p>
+        <AppearanceSkeleton />
       ) : (
         <form
           className="flex flex-col gap-6"
@@ -103,13 +107,13 @@ export function AppearancePage() {
                     role="radio"
                     aria-checked={active}
                     onClick={() => setDraft(preset.theme)}
-                    className={`flex flex-col gap-3 border px-3 py-4 text-left transition-colors ${
+                    className={`flex flex-col gap-3 border px-3 py-4 text-left ${
                       active
-                        ? "border-foreground text-foreground"
-                        : "border-border text-muted-foreground hover:border-foreground/40 hover:text-foreground"
+                        ? "border-primary bg-primary/10 text-foreground"
+                        : "border-border text-muted-foreground hover:border-primary/50 hover:text-foreground"
                     }`}
                   >
-                    <span className="text-[11px] tracking-[0.22em]">{preset.label}</span>
+                    <span className="font-hud text-sm tracking-wide">{preset.label}</span>
                     <span className="text-sm font-medium text-inherit">{preset.description}</span>
                     <span className="flex gap-1" aria-hidden="true">
                       {(["accent", "ct", "terrorist"] as const).map((token) => (
@@ -141,11 +145,7 @@ export function AppearancePage() {
             ))}
           </div>
 
-          {status ? (
-            <p className="text-sm text-muted-foreground" role="status">
-              {status}
-            </p>
-          ) : null}
+          {status ? <PageStatus tone={statusTone}>{status}</PageStatus> : null}
 
           <div className="flex items-center gap-2">
             <Button type="button" variant="outline" onClick={() => setDraft(defaultTheme)}>
@@ -164,18 +164,37 @@ export function AppearancePage() {
 function ThemePreview({ theme }: { theme: MatchframeTheme }) {
   return (
     <div className="border border-border p-3" style={themeToCssVars(theme) as CSSProperties}>
-      <div className="flex items-center gap-4 bg-(--mf-surface) px-3 py-2 text-xs tracking-wide text-(--mf-text)">
-        <span className="font-medium uppercase" style={{ color: "var(--mf-ct)" }}>
+      <div className="flex items-center gap-4 bg-(--mf-surface) px-3 py-2 text-(--mf-text)">
+        <span className="font-hud text-xs font-semibold tracking-wide" style={{ color: "var(--mf-ct)" }}>
           Northwind
         </span>
-        <span className="text-lg tabular-nums">8</span>
-        <span className="flex-1 text-center text-[10px] tracking-[0.22em] text-(--mf-accent) uppercase">
+        <span className="font-hud text-lg tabular-nums">8</span>
+        <span className="flex-1 text-center font-hud text-xs tracking-wide text-(--mf-accent)">
           Inferno
         </span>
-        <span className="text-lg tabular-nums">6</span>
-        <span className="font-medium uppercase" style={{ color: "var(--mf-t)" }}>
+        <span className="font-hud text-lg tabular-nums">6</span>
+        <span className="font-hud text-xs font-semibold tracking-wide" style={{ color: "var(--mf-t)" }}>
           Redline
         </span>
+      </div>
+    </div>
+  )
+}
+
+function AppearanceSkeleton() {
+  return (
+    <div className="flex flex-col gap-6" aria-hidden="true">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+        <Pulse className="h-28" />
+        <Pulse className="h-28" />
+        <Pulse className="h-28" />
+      </div>
+      <Pulse className="h-14" />
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <Pulse className="h-16" />
+        <Pulse className="h-16" />
+        <Pulse className="h-16" />
+        <Pulse className="h-16" />
       </div>
     </div>
   )

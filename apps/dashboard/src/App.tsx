@@ -1,5 +1,8 @@
+import { useQuery } from "@tanstack/react-query"
 import { useState } from "react"
 
+import { MatchRail } from "@/components/match-rail.tsx"
+import { fetchGameState, fetchOverlayConfig } from "@/lib/api.ts"
 import { AppearancePage } from "@/pages/Appearance.tsx"
 import { OverlayPage } from "@/pages/Overlay.tsx"
 import { PlayersPage } from "@/pages/Players.tsx"
@@ -15,6 +18,19 @@ function pageFromSearch(): Page {
 
 export function App() {
   const [page, setPage] = useState<Page>(pageFromSearch)
+  const stateQuery = useQuery({
+    queryKey: ["game-state"],
+    queryFn: fetchGameState,
+    retry: 8,
+    retryDelay: 400,
+    refetchInterval: 1000,
+  })
+  const overlayQuery = useQuery({
+    queryKey: ["overlay-config"],
+    queryFn: fetchOverlayConfig,
+    retry: 8,
+    retryDelay: 400,
+  })
 
   function openPage(next: Page) {
     setPage(next)
@@ -27,34 +43,86 @@ export function App() {
     window.history.replaceState(null, "", url)
   }
 
+  const rail = (
+    <MatchRail
+      state={stateQuery.data}
+      overlay={overlayQuery.data}
+      serverDown={stateQuery.isError}
+      loading={stateQuery.isPending}
+    />
+  )
+
   return (
-    <div className="flex min-h-svh bg-background text-foreground">
-      <aside className="flex w-52 shrink-0 flex-col border-r border-border px-4 py-5">
-        <div className="text-[11px] tracking-[0.28em] text-muted-foreground">
-          MATCHFRAME
+    <div className="flex min-h-[100dvh] flex-col bg-background text-foreground lg:flex-row">
+      <header className="sticky top-0 z-20 border-b border-border bg-background lg:hidden">
+        <div className="flex h-12 items-center px-4">
+          <p className="mf-wordmark text-muted-foreground">MATCHFRAME</p>
         </div>
-        <nav className="mt-8 flex flex-col gap-1" aria-label="Dashboard">
-          <NavItem active={page === "overlay"} onClick={() => openPage("overlay")}>
-            Overlay
-          </NavItem>
-          <NavItem active={page === "players"} onClick={() => openPage("players")}>
-            Players
-          </NavItem>
-          <NavItem active={page === "appearance"} onClick={() => openPage("appearance")}>
-            Appearance
-          </NavItem>
-        </nav>
+        <Nav page={page} onOpen={openPage} layout="top" />
+      </header>
+
+      <aside className="hidden w-56 shrink-0 flex-col border-r border-border bg-sidebar px-4 py-5 lg:flex">
+        <p className="mf-wordmark text-muted-foreground">MATCHFRAME</p>
+        <Nav page={page} onOpen={openPage} layout="side" />
+        <div className="mt-auto border-t border-border pt-4">{rail}</div>
       </aside>
-      <main className="min-w-0 flex-1 px-8 py-6">
-        {page === "overlay" ? (
-          <OverlayPage />
-        ) : page === "players" ? (
-          <PlayersPage />
-        ) : (
-          <AppearancePage />
-        )}
-      </main>
+
+      <div className="min-w-0 flex-1">
+        <div className="border-b border-border px-4 py-3 lg:hidden">{rail}</div>
+        <main className="min-w-0 px-4 py-6 sm:px-6 lg:px-8">
+          {page === "overlay" ? (
+            <OverlayPage />
+          ) : page === "players" ? (
+            <PlayersPage />
+          ) : (
+            <AppearancePage />
+          )}
+        </main>
+      </div>
     </div>
+  )
+}
+
+function Nav({
+  page,
+  onOpen,
+  layout,
+}: {
+  page: Page
+  onOpen: (page: Page) => void
+  layout: "side" | "top"
+}) {
+  return (
+    <nav
+      className={
+        layout === "top"
+          ? "flex h-12 items-center px-2"
+          : "mt-8 flex flex-col gap-1"
+      }
+      aria-label="Dashboard"
+    >
+      <NavItem
+        active={page === "overlay"}
+        layout={layout}
+        onClick={() => onOpen("overlay")}
+      >
+        Overlay
+      </NavItem>
+      <NavItem
+        active={page === "players"}
+        layout={layout}
+        onClick={() => onOpen("players")}
+      >
+        Players
+      </NavItem>
+      <NavItem
+        active={page === "appearance"}
+        layout={layout}
+        onClick={() => onOpen("appearance")}
+      >
+        Appearance
+      </NavItem>
+    </nav>
   )
 }
 
@@ -62,18 +130,25 @@ function NavItem({
   active,
   onClick,
   children,
+  layout,
 }: {
   active: boolean
   onClick: () => void
   children: string
+  layout: "side" | "top"
 }) {
+  const edge =
+    layout === "top"
+      ? "flex-1 border-b-2 py-2 text-center"
+      : "block border-l-2 py-1 pl-3 text-left"
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`block border-l-2 py-1 pl-3 text-left text-sm ${
+      aria-current={active ? "page" : undefined}
+      className={`${edge} text-sm ${
         active
-          ? "border-foreground font-medium"
+          ? "border-primary font-medium text-foreground"
           : "border-transparent text-muted-foreground hover:text-foreground"
       }`}
     >

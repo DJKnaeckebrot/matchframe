@@ -16,6 +16,8 @@ import { Button } from "@workspace/ui/components/button"
 import { Input } from "@workspace/ui/components/input"
 import { Label } from "@workspace/ui/components/label"
 
+import { PageStatus } from "@/components/page-status.tsx"
+import { Pulse } from "@/components/pulse.tsx"
 import {
   deletePlayerPresentation,
   fetchGameState,
@@ -99,11 +101,18 @@ export function PlayersPage() {
     clearMutation.isSuccess,
   ])
 
+  const statusTone =
+    stateQuery.isError || configQuery.isError || mutation.isError || clearMutation.isError
+      ? "bad"
+      : mutation.isSuccess || clearMutation.isSuccess
+        ? "ok"
+        : "muted"
+
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-6">
       <header className="flex flex-col gap-1">
-        <h1 className="text-lg font-medium">Players</h1>
-        <p className="text-sm text-muted-foreground">
+        <h1 className="font-hud text-xl font-semibold tracking-wide">Players</h1>
+        <p className="max-w-[65ch] text-sm leading-relaxed text-muted-foreground">
           Portraits follow Steam ID. Change a name in CS2 and the override still sticks.
         </p>
       </header>
@@ -112,7 +121,7 @@ export function PlayersPage() {
         <EmptyState loading={stateQuery.isLoading} />
       ) : (
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_20rem]">
-          <ul className="divide-y divide-border border-y border-border">
+          <ul className="divide-y divide-border">
             {players.map((player) => (
               <PlayerRow
                 key={player.steamId}
@@ -139,24 +148,30 @@ export function PlayersPage() {
         </div>
       )}
 
-      {status ? (
-        <p className="text-sm text-muted-foreground" role="status">
-          {status}
-        </p>
-      ) : null}
+      {status ? <PageStatus tone={statusTone}>{status}</PageStatus> : null}
     </div>
   )
 }
 
 function EmptyState({ loading }: { loading: boolean }) {
+  if (loading) {
+    return (
+      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_20rem]" aria-hidden="true">
+        <div className="flex flex-col gap-px">
+          <Pulse className="h-20" />
+          <Pulse className="h-20" />
+          <Pulse className="h-20" />
+          <Pulse className="h-20" />
+        </div>
+        <Pulse className="h-72" />
+      </div>
+    )
+  }
+
   return (
-    <div className="border-y border-border py-10">
-      <p className="text-sm text-muted-foreground">
-        {loading
-          ? "Loading match state…"
-          : "Start CS2 or send a fixture to configure player presentation."}
-      </p>
-    </div>
+    <p className="text-sm text-muted-foreground">
+      Start CS2 or send a fixture to configure player presentation.
+    </p>
   )
 }
 
@@ -182,8 +197,10 @@ function PlayerRow({
       <button
         type="button"
         onClick={onSelect}
-        className={`flex w-full items-center gap-3 py-3 text-left ${
-          selected ? "bg-muted/60" : "hover:bg-muted/30"
+        className={`flex w-full items-center gap-3 border-l-2 py-3 pl-3 text-left ${
+          selected
+            ? "border-primary bg-primary/10"
+            : "border-transparent hover:bg-muted/40"
         }`}
       >
         <span
@@ -198,7 +215,7 @@ function PlayerRow({
             />
           ) : (
             <span className="flex h-full items-end justify-center pb-1 text-[10px] text-muted-foreground">
-              —
+              No art
             </span>
           )}
         </span>
@@ -322,13 +339,15 @@ function PlayerEditor({
           >
             Operator
           </SourceButton>
-          <SourceButton active={mode === "custom"} disabled>
-            Custom
-          </SourceButton>
         </div>
+        {mode === "custom" ? (
+          <p className="text-xs text-muted-foreground">
+            This player uses a custom portrait. Editing is not available yet.
+          </p>
+        ) : null}
         <p className="text-xs text-muted-foreground">
           Automatic uses SAS / Phoenix when no operator is set. Art is local CS2
-          inventory renders — run `bun run portraits:import` once. Overlay never
+          inventory renders. Run `bun run portraits:import` once. Overlay never
           loads csgodatabase or Steam at runtime.
         </p>
       </fieldset>
@@ -411,9 +430,7 @@ function OperatorGroup({
 }) {
   return (
     <div>
-      <div className="mb-1.5 text-[11px] tracking-[0.18em] text-muted-foreground uppercase">
-        {label}
-      </div>
+      <div className="mb-1.5 text-xs text-muted-foreground">{label}</div>
       <div className="grid grid-cols-3 gap-1.5">
         {operators.map((operator) => {
           const src = getPortraitAsset(operator.id)
@@ -425,7 +442,7 @@ function OperatorGroup({
               disabled={disabled}
               onClick={() => onPick(operator.id)}
               className={`flex flex-col overflow-hidden border text-left ${
-                selected ? "border-foreground" : "border-border hover:border-foreground/50"
+                selected ? "border-primary" : "border-border hover:border-primary/50"
               }`}
             >
               <span className="relative block h-24 bg-muted">
