@@ -4,6 +4,7 @@ import { matchframeThemeSchema } from "@workspace/theme"
 import type { MatchframeTheme } from "@workspace/theme"
 
 import type { GameEvent } from "./events"
+import { parseInterstitialPayload, type InterstitialPayload } from "./interstitials"
 import { isRoundWinReason } from "./selectors"
 import type { GameState } from "./types"
 
@@ -18,6 +19,7 @@ export type ServerMessage =
   | { type: "theme"; data: MatchframeTheme }
   | { type: "presentation"; data: PlayerPresentationConfig }
   | { type: "broadcast-config"; data: BroadcastConfig }
+  | { type: "interstitial"; data: InterstitialPayload }
 
 export function serializeServerMessage(message: ServerMessage): string {
   return JSON.stringify(message)
@@ -61,6 +63,11 @@ export function parseServerMessage(raw: unknown): ServerMessage | null {
   if (value.type === "broadcast-config" || value.type === "overlay") {
     const parsed = parseBroadcastConfig(value.data)
     return parsed.success ? { type: "broadcast-config", data: parsed.data } : null
+  }
+
+  if (value.type === "interstitial") {
+    const parsed = parseInterstitialPayload(value.data)
+    return parsed === undefined ? null : { type: "interstitial", data: parsed }
   }
 
   return null

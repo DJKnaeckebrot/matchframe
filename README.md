@@ -17,7 +17,8 @@ Point an OBS Browser Source at http://localhost:5174. Keep it at 1920×1080 with
 a transparent background.
 
 The HUD shows score, round clock, player rows, loadouts, bomb timers, and a
-tactical radar. Event, stage, and sponsor still ride on the overlay URL
+tactical radar for the active-duty maps (Ancient, Anubis, Inferno, Mirage, Nuke,
+Overpass, Vertigo). Event, stage, and sponsor still ride on the overlay URL
 (`event`, `stage`, `sponsor`). Add `preview=1` to preview the HUD on a dark
 plate outside OBS.
 
@@ -91,6 +92,10 @@ bun run fixture:gsi radar-anubis-bomb-planted
 bun run fixture:gsi demo:defuse
 bun run fixture:gsi demo:smoke
 bun run fixture:gsi demo:grenades
+bun run fixture:gsi demo:round-win
+bun run fixture:gsi demo:ace
+bun run fixture:gsi demo:clutch
+bun run fixture:gsi demo:mvp
 ```
 
 `live` is the default. `bun run fixture:gsi` with an unknown name prints the

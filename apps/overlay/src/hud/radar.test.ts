@@ -1,9 +1,10 @@
 import { describe, expect, test } from "bun:test"
-import { DE_ANUBIS, DE_ANUBIS_OVERVIEW_SPAWNS, radarToWorld } from "@workspace/maps"
+import { DE_ANUBIS, DE_ANUBIS_OVERVIEW_SPAWNS, DE_NUKE, radarToWorld } from "@workspace/maps"
 import type { GameState, PlayerState } from "@workspace/game-state"
 
 import {
   getRadarBomb,
+  getRadarFloor,
   getRadarGrenades,
   getRadarPlayers,
   RADAR_FLAME_PRESENTATION_RADIUS,
@@ -34,11 +35,12 @@ function player(partial: Partial<PlayerState> & Pick<PlayerState, "steamId" | "s
 function state(
   players: PlayerState[],
   bomb: GameState["bomb"] = null,
-  worldGrenades: GameState["worldGrenades"] = []
+  worldGrenades: GameState["worldGrenades"] = [],
+  mapName = "de_anubis"
 ): GameState {
   return {
     timestamp: 1,
-    map: { name: "de_anubis", phase: "live", round: 0, roundHistory: [] },
+    map: { name: mapName, phase: "live", round: 0, roundHistory: [] },
     round: { phase: "live", winTeam: null, alive: { ct: 1, t: 1 } },
     teams: [
       { id: "northwind", name: "Northwind", side: "CT", score: 0, seriesWins: 0 },
@@ -388,5 +390,60 @@ describe("radar selectors", () => {
     ])
     expect(grenades[0]?.flamePoints).toBeUndefined()
     expect(grenades[1]?.flamePoints).toHaveLength(1)
+  })
+
+  test("Anubis markers are always on-level", () => {
+    const ctPos = radarToWorld(DE_ANUBIS_OVERVIEW_SPAWNS.ct, DE_ANUBIS)
+    const players = getRadarPlayers(
+      state([player({ steamId: "ct1", side: "CT", position: { ...ctPos, z: -800 } })]),
+      DE_ANUBIS
+    )
+    expect(players[0]?.onLevel).toBe(true)
+    expect(getRadarFloor(state([]), DE_ANUBIS)).toBeUndefined()
+  })
+
+  test("Nuke radar floor follows the observed player Z", () => {
+    const upper = radarToWorld({ x: 0.5, y: 0.5 }, DE_NUKE)
+    const game = state(
+      [
+        player({
+          steamId: "ct1",
+          side: "CT",
+          position: { ...upper, z: 100 },
+        }),
+        player({
+          steamId: "t1",
+          side: "T",
+          position: { ...upper, z: -800 },
+        }),
+      ],
+      null,
+      [],
+      "de_nuke"
+    )
+    expect(getRadarFloor(game, DE_NUKE)?.id).toBe("default")
+    const players = getRadarPlayers(game, DE_NUKE)
+    expect(players.find((entry) => entry.steamId === "ct1")?.onLevel).toBe(true)
+    expect(players.find((entry) => entry.steamId === "t1")?.onLevel).toBe(false)
+  })
+
+  test("Nuke lower floor follows an observed player underground", () => {
+    const pos = radarToWorld({ x: 0.58, y: 0.58 }, DE_NUKE)
+    const game = state(
+      [
+        player({
+          steamId: "ct1",
+          side: "CT",
+          position: { ...pos, z: -800 },
+        }),
+      ],
+      { state: "planted", position: { ...pos, z: -800 } },
+      [{ id: "401", type: "smoke", position: { ...pos, z: 80 }, effectTime: 2 }],
+      "de_nuke"
+    )
+    expect(getRadarFloor(game, DE_NUKE)?.id).toBe("lower")
+    expect(getRadarPlayers(game, DE_NUKE)[0]?.onLevel).toBe(true)
+    expect(getRadarBomb(game, DE_NUKE)?.onLevel).toBe(true)
+    expect(getRadarGrenades(game, DE_NUKE)[0]?.onLevel).toBe(false)
   })
 })

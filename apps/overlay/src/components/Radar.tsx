@@ -6,6 +6,7 @@ import { SHOW_DIAGNOSTICS } from "../hud/diagnostics"
 import {
   clampRadarCoord,
   getRadarBomb,
+  getRadarFloor,
   getRadarGrenades,
   getRadarPlayers,
   RADAR_LAYER,
@@ -21,7 +22,8 @@ const RADAR_PX = 400
 
 export function Radar({ state }: { state: GameState }) {
   const metadata = getMapMetadata(state.map.name)
-  const asset = metadata ? getRadarAsset(metadata.id) : undefined
+  const floor = metadata ? getRadarFloor(state, metadata) : undefined
+  const asset = metadata ? getRadarAsset(metadata.id, floor?.id) : undefined
   if (!metadata || !asset) {
     return SHOW_DIAGNOSTICS && state.map.name ? (
       <p className="absolute top-8 left-8 text-[10px] tracking-[0.16em] text-(--mf-text-muted) uppercase">
@@ -30,7 +32,7 @@ export function Radar({ state }: { state: GameState }) {
     ) : null
   }
 
-  return <RadarMap state={state} metadata={metadata} asset={asset} />
+  return <RadarMap key={metadata.id} state={state} metadata={metadata} asset={asset} />
 }
 
 function RadarMap({
@@ -76,6 +78,9 @@ function radarTranslate(x: number, y: number): string {
 }
 
 function RadarGrenade({ grenade }: { grenade: RadarGrenadeView }) {
+  if (!grenade.onLevel) {
+    return null
+  }
   if (grenade.flamePoints && grenade.flamePoints.length > 0) {
     return <FireRadarEffect grenade={grenade} />
   }
@@ -113,6 +118,7 @@ function PlayerMarker({ player }: { player: RadarPlayerView }) {
         top: 0,
         transform: `${radarTranslate(player.x, player.y)} translate(-50%, -50%)`,
         zIndex: player.observed ? RADAR_LAYER.observed : RADAR_LAYER.player,
+        opacity: player.onLevel ? 1 : 0.35,
       }}
     >
       <svg
@@ -165,6 +171,7 @@ function BombMarker({ bomb }: { bomb: RadarBombView }) {
         top: 0,
         zIndex: RADAR_LAYER.bomb,
         transform: `${radarTranslate(bomb.x, bomb.y)} ${placement}`,
+        opacity: bomb.onLevel ? undefined : 0.35,
       }}
     >
       <div className="relative flex size-8 items-center justify-center">

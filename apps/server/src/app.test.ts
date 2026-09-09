@@ -4,7 +4,7 @@ import { join } from "node:path"
 import { afterEach, describe, expect, test } from "bun:test"
 import { createGameStateEngine, parseServerMessage } from "@workspace/game-state"
 import type { GameState } from "@workspace/game-state"
-import { createGsiStateManager } from "@workspace/gsi"
+import { createGsiStateManager, loadGsiFixture } from "@workspace/gsi"
 import { defaultBroadcastConfig, emptyPlayerPresentationConfig } from "@workspace/presentation"
 import { defaultTheme } from "@workspace/theme"
 import { websocket } from "hono/bun"
@@ -466,6 +466,49 @@ describe("realtime theme", () => {
     ])
   })
 
+  test("round over broadcasts a transient interstitial to live and reconnecting clients", async () => {
+    const { app } = testApp(await tempDir())
+    const freeze = await loadGsiFixture("freeze")
+    const over = await loadGsiFixture("round-ct-win")
+    const postedFreeze = await app.request("/api/gsi", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(freeze),
+    })
+    expect(postedFreeze.status).toBe(204)
+
+    const server = Bun.serve({
+      port: 0,
+      fetch: (req, server) => app.fetch(req, server),
+      websocket,
+    })
+    servers.push(server)
+
+    const received: unknown[] = []
+    const ws = new WebSocket(`ws://127.0.0.1:${server.port}/ws`)
+    const opened = new Promise<void>((resolve, reject) => {
+      ws.onopen = () => resolve()
+      ws.onerror = () => reject(new Error("websocket error"))
+    })
+    ws.onmessage = (event) => {
+      received.push(parseServerMessage(typeof event.data === "string" ? event.data : null))
+    }
+    await opened
+    await waitFor(() => received.length >= 5)
+
+    const postedOver = await app.request("/api/gsi", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(over),
+    })
+    expect(postedOver.status).toBe(204)
+    await waitFor(() => received.some(isActiveInterstitial))
+    ws.close()
+
+    const reconnect = await collectWsMessages(`ws://127.0.0.1:${server.port}/ws`, 6)
+    expect(reconnect.some(isActiveInterstitial)).toBe(true)
+  })
+
   test("partial GSI posts merge instead of replacing roster", async () => {
     const { app } = testApp(await tempDir())
     const payload = await Bun.file(liveFixturePath).json()
@@ -897,6 +940,19 @@ function isBroadcastConfig(
     message !== null &&
     "type" in message &&
     message.type === "broadcast-config"
+  )
+}
+
+function isActiveInterstitial(
+  message: unknown
+): message is { type: "interstitial"; data: { card: { type: string } } } {
+  return (
+    typeof message === "object" &&
+    message !== null &&
+    "type" in message &&
+    message.type === "interstitial" &&
+    "data" in message &&
+    message.data !== null
   )
 }
 

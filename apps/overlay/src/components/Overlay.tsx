@@ -2,7 +2,9 @@ import { type CSSProperties } from "react"
 import { themeToCssVars } from "@workspace/theme"
 
 import { applyBroadcastConfig, overlayShow, parseOverlayBranding } from "../broadcast/presentation"
+import { useActiveInterstitial } from "../broadcast/interstitial"
 import { useRealtimeStore } from "../realtime/store"
+import { BroadcastInterstitial } from "./BroadcastInterstitial"
 import { ConnectionIndicator } from "./ConnectionIndicator"
 import { Radar } from "./Radar"
 import { RoundHistory } from "./RoundHistory"
@@ -14,9 +16,10 @@ export function Overlay() {
   const state = useRealtimeStore((store) => store.state)
   const theme = useRealtimeStore((store) => store.theme)
   const overlay = useRealtimeStore((store) => store.broadcastConfig)
+  const interstitial = useActiveInterstitial()
   const search = typeof window === "undefined" ? "" : window.location.search
   const branding = applyBroadcastConfig(parseOverlayBranding(search), overlay)
-  const show = state ? overlayShow(state, branding, overlay) : null
+  const show = state ? overlayShow(state, branding, overlay, interstitial) : null
   const preview = new URLSearchParams(search).has("preview")
 
   return (
@@ -43,6 +46,7 @@ export function Overlay() {
               </div>
             </div>
           ) : null}
+          {show.chrome.interstitial ? <BroadcastInterstitial state={state} show={show} /> : null}
           {show.chrome.teams ? (
             <div className="absolute inset-x-0 bottom-0">
               <TeamView state={state} show={show} />

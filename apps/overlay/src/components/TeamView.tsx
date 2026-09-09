@@ -13,7 +13,6 @@ import { EquipmentIcon, LoadoutIcons, WeaponIcon } from "../icons"
 import { cardLifeClass, cardPortraitLayout } from "../portraits/card-layout"
 import { useOverlayPortraits, usePlayerDisplayName } from "../portraits/use-portrait"
 import { FocusedPlayer } from "./FocusedPlayer"
-import { InterstitialCard } from "./InterstitialCard"
 import { PlayerPortrait } from "./PlayerPortrait"
 
 export function TeamView({ state, show }: { state: GameState; show: OverlayShow }) {
@@ -30,12 +29,7 @@ export function TeamView({ state, show }: { state: GameState; show: OverlayShow 
         align="left"
       />
       <div className="flex w-[468px] shrink-0 flex-col items-center">
-        {show.chrome.interstitial && show.interstitial ? (
-          <InterstitialCard
-            key={show.interstitial.playerSteamId ?? show.interstitial.kind}
-            card={show.interstitial}
-          />
-        ) : show.chrome.focused && focused ? (
+        {show.chrome.focused && focused ? (
           <FocusedPlayer
             key={focused.steamId}
             player={focused}

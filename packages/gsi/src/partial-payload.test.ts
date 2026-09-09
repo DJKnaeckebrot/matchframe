@@ -504,4 +504,123 @@ describe("sequential GSI ingest", () => {
     expect(playerById(state, T)?.side).toBe("CT")
     expect(playerById(state, T)?.equipment.hasDefuseKit).toBe(false)
   })
+
+  test("new map without round_wins or grenades drops the previous game's leftovers", () => {
+    const gsi = createGsiStateManager()
+    const engine = createGameStateEngine()
+    ingest(gsi, engine, {
+      ...initialPayload,
+      map: {
+        ...initialPayload.map,
+        round_wins: {
+          "1": "ct_win_elimination",
+          "2": "t_win_bomb",
+        },
+      },
+    })
+
+    const { state } = ingest(gsi, engine, {
+      map: {
+        name: "de_ancient",
+        phase: "live",
+        round: 0,
+        team_ct: { name: "Northwind", score: 0 },
+        team_t: { name: "Redline", score: 0 },
+      },
+      round: { phase: "freezetime" },
+    })
+
+    const raw = gsi.getState() as {
+      map?: { name?: string; round_wins?: Record<string, string> }
+      grenades?: Record<string, unknown>
+    }
+    expect(raw.map?.name).toBe("de_ancient")
+    expect(raw.map?.round_wins).toBeUndefined()
+    expect(raw.grenades).toEqual({})
+    expect(state.map).toEqual({
+      name: "de_ancient",
+      phase: "live",
+      round: 0,
+      roundHistory: [],
+    })
+    expect(state.worldGrenades).toEqual([])
+  })
+
+  test("new map keeps only the round_wins sent with that payload", () => {
+    const gsi = createGsiStateManager()
+    const engine = createGameStateEngine()
+    ingest(gsi, engine, {
+      ...initialPayload,
+      map: {
+        ...initialPayload.map,
+        round_wins: { "1": "ct_win_elimination", "14": "t_win_bomb" },
+      },
+    })
+
+    const { state } = ingest(gsi, engine, {
+      map: {
+        name: "de_ancient",
+        phase: "live",
+        round: 0,
+        round_wins: { "1": "t_win_elimination" },
+        team_ct: { name: "Northwind", score: 0 },
+        team_t: { name: "Redline", score: 0 },
+      },
+    })
+
+    expect(state.map.roundHistory).toEqual([{ round: 1, winner: "T", reason: "elimination" }])
+  })
+
+  test("gameover to warmup on the same map clears round history", () => {
+    const gsi = createGsiStateManager()
+    const engine = createGameStateEngine()
+    ingest(gsi, engine, {
+      ...initialPayload,
+      map: {
+        ...initialPayload.map,
+        phase: "gameover",
+        round_wins: { "1": "ct_win_elimination", "2": "t_win_bomb" },
+      },
+    })
+
+    const { state } = ingest(gsi, engine, {
+      map: {
+        name: "de_inferno",
+        phase: "warmup",
+        round: 0,
+        team_ct: { name: "Northwind", score: 0 },
+        team_t: { name: "Redline", score: 0 },
+      },
+      round: { phase: "freezetime" },
+    })
+
+    expect(state.map.roundHistory).toEqual([])
+    expect(state.map.phase).toBe("warmup")
+  })
+
+  test("halftime does not wipe round history", () => {
+    const gsi = createGsiStateManager()
+    const engine = createGameStateEngine()
+    ingest(gsi, engine, {
+      ...initialPayload,
+      map: {
+        ...initialPayload.map,
+        round: 11,
+        round_wins: { "1": "ct_win_elimination", "12": "t_win_bomb" },
+      },
+    })
+
+    const { state } = ingest(gsi, engine, {
+      map: {
+        name: "de_inferno",
+        phase: "intermission",
+        round: 12,
+      },
+    })
+
+    expect(state.map.roundHistory).toEqual([
+      { round: 1, winner: "CT", reason: "elimination" },
+      { round: 12, winner: "T", reason: "bomb_exploded" },
+    ])
+  })
 })

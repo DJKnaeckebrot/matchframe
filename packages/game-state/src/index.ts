@@ -48,3 +48,44 @@ export {
   serializeServerMessage,
 } from "./messages"
 export type { ConnectionState, ServerMessage } from "./messages"
+
+export {
+  createRoundPerformanceTracker,
+  applyRoundPerformance,
+  emptyRoundPerformance,
+  assessAce,
+  clutchIfWon,
+  selectMvp,
+  enemyKillsByPlayer,
+} from "./round-performance"
+export type {
+  AceAssessment,
+  AttributedKill,
+  ClutchCandidate,
+  MvpCandidate,
+  RoundPerformanceState,
+  RoundPerformanceTracker,
+  TeamRoster,
+} from "./round-performance"
+
+export {
+  INTERSTITIAL_DURATION_MS,
+  INTERSTITIAL_PRIORITY,
+  INTERSTITIAL_TYPES,
+  composeBroadcastInterstitial,
+  createInterstitialDirector,
+  parseBroadcastInterstitial,
+  parseInterstitialPayload,
+  pickInterstitial,
+} from "./interstitials"
+export type {
+  AceInterstitial,
+  BroadcastInterstitial,
+  ClutchInterstitial,
+  InterstitialAction,
+  InterstitialDirector,
+  InterstitialPayload,
+  InterstitialType,
+  MvpInterstitial,
+  RoundWinnerInterstitial,
+} from "./interstitials"

@@ -1,8 +1,11 @@
 import type { GameState, Side, Vector3, WorldGrenadeType } from "@workspace/game-state"
 import {
+  defaultMapLevel,
   getFacingAngle,
+  getMapLevelForZ,
   worldRadiusToRadar,
   worldToRadar,
+  type MapLevel,
   type MapMetadata,
   type RadarPoint,
 } from "@workspace/maps"
@@ -18,12 +21,15 @@ export type RadarPlayerView = {
   observed: boolean
   /** Team roster number, 1–5. Same index as the player card. */
   slot?: number
+  /** False when this marker is on another stacked floor. */
+  onLevel: boolean
 }
 
 export type RadarBombView = {
   x: number
   y: number
   kind: "carried" | "dropped" | "planted"
+  onLevel: boolean
 }
 
 export type GrenadePresentationState = "projectile" | "active"
@@ -44,6 +50,7 @@ export type RadarGrenadeView = {
   radius?: number
   /** Inferno flame anchors already in radar image space. */
   flamePoints?: readonly RadarPoint[]
+  onLevel: boolean
 }
 
 export const RADAR_LAYER = {
@@ -74,6 +81,28 @@ export const RADAR_SMOKE_PRESENTATION_RADIUS = 144
 export const RADAR_FLAME_PRESENTATION_RADIUS = 90
 
 /**
+ * Radar floor for stacked maps. Follows the observed player, then the bomb,
+ * then the Valve default (upper) section.
+ */
+export function getRadarFloor(
+  state: GameState,
+  metadata: MapMetadata
+): MapLevel | undefined {
+  const fallback = defaultMapLevel(metadata)
+  if (!fallback) {
+    return undefined
+  }
+  const observed = state.observer.playerSteamId
+    ? state.players.find((player) => player.steamId === state.observer.playerSteamId)
+    : undefined
+  const z = observed?.position?.z ?? state.bomb?.position?.z
+  if (z === undefined) {
+    return fallback
+  }
+  return getMapLevelForZ(metadata, z) ?? fallback
+}
+
+/**
  * Alive players with a world position, already in radar image space.
  * Facing math stays here — not in JSX.
  */
@@ -82,6 +111,7 @@ export function getRadarPlayers(
   metadata: MapMetadata
 ): RadarPlayerView[] {
   const observed = state.observer.playerSteamId
+  const floor = getRadarFloor(state, metadata)
   const players: RadarPlayerView[] = []
   for (const player of state.players) {
     if (!player.alive || !player.position) {
@@ -97,6 +127,7 @@ export function getRadarPlayers(
       y: point.y,
       side: player.side,
       observed: player.steamId === observed,
+      onLevel: entityOnLevel(player.position.z, floor, metadata),
     }
     if (player.forward) {
       const angle = getFacingAngle(player.forward)
@@ -140,7 +171,12 @@ export function getRadarBomb(
   if (!point) {
     return null
   }
-  return { x: point.x, y: point.y, kind }
+  return {
+    x: point.x,
+    y: point.y,
+    kind,
+    onLevel: entityOnLevel(position.z, getRadarFloor(state, metadata), metadata),
+  }
 }
 
 /**
@@ -169,6 +205,7 @@ export function getRadarGrenades(
       x: point.x,
       y: point.y,
       state: smokeActive || fireActive ? "active" : "projectile",
+      onLevel: entityOnLevel(grenade.position.z, getRadarFloor(state, metadata), metadata),
     }
     if (grenade.ownerSteamId) {
       view.ownerSteamId = grenade.ownerSteamId
@@ -209,6 +246,20 @@ function radarFlamePoints(
     }
   }
   return points
+}
+
+function entityOnLevel(
+  z: number | undefined,
+  floor: MapLevel | undefined,
+  metadata: MapMetadata
+): boolean {
+  if (!floor) {
+    return true
+  }
+  if (z === undefined) {
+    return true
+  }
+  return (getMapLevelForZ(metadata, z) ?? defaultMapLevel(metadata))?.id === floor.id
 }
 
 function bombKind(state: string): RadarBombView["kind"] | null {

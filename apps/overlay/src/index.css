@@ -78,6 +78,36 @@ body,
   animation: mf-chrome-in 320ms var(--mf-ease) both;
 }
 
+@keyframes mf-interstitial-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+}
+
+.mf-interstitial {
+  animation: mf-interstitial-in 280ms var(--mf-ease) both;
+}
+
+.mf-interstitial-portrait {
+  animation: mf-interstitial-portrait 360ms var(--mf-ease) both;
+}
+
+@keyframes mf-interstitial-portrait {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 @keyframes mf-planted-pulse {
   0%,
   100% {
@@ -167,7 +197,9 @@ body,
 
   .mf-planted-pulse,
   .mf-radar-bomb-halo,
-  .mf-chrome-in {
+  .mf-chrome-in,
+  .mf-interstitial,
+  .mf-interstitial-portrait {
     animation: none;
   }
 

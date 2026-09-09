@@ -1,8 +1,7 @@
 import type {
+  BroadcastInterstitial,
   GameState,
-  PlayerState,
   RoundWinReason,
-  Side,
 } from "@workspace/game-state"
 import { getRoundDisplayState } from "@workspace/game-state"
 import { broadcastSponsors, resolveBroadcastTeam, resolveSponsorContent } from "@workspace/presentation"
@@ -22,12 +21,12 @@ import { getBroadcastAsset } from "../assets/broadcast"
  * | freeze       | on     | on    | on   | on      | off    | on      | off          |
  * | planted      | on     | on    | on   | on      | off    | off     | off          |
  * | defusing     | on     | on    | on   | on      | off    | off     | off          |
- * | round_over   | on     | on    | on   | if no interstitial | on | on | optional MVP |
- * | paused       | on     | on    | on   | on      | off    | on      | off (future pause card) |
- * | timeout      | on     | on    | on   | on      | off    | on      | off (future timeout card) |
+ * | round_over   | on     | on    | on   | on      | unless interstitial | on | from server |
+ * | paused       | on     | on    | on   | on      | off    | on      | off          |
+ * | timeout      | on     | on    | on   | on      | off    | on      | off          |
  *
- * Result lives in the header center well — no second banner.
- * Interstitial replaces the focused-player slot so they never overlap.
+ * Result lives in the header center well — suppressed while a full interstitial is up.
+ * Interstitial is a center overlay; focused player stays in the bottom slot.
  */
 export type OverlayPhase =
   | "live"
@@ -70,22 +69,6 @@ export type OverlayBranding = {
   teamImages?: Readonly<Record<string, string>>
 }
 
-export type InterstitialKind = "mvp" | "ace" | "clutch" | "watch" | "timeout" | "pause"
-
-export type InterstitialModel = {
-  kind: InterstitialKind
-  headline: string
-  kicker?: string
-  playerSteamId?: string
-  playerName?: string
-  teamId?: string
-  teamName?: string
-  side?: Side
-  detail?: string
-  statLabel?: string
-  statValue?: string
-}
-
 export type SeriesLength = 1 | 3 | 5 | 7
 
 export type SeriesFormat = {
@@ -109,7 +92,7 @@ export type OverlayShow = {
   slots: readonly BrandingSlot[]
   sponsors: readonly OverlaySponsorView[]
   series?: SeriesFormat
-  interstitial: InterstitialModel | null
+  interstitial: BroadcastInterstitial | null
   chrome: OverlayChrome
 }
 
@@ -133,35 +116,58 @@ export function getOverlayPhase(state: GameState): OverlayPhase {
   return "live"
 }
 
+/** Scoreboard-independent round-winner slate. Used when no ACE/CLUTCH/MVP is queued. */
+export function roundWinnerFromState(state: GameState): BroadcastInterstitial | null {
+  if (state.round.phase !== "over" || !state.round.winTeam) {
+    return null
+  }
+  const team = state.teams.find((entry) => entry.side === state.round.winTeam)
+  if (!team) {
+    return null
+  }
+  return {
+    type: "round-winner",
+    id: `round-winner:${state.map.round}:${team.id}`,
+    createdAt: state.timestamp,
+    teamId: team.id,
+    ...(state.round.winReason ? { winReason: state.round.winReason } : {}),
+  }
+}
+
 export function overlayShow(
   state: GameState,
   branding: OverlayBranding,
-  broadcast: BroadcastConfig
+  broadcast: BroadcastConfig,
+  interstitial: BroadcastInterstitial | null = null
 ): OverlayShow {
   const phase = getOverlayPhase(state)
-  const interstitial = pickInterstitial(state, phase, broadcast)
   const series = parseSeriesFormat(branding.seriesLabel ?? broadcast.format)
   const sponsors = overlaySponsors(branding, broadcast)
+  const active =
+    phase === "round_over" ? interstitial ?? roundWinnerFromState(state) : null
   return {
     phase,
     branding,
     broadcast,
     slots: brandingSlots(branding),
-    sponsors,
+    sponsors:
+      active === null
+        ? sponsors
+        : sponsors.filter((sponsor) => sponsor.position !== "center"),
     ...(series && series.length > 1 ? { series } : {}),
-    interstitial,
+    interstitial: active,
     chrome: {
       radar: true,
       header: true,
       teams: true,
-      focused: interstitial === null,
-      result: phase === "round_over",
+      focused: true,
+      result: phase === "round_over" && active === null,
       history:
         phase === "freeze" ||
         phase === "round_over" ||
         phase === "paused" ||
         phase === "timeout",
-      interstitial: interstitial !== null,
+      interstitial: active !== null,
     },
   }
 }
@@ -316,17 +322,6 @@ export function brandingSlots(branding: OverlayBranding): BrandingSlot[] {
   return slots
 }
 
-export function pickInterstitial(
-  state: GameState,
-  phase: OverlayPhase,
-  config: BroadcastConfig
-): InterstitialModel | null {
-  if (phase !== "round_over") {
-    return null
-  }
-  return mvpFromMatchKills(state, config)
-}
-
 export function portraitInitials(name: string, number?: number): string {
   const trimmed = name.trim()
   if (!trimmed) {
@@ -366,46 +361,20 @@ export function formatWinReason(reason: RoundWinReason | undefined): string | un
   return undefined
 }
 
-/**
- * ponytail: match K/D, not round kills. Round-stat tracking is the upgrade
- * when GSI/engine exposes per-round player stats.
- */
-function mvpFromMatchKills(state: GameState, config: BroadcastConfig): InterstitialModel | null {
-  const display = getRoundDisplayState(state)
-  const teamId = display.winnerTeamId
-  if (!teamId || !display.winTeam) {
-    return null
+export function formatWinReasonFull(reason: RoundWinReason | undefined): string | undefined {
+  if (reason === "elimination") {
+    return "ELIMINATION"
   }
-  const roster = state.players.filter((player) => player.teamId === teamId)
-  const player = roster.reduce<PlayerState | undefined>((best, next) => {
-    if (!best) {
-      return next
-    }
-    if (next.kills !== best.kills) {
-      return next.kills > best.kills ? next : best
-    }
-    if (next.assists !== best.assists) {
-      return next.assists > best.assists ? next : best
-    }
-    return next.deaths < best.deaths ? next : best
-  }, undefined)
-  if (!player) {
-    return null
+  if (reason === "bomb_exploded") {
+    return "BOMB EXPLODED"
   }
-  const teamName = teamBroadcastName(state.teams, teamId, config)
-  return {
-    kind: "mvp",
-    headline: "MVP",
-    kicker: `Round ${display.round}`,
-    playerSteamId: player.steamId,
-    playerName: player.name || player.steamId,
-    teamId,
-    ...(teamName ? { teamName } : {}),
-    side: player.side,
-    detail: formatWinReason(display.winReason),
-    statLabel: "K",
-    statValue: String(player.kills),
+  if (reason === "bomb_defused") {
+    return "BOMB DEFUSED"
   }
+  if (reason === "time_expired") {
+    return "TIME EXPIRED"
+  }
+  return undefined
 }
 
 function pushSlot(

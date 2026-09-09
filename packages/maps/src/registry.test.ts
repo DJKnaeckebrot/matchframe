@@ -1,5 +1,11 @@
 import { describe, expect, test } from "bun:test"
 
+import { getMapLevelForZ } from "./levels"
+import { DE_INFERNO } from "./maps/de_inferno"
+import { DE_MIRAGE } from "./maps/de_mirage"
+import { DE_NUKE } from "./maps/de_nuke"
+import { DE_OVERPASS } from "./maps/de_overpass"
+import { DE_VERTIGO } from "./maps/de_vertigo"
 import { getMapMetadata, mapIdFromName } from "./registry"
 
 describe("getMapMetadata", () => {
@@ -31,6 +37,14 @@ describe("getMapMetadata", () => {
     expect(meta?.levels).toBeUndefined()
   })
 
+  test("resolves the rest of the active duty pool", () => {
+    expect(getMapMetadata("de_inferno")).toEqual(DE_INFERNO)
+    expect(getMapMetadata("de_mirage")).toEqual(DE_MIRAGE)
+    expect(getMapMetadata("de_overpass")).toEqual(DE_OVERPASS)
+    expect(getMapMetadata("de_nuke")).toEqual(DE_NUKE)
+    expect(getMapMetadata("de_vertigo")).toEqual(DE_VERTIGO)
+  })
+
   test("unknown maps return undefined", () => {
     expect(getMapMetadata("de_dust2")).toBeUndefined()
     expect(getMapMetadata("")).toBeUndefined()
@@ -38,6 +52,26 @@ describe("getMapMetadata", () => {
 
   test("workshop-style names still match the map id", () => {
     expect(mapIdFromName("workshop/123456/de_anubis")).toBe("de_anubis")
-    expect(getMapMetadata("workshop/123456/de_anubis")?.id).toBe("de_anubis")
+    expect(getMapMetadata("workshop/123456/de_nuke")?.id).toBe("de_nuke")
+  })
+})
+
+describe("getMapLevelForZ", () => {
+  test("single-level maps have no floor split", () => {
+    expect(getMapLevelForZ(DE_INFERNO, 0)).toBeUndefined()
+  })
+
+  test("Nuke upper is above -495, lower is at or below", () => {
+    expect(getMapLevelForZ(DE_NUKE, -494)?.id).toBe("default")
+    expect(getMapLevelForZ(DE_NUKE, 120)?.id).toBe("default")
+    expect(getMapLevelForZ(DE_NUKE, -495)?.id).toBe("lower")
+    expect(getMapLevelForZ(DE_NUKE, -800)?.id).toBe("lower")
+  })
+
+  test("Vertigo upper is above 11700, lower is at or below", () => {
+    expect(getMapLevelForZ(DE_VERTIGO, 11701)?.id).toBe("default")
+    expect(getMapLevelForZ(DE_VERTIGO, 15000)?.id).toBe("default")
+    expect(getMapLevelForZ(DE_VERTIGO, 11700)?.id).toBe("lower")
+    expect(getMapLevelForZ(DE_VERTIGO, 11000)?.id).toBe("lower")
   })
 })

@@ -16,9 +16,9 @@ CS2 world (Source):
 Valve overview (`resource/overviews/<map>.txt`):
 
 - **`pos_x` / `pos_y`**: world XY of the radar image's **top-left** pixel
-- **`scale`**: world units per pixel at the authored image size (1024×1024 for Anubis / Ancient)
-- **`rotate`**: unused on Anubis (treated as 0). A non-zero value throws until a
-  rotated map is implemented — the transform owns this, not CSS
+- **`scale`**: world units per pixel at the authored image size (1024×1024)
+- **`rotate`**: unused on the active-duty pool (0 / omitted). A non-zero value
+  throws until a rotated map is implemented — the transform owns this, not CSS
 - Radar image **+X** right, **+Y** down
 
 Transform (`worldToRadar`):
@@ -38,13 +38,17 @@ image or labels.
 ## Radar assets
 
 This package does **not** load images. Overlay code calls `getRadarAsset(mapId)`
-against a replaceable local mapping. Development Anubis artwork is extracted
-CS2 radar (Valve). See `apps/overlay/src/assets/radar/README.md`.
+against a replaceable local mapping. Development artwork is extracted CS2 radar
+(Valve). See `apps/overlay/src/assets/radar/README.md`.
+
+Active duty: Ancient, Anubis, Inferno, Mirage, Nuke, Overpass, Vertigo.
 
 ## Levels
 
-`MapMetadata.levels` is reserved for stacked floors (Nuke, Vertigo). v1 uses
-the primary `radar` layer only.
+`MapMetadata.levels` comes from Valve `verticalsections`. Nuke and Vertigo have
+an upper (`default`) and `lower` floor. `getMapLevelForZ` uses
+`altitudeMin < z <= altitudeMax`. XY transform is the same on both floors;
+the overlay swaps the radar image.
 
 ## Grenades
 

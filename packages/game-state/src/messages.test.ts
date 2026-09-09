@@ -49,14 +49,20 @@ describe("server messages", () => {
         },
       },
       {
-        type: "presentation" as const,
+        type: "interstitial" as const,
         data: {
-          "76561198000000001": {
-            displayName: "Nova",
-            portrait: { type: "operator" as const, value: "ctm_sas_variantf" },
+          card: {
+            type: "ace" as const,
+            id: "ace:3:A",
+            createdAt: 1000,
+            teamId: "team-1",
+            playerSteamId: "A",
+            roundKills: 5,
           },
+          expiresAt: 4500,
         },
       },
+      { type: "interstitial" as const, data: null },
     ]
 
     for (const message of messages) {
@@ -74,7 +80,11 @@ describe("server messages", () => {
     expect(parseServerMessage({ type: "event", data: { type: "player_died" } })).toBeNull()
     expect(parseServerMessage({ type: "theme", data: { accent: "nope" } })).toBeNull()
     expect(parseServerMessage({ type: "presentation", data: { a: { portrait: { type: "operator", value: "nope" } } } })).toBeNull()
-    expect(parseServerMessage({ type: "broadcast-config", data: { format: "BO2" } })).toBeNull()
+    expect(parseServerMessage({ type: "interstitial", data: { card: { type: "ace" } } })).toBeNull()
+    expect(parseServerMessage({ type: "interstitial", data: null })).toEqual({
+      type: "interstitial",
+      data: null,
+    })
     expect(parseServerMessage({ type: "overlay", data: { series: "BO3" } })).toEqual({
       type: "broadcast-config",
       data: {

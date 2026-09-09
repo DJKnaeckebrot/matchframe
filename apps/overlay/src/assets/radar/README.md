@@ -15,13 +15,22 @@ by Matchframe's software license.
 
 ## Pack notes
 
-`getRadarAsset(mapId)` is the only overlay API for radar images. Swap this
+`getRadarAsset(mapId, levelId?)` is the only overlay API for radar images. Swap this
 folder (or the mapping in `pack.ts`) without touching `packages/maps` or
-GameState.
+GameState. Nuke/Vertigo pass `lower` for the basement/lower stack.
 
-v1 maps `de_anubis` → `de_anubis_radar_psd.png` and `de_ancient` →
-`de_ancient_radar_psd.png` (local CS2 overview extracts).
-Other PNGs in this folder are unused until `packages/maps` has metadata for
-that map. Extra files do not make the radar appear.
+v1 maps the active-duty pool:
+
+- `de_ancient` → `de_ancient_radar_psd.png`
+- `de_anubis` → `de_anubis_radar_psd.png`
+- `de_inferno` → `de_inferno_radar_psd.png`
+- `de_mirage` → `de_mirage_radar_psd.png`
+- `de_nuke` → `de_nuke_radar_psd.png` / `de_nuke_lower_radar_psd.png`
+- `de_overpass` → `de_overpass_radar_psd.png`
+- `de_vertigo` → `de_vertigo_radar_psd.png` / `de_vertigo_lower_radar_psd.png`
+
+(local CS2 overview extracts). Other PNGs in this folder are unused until
+`packages/maps` has metadata for that map. Extra files do not make the radar
+appear.
 
 Do not fetch radar artwork from GitHub or a CDN at runtime.

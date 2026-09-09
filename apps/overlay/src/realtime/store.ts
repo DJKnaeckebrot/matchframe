@@ -1,4 +1,4 @@
-import type { GameEvent, GameState, ServerMessage } from "@workspace/game-state"
+import type { GameEvent, GameState, InterstitialPayload, ServerMessage } from "@workspace/game-state"
 import {
   defaultBroadcastConfig,
   emptyPlayerPresentationConfig,
@@ -21,6 +21,7 @@ type RealtimeStore = {
   presentation: PlayerPresentationConfig
   broadcastConfig: BroadcastConfig
   recentEvents: GameEvent[]
+  interstitial: InterstitialPayload
   setWsStatus: (wsStatus: WsStatus) => void
   applyMessage: (message: ServerMessage) => void
 }
@@ -33,6 +34,7 @@ export const useRealtimeStore = create<RealtimeStore>((set) => ({
   presentation: emptyPlayerPresentationConfig,
   broadcastConfig: defaultBroadcastConfig,
   recentEvents: [],
+  interstitial: null,
   setWsStatus: (wsStatus) => set({ wsStatus }),
   applyMessage: (message) => {
     if (message.type === "connection") {
@@ -40,11 +42,16 @@ export const useRealtimeStore = create<RealtimeStore>((set) => ({
         set({ gameConnected: true })
         return
       }
-      set({ gameConnected: false, state: null })
+      set({ gameConnected: false, state: null, interstitial: null })
       return
     }
     if (message.type === "snapshot") {
-      set({ state: message.data, gameConnected: true })
+      const stale = message.data.round.phase !== "over"
+      set({
+        state: message.data,
+        gameConnected: true,
+        ...(stale ? { interstitial: null } : {}),
+      })
       return
     }
     if (message.type === "theme") {
@@ -59,8 +66,14 @@ export const useRealtimeStore = create<RealtimeStore>((set) => ({
       set({ broadcastConfig: message.data })
       return
     }
+    if (message.type === "interstitial") {
+      set({ interstitial: message.data })
+      return
+    }
+    const started = message.data.type === "round_started"
     set((current) => ({
       recentEvents: [...current.recentEvents, message.data].slice(-MAX_EVENTS),
+      ...(started ? { interstitial: null } : {}),
     }))
   },
 }))

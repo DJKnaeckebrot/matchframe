@@ -16,8 +16,9 @@ export type RadarPoint = {
 }
 
 /**
- * One stacked floor. v1 uses the map's primary `radar` image for every
- * level; later maps (Nuke, Vertigo) can add per-level assets and Z ranges.
+ * One stacked floor from Valve `verticalsections`.
+ * A world Z belongs to the level where altitudeMin < z <= altitudeMax.
+ * Overlay swaps radar artwork by level id; XY transform stays the same.
  */
 export type MapLevel = {
   id: string

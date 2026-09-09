@@ -1,18 +1,18 @@
 import { describe, expect, test } from "bun:test"
-import type { GameState, PlayerState, Side } from "@workspace/game-state"
+import type { GameState, PlayerState } from "@workspace/game-state"
 import { compactBroadcastConfig, defaultBroadcastConfig } from "@workspace/presentation"
 
 import {
   applyBroadcastConfig,
   brandingSlots,
   formatWinReason,
+  formatWinReasonFull,
   getOverlayPhase,
   overlayShow,
   overlaySponsor,
   overlaySponsors,
   parseOverlayBranding,
   parseSeriesFormat,
-  pickInterstitial,
   portraitInitials,
   seriesSlots,
 } from "./presentation"
@@ -378,7 +378,7 @@ describe("overlayShow", () => {
     })
   })
 
-  test("replaces focused player with MVP when the round ends", () => {
+  test("fills round over with a round-winner slate when nothing else is queued", () => {
     const show = overlayShow(
       state({
         round: { phase: "over", winTeam: "CT", winReason: "bomb_defused", alive: { ct: 2, t: 0 } },
@@ -386,28 +386,72 @@ describe("overlayShow", () => {
       { eventName: "Matchframe" },
       defaultBroadcastConfig
     )
-    expect(show.chrome.focused).toBe(false)
-    expect(show.chrome.result).toBe(true)
+    expect(show.chrome.focused).toBe(true)
+    expect(show.chrome.result).toBe(false)
     expect(show.chrome.history).toBe(true)
     expect(show.chrome.interstitial).toBe(true)
-    expect(show.interstitial?.kind).toBe("mvp")
-    expect(show.interstitial?.playerSteamId).toBe("b")
-    expect(show.interstitial?.statValue).toBe("18")
+    expect(show.interstitial).toMatchObject({
+      type: "round-winner",
+      teamId: "northwind",
+      winReason: "bomb_defused",
+    })
   })
 
-  test("MVP card uses overlay team names", () => {
+  test("suppresses the result well and center sponsor while an interstitial is up", () => {
+    const config = compactBroadcastConfig({
+      format: "BO1",
+      teams: { left: {}, right: {} },
+      series: { leftMapsWon: 0, rightMapsWon: 0 },
+      sponsor: { enabled: true, name: "Local LAN", position: "center", displayMode: "text" },
+    })
+    const branding = applyBroadcastConfig({}, config)
+    const card = {
+      type: "ace" as const,
+      id: "ace:11:b",
+      createdAt: 1,
+      teamId: "northwind",
+      playerSteamId: "b",
+      roundKills: 5,
+    }
     const show = overlayShow(
       state({
         round: { phase: "over", winTeam: "CT", winReason: "bomb_defused", alive: { ct: 2, t: 0 } },
       }),
-      { eventName: "Matchframe" },
-      compactBroadcastConfig({
-        format: "BO1",
-        teams: { left: { name: "FaZe" }, right: {} },
-        series: { leftMapsWon: 0, rightMapsWon: 0 },
-      })
+      branding,
+      config,
+      card
     )
-    expect(show.interstitial?.teamName).toBe("FaZe")
+    expect(show.chrome.focused).toBe(true)
+    expect(show.chrome.result).toBe(false)
+    expect(show.chrome.interstitial).toBe(true)
+    expect(show.interstitial?.type).toBe("ace")
+    expect(show.sponsors).toEqual([])
+  })
+
+  test("keeps a top-right sponsor during an interstitial", () => {
+    const config = compactBroadcastConfig({
+      format: "BO1",
+      teams: { left: {}, right: {} },
+      series: { leftMapsWon: 0, rightMapsWon: 0 },
+      sponsors: [
+        { enabled: true, name: "Local LAN", position: "top-right", displayMode: "text" },
+        { enabled: true, name: "SquadVault", position: "center", displayMode: "text" },
+      ],
+    })
+    const branding = applyBroadcastConfig({}, config)
+    const show = overlayShow(
+      state({ round: { phase: "over", winTeam: "CT", alive: { ct: 1, t: 0 } } }),
+      branding,
+      config,
+      {
+        type: "round-winner",
+        id: "round-winner:11:northwind",
+        createdAt: 1,
+        teamId: "northwind",
+        winReason: "elimination",
+      }
+    )
+    expect(show.sponsors.map((sponsor) => sponsor.position)).toEqual(["top-right"])
   })
 
   test("shows round history before the round is live", () => {
@@ -424,23 +468,6 @@ describe("overlayShow", () => {
       defaultBroadcastConfig
     )
     expect(planted.chrome.history).toBe(false)
-  })
-})
-
-describe("pickInterstitial", () => {
-  test("does not invent MVP during live play", () => {
-    expect(pickInterstitial(state(), "live", defaultBroadcastConfig)).toBeNull()
-  })
-
-  test("picks the winning side, not the global kill leader", () => {
-    const card = pickInterstitial(
-      state({ round: { phase: "over", winTeam: "CT", alive: { ct: 1, t: 0 } } }),
-      "round_over",
-      defaultBroadcastConfig
-    )
-    expect(card?.playerName).toBe("Ash")
-    expect(card?.headline).toBe("MVP")
-    expect(card?.side).toBe("CT")
   })
 })
 
@@ -467,24 +494,29 @@ describe("formatWinReason", () => {
   }
 })
 
-describe("side", () => {
-  test("keeps logical team identity on the MVP card after a switch", () => {
-    const card = pickInterstitial(
-      state({
-        round: { phase: "over", winTeam: "T", alive: { ct: 0, t: 2 } },
-        teams: [
-          { id: "northwind", name: "Northwind", side: "T" as Side, score: 9, seriesWins: 0 },
-          { id: "redline", name: "Redline", side: "CT", score: 6, seriesWins: 0 },
-        ],
-        players: [
-          player({ steamId: "a", teamId: "northwind", side: "T", name: "Nova", kills: 9 }),
-          player({ steamId: "c", teamId: "redline", side: "CT", name: "Viper", kills: 30 }),
-        ],
-      }),
-      "round_over",
-      defaultBroadcastConfig
-    )
-    expect(card?.teamId).toBe("northwind")
-    expect(card?.playerName).toBe("Nova")
+describe("formatWinReasonFull", () => {
+  test("uses broadcast copy, not Valve strings", () => {
+    expect(formatWinReasonFull("bomb_defused")).toBe("BOMB DEFUSED")
+    expect(formatWinReasonFull("bomb_exploded")).toBe("BOMB EXPLODED")
+    expect(formatWinReasonFull("time_expired")).toBe("TIME EXPIRED")
   })
 })
+
+describe("interstitial phase", () => {
+  test("does not keep a stale card once the round is live", () => {
+    const show = overlayShow(
+      state(),
+      {},
+      defaultBroadcastConfig,
+      {
+        type: "round-winner",
+        id: "stale",
+        createdAt: 1,
+        teamId: "northwind",
+      }
+    )
+    expect(show.chrome.interstitial).toBe(false)
+    expect(show.interstitial).toBeNull()
+  })
+})
+

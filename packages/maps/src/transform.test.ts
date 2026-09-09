@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test"
 
+import { DE_MIRAGE, DE_MIRAGE_OVERVIEW_SPAWNS } from "./maps/de_mirage"
 import { DE_ANUBIS, DE_ANUBIS_OVERVIEW_SPAWNS } from "./maps/de_anubis"
 import { radarToWorld, worldRadiusToRadar, worldToRadar } from "./transform"
 import type { MapMetadata } from "./types"
@@ -48,6 +49,13 @@ describe("worldToRadar", () => {
       expect(radar?.x).toBeCloseTo(spawn.x, 10)
       expect(radar?.y).toBeCloseTo(spawn.y, 10)
     }
+  })
+
+  test("Mirage uses the same transform with its own Valve scale", () => {
+    const world = radarToWorld(DE_MIRAGE_OVERVIEW_SPAWNS.ct, DE_MIRAGE)
+    const radar = worldToRadar(world, DE_MIRAGE)
+    expect(radar?.x).toBeCloseTo(DE_MIRAGE_OVERVIEW_SPAWNS.ct.x, 10)
+    expect(radar?.y).toBeCloseTo(DE_MIRAGE_OVERVIEW_SPAWNS.ct.y, 10)
   })
 
   test("does not clamp points that sit off the image", () => {

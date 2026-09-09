@@ -1,4 +1,5 @@
 import type { GameState, GameStateEngine } from "@workspace/game-state"
+import { createInterstitialDirector } from "@workspace/game-state"
 import {
   normalizeGsiPayload,
   parseGsiPayload,
@@ -49,7 +50,37 @@ export type ServerAppDeps = {
 
 export function createApp(deps: ServerAppDeps): Hono {
   const app = new Hono()
+  const interstitials = createInterstitialDirector()
+  let interstitialTimer: ReturnType<typeof setTimeout> | null = null
   seedStoredSeriesWins(deps)
+
+  function publishInterstitial(
+    action: ReturnType<typeof interstitials.apply>
+  ): void {
+    if (action.type === "hold") {
+      return
+    }
+    if (interstitialTimer) {
+      clearTimeout(interstitialTimer)
+      interstitialTimer = null
+    }
+    if (action.type === "clear") {
+      deps.hub.broadcast({ type: "interstitial", data: null })
+      return
+    }
+    deps.hub.broadcast({ type: "interstitial", data: action.payload })
+    const wait = action.payload.expiresAt - Date.now()
+    if (wait <= 0) {
+      return
+    }
+    interstitialTimer = setTimeout(() => {
+      interstitialTimer = null
+      if (interstitials.peek(Date.now()) === null) {
+        deps.hub.broadcast({ type: "interstitial", data: null })
+      }
+    }, wait)
+    interstitialTimer.unref()
+  }
 
   app.use(
     "/api/*",
@@ -93,12 +124,14 @@ export function createApp(deps: ServerAppDeps): Hono {
       return c.json({ error: parsed.error, details: parsed.details }, 400)
     }
 
-    const { state, events } = deps.engine.apply(normalizeGsiPayload(parsed.data))
-    deps.setState(state)
-    deps.hub.broadcast({ type: "snapshot", data: state })
-    for (const event of events) {
+    const previous = deps.getState()
+    const result = deps.engine.apply(normalizeGsiPayload(parsed.data))
+    deps.setState(result.state)
+    deps.hub.broadcast({ type: "snapshot", data: result.state })
+    for (const event of result.events) {
       deps.hub.broadcast({ type: "event", data: event })
     }
+    publishInterstitial(interstitials.apply(previous, result, Date.now()))
     return c.body(null, 204)
   })
 
@@ -315,6 +348,10 @@ export function createApp(deps: ServerAppDeps): Hono {
         deps.hub.sendMessage(ws, { type: "broadcast-config", data: deps.overlayStore.get() })
         if (state) {
           deps.hub.sendMessage(ws, { type: "snapshot", data: state })
+        }
+        const interstitial = interstitials.peek(Date.now())
+        if (interstitial) {
+          deps.hub.sendMessage(ws, { type: "interstitial", data: interstitial })
         }
       },
       onClose(_evt, ws) {

@@ -275,7 +275,8 @@ function sameView(a: RadarMotionView, b: RadarMotionView): boolean {
       left.angle !== right.angle ||
       left.observed !== right.observed ||
       left.slot !== right.slot ||
-      left.side !== right.side
+      left.side !== right.side ||
+      left.onLevel !== right.onLevel
     ) {
       return false
     }
@@ -293,12 +294,13 @@ function sameView(a: RadarMotionView, b: RadarMotionView): boolean {
       left.state !== right.state ||
       left.radius !== right.radius ||
       left.ownerSide !== right.ownerSide ||
+      left.onLevel !== right.onLevel ||
       !sameFlamePoints(left.flamePoints, right.flamePoints)
     ) {
       return false
     }
   }
-  return a.bomb?.x === b.bomb?.x && a.bomb?.y === b.bomb?.y && a.bomb?.kind === b.bomb?.kind
+  return a.bomb?.x === b.bomb?.x && a.bomb?.y === b.bomb?.y && a.bomb?.kind === b.bomb?.kind && a.bomb?.onLevel === b.bomb?.onLevel
 }
 
 function prefersReducedMotion(): boolean {

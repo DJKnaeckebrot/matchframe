@@ -7,6 +7,7 @@ function player(partial: Partial<RadarPlayerView> & Pick<RadarPlayerView, "steam
   return {
     side: "CT",
     observed: false,
+    onLevel: true,
     ...partial,
   }
 }
@@ -88,10 +89,10 @@ describe("presentRadarMotion", () => {
 
   test("bomb lerps with the same cadence", () => {
     const tracks = emptyRadarTracks()
-    presentRadarMotion({ players: [], bomb: { x: 0, y: 0, kind: "dropped" }, grenades: [] }, tracks, 0)
-    presentRadarMotion({ players: [], bomb: { x: 0.04, y: 0, kind: "dropped" }, grenades: [] }, tracks, 1000)
+    presentRadarMotion({ players: [], bomb: { x: 0, y: 0, kind: "dropped", onLevel: true }, grenades: [] }, tracks, 0)
+    presentRadarMotion({ players: [], bomb: { x: 0.04, y: 0, kind: "dropped", onLevel: true }, grenades: [] }, tracks, 1000)
     const mid = presentRadarMotion(
-      { players: [], bomb: { x: 0.04, y: 0, kind: "dropped" }, grenades: [] },
+      { players: [], bomb: { x: 0.04, y: 0, kind: "dropped", onLevel: true }, grenades: [] },
       tracks,
       1050
     )
@@ -107,6 +108,7 @@ describe("presentRadarMotion", () => {
       x: 0,
       y: 0,
       state: "projectile" as const,
+      onLevel: true,
     }
     presentRadarMotion({ players: [], bomb: null, grenades: [grenade] }, tracks, 0)
     presentRadarMotion({ players: [], bomb: null, grenades: [{ ...grenade, x: 0.1 }] }, tracks, 1000)
@@ -127,6 +129,7 @@ describe("presentRadarMotion", () => {
       x: 0.5,
       y: 0.45,
       state: "active" as const,
+      onLevel: true,
       flamePoints: [{ x: 0.5, y: 0.45 }, { x: 0.52, y: 0.46 }],
     }
     presentRadarMotion({ players: [], bomb: null, grenades: [grenade] }, tracks, 0)
