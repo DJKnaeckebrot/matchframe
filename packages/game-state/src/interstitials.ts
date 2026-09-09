@@ -82,6 +82,7 @@ export type InterstitialAction =
 export type InterstitialDirector = {
   apply(previous: GameState | null, result: ApplyResult, now: number): InterstitialAction
   peek(now: number): InterstitialPayload
+  reset(): void
 }
 
 type InterstitialSession = {
@@ -155,6 +156,11 @@ export function createInterstitialDirector(
     peek(now) {
       expire(now)
       return session?.payload ?? null
+    },
+    reset() {
+      session = null
+      emittedRound = null
+      tracker.reset()
     },
   }
 }

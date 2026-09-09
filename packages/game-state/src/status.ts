@@ -4,12 +4,14 @@ import { getDisplayRoundNumber, getRoundDisplayState } from "./selectors"
 import type { GameState } from "./types"
 
 /**
- * CS2 Matchframe cfg heartbeat is 15s; throttle is 0.1s while the match moves.
- * Fresh covers one idle heartbeat plus slack so menu/heartbeat ticks stay Live.
+ * Idle heartbeat in `apps/server/gsi/gamestate_integration_matchframe.cfg`.
+ * Freshness is derived from that value so a single delayed heartbeat stays Live.
  */
-export const GSI_FRESH_MS = 20_000
-/** After two missed heartbeats the feed is treated as gone. */
-export const GSI_STALE_MS = 45_000
+export const GSI_HEARTBEAT_MS = 15_000
+/** Live while younger than two heartbeats. */
+export const GSI_FRESH_MS = GSI_HEARTBEAT_MS * 2
+/** Stale until four heartbeats; offline after that. */
+export const GSI_STALE_MS = GSI_HEARTBEAT_MS * 4
 
 export type GsiFreshness = "waiting" | "live" | "stale" | "offline"
 

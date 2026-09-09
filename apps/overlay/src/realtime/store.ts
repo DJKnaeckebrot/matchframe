@@ -68,6 +68,15 @@ export const useRealtimeStore = create<RealtimeStore>((set) => ({
       set({ interstitial: message.data })
       return
     }
+    if (message.type === "match-reset") {
+      set({
+        gameConnected: false,
+        state: null,
+        recentEvents: [],
+        interstitial: null,
+      })
+      return
+    }
     set((current) => ({
       recentEvents: [...current.recentEvents, message.data].slice(-MAX_EVENTS),
     }))

@@ -1,7 +1,15 @@
 import { describe, expect, test } from "bun:test"
 import type { PlayerState } from "@workspace/game-state"
 
-import { EMPTY_MARK, mapDisplayName, observerSlotLabel, playersForTeam, rosterNumber } from "./format"
+import {
+  EMPTY_MARK,
+  formatRoundHeadline,
+  mapDisplayName,
+  observerSlotLabel,
+  playersForTeam,
+  rosterNumber,
+  withOvertimeMark,
+} from "./format"
 
 function player(
   partial: Partial<PlayerState> & Pick<PlayerState, "steamId" | "teamId" | "side">
@@ -85,5 +93,28 @@ describe("rosterNumber", () => {
     expect(rosterNumber(players, "t", "t2")).toBe(2)
     expect(rosterNumber(players, "ct", "ct1")).toBe(1)
     expect(rosterNumber(players, "ct", "t1")).toBeUndefined()
+  })
+})
+
+describe("formatRoundHeadline", () => {
+  test("regulation freeze and live keep the round prefix", () => {
+    expect(formatRoundHeadline("freezetime", 12)).toBe("R12 · FREEZE")
+    expect(formatRoundHeadline("live", 12)).toBe("R12 · LIVE")
+  })
+
+  test("overtime prefixes the period on the clock headline", () => {
+    expect(formatRoundHeadline("freezetime", 25, undefined, 1)).toBe("OT1 · R25 · FREEZE")
+    expect(formatRoundHeadline("live", 31, undefined, 2)).toBe("OT2 · R31 · LIVE")
+    expect(formatRoundHeadline("bomb", 25, undefined, 1)).toBe("OT1 · PLANTED")
+  })
+})
+
+describe("withOvertimeMark", () => {
+  test("leaves regulation labels unchanged", () => {
+    expect(withOvertimeMark("ROUND 12", null)).toBe("ROUND 12")
+  })
+
+  test("tags round-over copy", () => {
+    expect(withOvertimeMark("ELIMINATION", 1)).toBe("OT1 · ELIMINATION")
   })
 })

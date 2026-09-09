@@ -95,6 +95,45 @@ export function readinessLampTone(state: BroadcastStatus["readiness"]["state"]):
   return "bad"
 }
 
+export function radarLampTone(radar: BroadcastStatus["match"]["radar"]): "ok" | "wait" | "warn" {
+  if (radar === "ready") {
+    return "ok"
+  }
+  if (radar === "unavailable") {
+    return "warn"
+  }
+  return "wait"
+}
+
+export function BroadcastStatusLamps({ status }: { status: BroadcastStatus }) {
+  const now = useNow()
+  const gsi = getGsiConnectionStatus(status.gsi.lastUpdateAt, now)
+  const radarLabel =
+    status.match.radar === "ready"
+      ? "Radar ready"
+      : status.match.radar === "unavailable"
+        ? "Radar unavailable"
+        : "Radar —"
+
+  return (
+    <div
+      role="status"
+      className="flex flex-wrap items-baseline gap-x-5 gap-y-2 font-hud text-xs tracking-wide text-muted-foreground"
+    >
+      <StatusLamp
+        tone={status.server.healthy ? "ok" : "bad"}
+        label={`Server ${status.server.healthy ? "Up" : "Down"}`}
+      />
+      <StatusLamp tone={gsiLampTone(gsi.freshness)} label={`CS2 ${gsiOperatorLabel(gsi, now, status.gsi.lastUpdateAt)}`} />
+      <StatusLamp
+        tone={overlayLampTone(status.overlay.connectedClients)}
+        label={`Overlay ${overlayConnectionLabel(status.overlay.connectedClients)}`}
+      />
+      <StatusLamp tone={radarLampTone(status.match.radar)} label={radarLabel} />
+    </div>
+  )
+}
+
 export function BroadcastStatusStrip({ status }: { status: BroadcastStatus }) {
   const now = useNow()
   const gsi = getGsiConnectionStatus(status.gsi.lastUpdateAt, now)
@@ -142,12 +181,20 @@ export function BroadcastStatusStrip({ status }: { status: BroadcastStatus }) {
         <p className="text-sm text-muted-foreground">Radar ready</p>
       ) : null}
 
-      <OverlayUrlRow url={overlayUrl} />
+      <OverlayUrlControls url={overlayUrl} />
     </section>
   )
 }
 
-function OverlayUrlRow({ url }: { url: string }) {
+export function OverlayUrlControls({
+  url,
+  copyLabel = "Copy",
+  openLabel = "Open",
+}: {
+  url: string
+  copyLabel?: string
+  openLabel?: string
+}) {
   const [copied, setCopied] = useState(false)
 
   useEffect(() => {
@@ -176,7 +223,7 @@ function OverlayUrlRow({ url }: { url: string }) {
       </div>
       <div className="flex shrink-0 items-center gap-1">
         <Button type="button" variant="outline" size="sm" onClick={() => void copy()} aria-live="polite">
-          {copied ? "Copied" : "Copy"}
+          {copied ? "Copied" : copyLabel}
         </Button>
         <a
           href={url}
@@ -184,7 +231,7 @@ function OverlayUrlRow({ url }: { url: string }) {
           rel="noreferrer"
           className={buttonVariants({ variant: "ghost", size: "sm" })}
         >
-          Open
+          {openLabel}
         </a>
       </div>
     </div>

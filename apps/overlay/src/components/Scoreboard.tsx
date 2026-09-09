@@ -32,7 +32,9 @@ import {
   formatRemaining,
   formatRoundHeadline,
   mapDisplayName,
+  withOvertimeMark,
 } from "../hud/format"
+import { overtimePeriod } from "../hud/round-history"
 import { ObjectiveIcon } from "../icons"
 import { SponsorSlot } from "./SponsorSlot"
 
@@ -333,6 +335,7 @@ function CenterWell({
   result: boolean
 }) {
   const display = getRoundDisplayState(state)
+  const overtime = overtimePeriod(state)
   if (result && display.kind === "over") {
     return (
       <WinnerWell
@@ -343,6 +346,7 @@ function CenterWell({
           display.winTeam ??
           EMPTY_MARK
         }
+        overtime={overtime}
       />
     )
   }
@@ -356,23 +360,30 @@ function CenterWell({
     : display.timeRemaining !== undefined
       ? formatClock(display.timeRemaining)
       : "•"
-  const headline = planted
-    ? formatRoundHeadline("bomb", display.round)
-    : formatRoundHeadline(display.kind, display.round, display.timeoutSide)
+  const headline = formatRoundHeadline(
+    display.kind,
+    display.round,
+    display.timeoutSide,
+    overtime
+  )
+  let wellBg = "bg-(--mf-background)/55"
+  let headlineTone = "text-(--mf-text-muted)"
+  if (overtime) {
+    wellBg = "bg-(--mf-accent)/12"
+    headlineTone = "text-(--mf-accent)"
+  }
+  if (planted) {
+    wellBg = "bg-(--mf-t)/18"
+    headlineTone = "text-(--mf-t)"
+  }
 
   return (
-    <div
-      className={`relative flex flex-col items-center justify-center px-2 py-1.5 ${
-        planted ? "bg-(--mf-t)/18" : "bg-(--mf-background)/55"
-      }`}
-    >
+    <div className={`relative flex flex-col items-center justify-center px-2 py-1.5 ${wellBg}`}>
       {planted ? null : (
         <span className="absolute inset-x-0 top-0 h-0.5 bg-(--mf-accent)" aria-hidden="true" />
       )}
       <div
-        className={`flex items-center gap-1 text-[10px] font-semibold tracking-[0.16em] uppercase ${
-          planted ? "text-(--mf-t)" : "text-(--mf-text-muted)"
-        }`}
+        className={`flex items-center gap-1 whitespace-nowrap text-[10px] font-semibold tracking-[0.16em] uppercase ${headlineTone}`}
       >
         {planted ? <ObjectiveIcon type="bomb" decorative /> : null}
         <span className={planted ? "mf-planted-pulse" : undefined}>{headline}</span>
@@ -388,7 +399,15 @@ function CenterWell({
   )
 }
 
-function WinnerWell({ display, name }: { display: RoundDisplayState; name: string }) {
+function WinnerWell({
+  display,
+  name,
+  overtime,
+}: {
+  display: RoundDisplayState
+  name: string
+  overtime: number | null
+}) {
   const color = display.winTeam === "CT" ? "var(--mf-ct)" : "var(--mf-t)"
   const reason = formatWinReason(display.winReason)
 
@@ -398,7 +417,7 @@ function WinnerWell({ display, name }: { display: RoundDisplayState; name: strin
       style={{ background: `color-mix(in srgb, ${color} 78%, var(--mf-background))` }}
     >
       <div className="text-[9px] font-semibold tracking-[0.2em] uppercase opacity-80">
-        {reason ?? `ROUND ${display.round}`}
+        {withOvertimeMark(reason ?? `ROUND ${display.round}`, overtime)}
       </div>
       <div className="mf-display max-w-full truncate text-[22px] leading-none tracking-wide uppercase">
         {name}

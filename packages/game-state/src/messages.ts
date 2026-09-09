@@ -20,6 +20,7 @@ export type ServerMessage =
   | { type: "presentation"; data: PlayerPresentationConfig }
   | { type: "broadcast-config"; data: BroadcastConfig }
   | { type: "interstitial"; data: InterstitialPayload }
+  | { type: "match-reset" }
 
 export function serializeServerMessage(message: ServerMessage): string {
   return JSON.stringify(message)
@@ -68,6 +69,10 @@ export function parseServerMessage(raw: unknown): ServerMessage | null {
   if (value.type === "interstitial") {
     const parsed = parseInterstitialPayload(value.data)
     return parsed === undefined ? null : { type: "interstitial", data: parsed }
+  }
+
+  if (value.type === "match-reset") {
+    return { type: "match-reset" }
   }
 
   return null

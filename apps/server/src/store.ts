@@ -9,8 +9,11 @@ export const gameStateStore = {
   get(): GameState | null {
     return current
   },
-  set(state: GameState): void {
+  set(state: GameState | null): void {
     current = state
+    if (!state) {
+      return
+    }
     for (const listener of listeners) {
       listener(state)
     }

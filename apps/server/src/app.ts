@@ -31,17 +31,20 @@ import {
   newTeamLogoId,
   type AssetStore,
 } from "./config/asset-store"
+import { gsiEndpointUri } from "./config/listen"
 import type { OverlayStore } from "./config/overlay-store"
 import type { PlayerStore } from "./config/player-store"
 import type { ThemeStore } from "./config/theme-store"
 import { isSafePortraitId, readPortraitFile } from "./config/portrait-files"
 import type { RealtimeHub } from "./hub"
+import { GSI_CFG_FILENAME, loadGsiCfgTemplate, renderGsiCfg } from "./setup/gsi-cfg"
+import { defaultSetupIo, installGsiCfg, openGsiFolder, readSetupStatus, type SetupIo } from "./setup/install"
 
 export type ServerAppDeps = {
   engine: GameStateEngine
   gsi: GsiStateManager
   getState: () => GameState | null
-  setState: (state: GameState) => void
+  setState: (state: GameState | null) => void
   themeStore: ThemeStore
   overlayStore: OverlayStore
   playerStore: PlayerStore
@@ -50,6 +53,7 @@ export type ServerAppDeps = {
   hub: RealtimeHub
   onGsiCapture?: (merged: unknown) => void
   onGrenadeDebug?: (debug: GrenadePipelineDebug) => void
+  setupIo?: SetupIo
 }
 
 export function createApp(deps: ServerAppDeps): Hono {
@@ -58,7 +62,26 @@ export function createApp(deps: ServerAppDeps): Hono {
   let interstitialTimer: ReturnType<typeof setTimeout> | null = null
   let lastGrenadeDebug: GrenadePipelineDebug | null = null
   let lastGsiUpdateAt: number | undefined
+  const setupIo = deps.setupIo ?? defaultSetupIo()
+  const gsiUri = gsiEndpointUri()
   seedStoredSeriesWins(deps)
+
+  function resetMatch(): void {
+    if (interstitialTimer) {
+      clearTimeout(interstitialTimer)
+      interstitialTimer = null
+    }
+    interstitials.reset()
+    deps.engine.reset()
+    deps.gsi.reset()
+    deps.setState(null)
+    lastGsiUpdateAt = undefined
+    lastGrenadeDebug = null
+    seedStoredSeriesWins(deps)
+    deps.hub.broadcast({ type: "match-reset" })
+    deps.hub.broadcast({ type: "connection", data: { connected: false } })
+    deps.hub.broadcast({ type: "interstitial", data: null })
+  }
 
   function currentBroadcastStatus(now = Date.now()) {
     const state = deps.getState()
@@ -129,6 +152,40 @@ export function createApp(deps: ServerAppDeps): Hono {
   app.get("/health", (c) => c.json({ status: "ok" }))
 
   app.get("/api/status", (c) => c.json(currentBroadcastStatus()))
+
+  app.get("/api/setup", async (c) => c.json(await readSetupStatus(setupIo, gsiUri)))
+
+  app.get("/api/setup/gsi.cfg", async (c) => {
+    const cfg = renderGsiCfg(await loadGsiCfgTemplate(), gsiUri)
+    return c.body(cfg, 200, {
+      "Content-Type": "text/plain; charset=utf-8",
+      "Content-Disposition": `attachment; filename="${GSI_CFG_FILENAME}"`,
+    })
+  })
+
+  app.post("/api/setup/gsi/install", async (c) => {
+    const result = await installGsiCfg(setupIo, gsiUri)
+    if (!result.ok) {
+      return c.json({ error: result.error, setup: result.setup }, 409)
+    }
+    return c.json({
+      setup: result.setup,
+      restartRequired: result.restartRequired,
+    })
+  })
+
+  app.post("/api/setup/gsi/open-folder", async (c) => {
+    const opened = await openGsiFolder(setupIo)
+    if (!opened) {
+      return c.json({ error: "Could not open the CS2 cfg folder" }, 409)
+    }
+    return c.body(null, 204)
+  })
+
+  app.post("/api/match/reset", (c) => {
+    resetMatch()
+    return c.body(null, 204)
+  })
 
   app.post("/api/gsi", async (c) => {
     let body: unknown

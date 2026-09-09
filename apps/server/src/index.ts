@@ -6,22 +6,12 @@ import { websocket } from "hono/bun"
 
 import { createApp } from "./app"
 import { createFileAssetStore } from "./config/asset-store"
+import { gsiEndpointUri, listenPort } from "./config/listen"
 import { createFileOverlayStore } from "./config/overlay-store"
 import { createFilePlayerStore } from "./config/player-store"
 import { createFileThemeStore } from "./config/theme-store"
 import { createRealtimeHub } from "./hub"
 import { gameStateStore } from "./store"
-
-const DEFAULT_PORT = 3131
-
-function listenPort(): number {
-  const raw = process.env.PORT
-  if (!raw) {
-    return DEFAULT_PORT
-  }
-  const parsed = Number.parseInt(raw, 10)
-  return Number.isFinite(parsed) ? parsed : DEFAULT_PORT
-}
 
 function dataDir(): string {
   return process.env.MATCHFRAME_DATA_DIR ?? join(process.cwd(), "data")
@@ -103,7 +93,6 @@ Bun.serve({
 })
 
 console.log(`Broadcast server running at http://localhost:${port}`)
-
-console.log(`GSI endpoint: http://localhost:${port}/api/gsi`)
+console.log(`GSI endpoint: ${gsiEndpointUri(port)}`)
 console.log(`WebSocket: ws://localhost:${port}/ws`)
 

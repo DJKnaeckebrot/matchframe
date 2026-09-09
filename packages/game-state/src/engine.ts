@@ -10,6 +10,7 @@ export type ApplyResult = {
 export type GameStateEngine = {
   apply(snapshot: GameState): ApplyResult
   seedSeriesWins(left: number, right: number): GameState | null
+  reset(): void
 }
 
 const PLANTED_SEQUENCE = new Set<BombStatus>(["planted", "defusing", "exploding"])
@@ -40,6 +41,10 @@ export function createGameStateEngine(): GameStateEngine {
       pendingSeriesWins = null
       previous = applySeriesWins(previous, wins[0], wins[1])
       return previous
+    },
+    reset() {
+      previous = null
+      pendingSeriesWins = null
     },
   }
 }

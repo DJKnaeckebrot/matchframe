@@ -40,6 +40,9 @@ CS2 does not drop the override.
 
 ![Dashboard Appearance page](docs/screenshots/dashboard-appearance.png)
 
+**Setup** — Install the CS2 GSI cfg, copy the OBS Browser Source URL, and reset
+match state without touching broadcast config.
+
 ## Quick start
 
 ```bash
@@ -54,7 +57,8 @@ bun run dev
 | Broadcast server | http://localhost:3131 |
 
 Copy `apps/server/gsi/gamestate_integration_matchframe.cfg` into your CS2 `cfg`
-folder (typically `game/csgo/cfg/`) and restart CS2.
+folder (typically `game/csgo/cfg/`) and restart CS2, or use **Setup → Install**
+in the dashboard.
 
 Spectator / GOTV is required for `allplayers`. Round clocks need
 `phase_countdowns` (already in the Matchframe cfg).

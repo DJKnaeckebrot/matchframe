@@ -1,4 +1,4 @@
-import { mkdtemp, readFile } from "node:fs/promises"
+import { mkdtemp, mkdir, readFile, stat, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, describe, expect, test } from "bun:test"
@@ -15,6 +15,9 @@ import { createFileOverlayStore } from "./config/overlay-store"
 import { createFilePlayerStore } from "./config/player-store"
 import { createFileThemeStore } from "./config/theme-store"
 import { createRealtimeHub } from "./hub"
+import type { SetupIo } from "./setup/install"
+import { pathApiFor } from "./setup/steam"
+import { parseSetupStatus } from "./setup/types"
 
 const liveFixturePath = new URL("../../../packages/gsi/fixtures/inferno-live.json", import.meta.url)
 
@@ -22,15 +25,17 @@ async function tempDir(): Promise<string> {
   return mkdtemp(join(tmpdir(), "matchframe-theme-"))
 }
 
-function testApp(dir: string) {
+function testApp(dir: string, setupIo?: SetupIo) {
   const store: { current: GameState | null } = { current: null }
   const hub = createRealtimeHub()
+  const engine = createGameStateEngine()
+  const gsi = createGsiStateManager()
   const themeStore = createFileThemeStore(dir)
   const overlayStore = createFileOverlayStore(dir)
   const playerStore = createFilePlayerStore(dir)
   const app = createApp({
-    engine: createGameStateEngine(),
-    gsi: createGsiStateManager(),
+    engine,
+    gsi,
     getState: () => store.current,
     setState: (state) => {
       store.current = state
@@ -41,8 +46,9 @@ function testApp(dir: string) {
     portraitDir: join(dir, "portraits"),
     assetStore: createFileAssetStore(join(dir, "assets")),
     hub,
+    ...(setupIo ? { setupIo } : {}),
   })
-  return { app, hub, themeStore, overlayStore, playerStore }
+  return { app, hub, themeStore, overlayStore, playerStore, engine, gsi, store }
 }
 
 const servers: Array<{ stop: () => void }> = []
@@ -999,6 +1005,207 @@ describe("broadcast status", () => {
   })
 })
 
+describe("setup", () => {
+  test("GET /api/setup reports CS2 integration status", async () => {
+    const { io } = await tempSteamLayout()
+    const { app } = testApp(await tempDir(), io)
+    const response = await app.request("/api/setup")
+    expect(response.status).toBe(200)
+    const body = parseSetupStatus(await response.json())
+    expect(body?.cs2.found).toBe(true)
+    expect(body?.cs2.gsi.state).toBe("not-installed")
+    expect(body?.gsiUri).toContain("/api/gsi")
+  })
+
+  test("POST /api/setup/gsi/install writes the managed cfg", async () => {
+    const { io, cfgDir } = await tempSteamLayout()
+    const { app } = testApp(await tempDir(), io)
+    const response = await app.request("/api/setup/gsi/install", { method: "POST" })
+    expect(response.status).toBe(200)
+    const body = (await response.json()) as { setup: unknown; restartRequired: boolean }
+    expect(body.restartRequired).toBe(true)
+    const setup = parseSetupStatus(body.setup)
+    expect(setup?.cs2.gsi.state).toBe("installed")
+    expect(await Bun.file(join(cfgDir, "gamestate_integration_matchframe.cfg")).exists()).toBe(true)
+  })
+
+  test("GET /api/setup/gsi.cfg downloads the template", async () => {
+    const { app } = testApp(await tempDir())
+    const response = await app.request("/api/setup/gsi.cfg")
+    expect(response.status).toBe(200)
+    const text = await response.text()
+    expect(text).toContain("Matchframe GSI")
+    expect(text).toContain("http://127.0.0.1:")
+    expect(response.headers.get("Content-Disposition")).toContain("gamestate_integration_matchframe.cfg")
+  })
+})
+
+describe("match reset", () => {
+  test("POST /api/match/reset clears runtime match state and preserves config", async () => {
+    const dir = await tempDir()
+    const { app, gsi, store, overlayStore, themeStore, playerStore } = testApp(dir)
+    await app.request("/api/config/broadcast", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        format: "BO3",
+        teams: { left: { name: "SquadVault" }, right: { name: "Velos" } },
+      }),
+    })
+    await app.request("/api/config/theme", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...defaultTheme, accent: "#445566" }),
+    })
+    await app.request("/api/config/players/76561198000000001", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ displayName: "n0thing" }),
+    })
+
+    const live = await loadGsiFixture("live")
+    expect(
+      (
+        await app.request("/api/gsi", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(live),
+        })
+      ).status
+    ).toBe(204)
+    expect(store.current?.players.length).toBeGreaterThan(0)
+    expect(store.current?.map.name).toBe("de_inferno")
+    expect(store.current?.bomb).toBeTruthy()
+
+    const planted = await loadGsiFixture("bomb-planted")
+    await app.request("/api/gsi", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(planted),
+    })
+
+    const reset = await app.request("/api/match/reset", { method: "POST" })
+    expect(reset.status).toBe(204)
+    expect(store.current).toBeNull()
+    expect(gsiLooksEmpty(gsi.getState())).toBe(true)
+
+    const status = parseBroadcastStatus(await (await app.request("/api/status")).json())
+    expect(status?.gsi.freshness).toBe("waiting")
+    expect(status?.match.playerCount).toBe(0)
+
+    expect(overlayStore.get().teams.left.name).toBe("SquadVault")
+    expect(themeStore.get().accent).toBe("#445566")
+    expect(playerStore.get()["76561198000000001"]?.displayName).toBe("n0thing")
+
+    const next = await app.request("/api/gsi", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(await loadGsiFixture("live")),
+    })
+    expect(next.status).toBe(204)
+    expect(store.current?.map.name).toBe("de_inferno")
+    expect(store.current?.players.length).toBeGreaterThan(0)
+  })
+
+  test("connected overlay receives match-reset and a new client gets no stale snapshot", async () => {
+    const { app } = testApp(await tempDir())
+    const server = Bun.serve({
+      port: 0,
+      fetch: (req, server) => app.fetch(req, server),
+      websocket,
+    })
+    servers.push(server)
+
+    await app.request("/api/gsi", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(await loadGsiFixture("live")),
+    })
+
+    const received: unknown[] = []
+    const ws = new WebSocket(`ws://127.0.0.1:${server.port}/ws`)
+    const opened = new Promise<void>((resolve, reject) => {
+      ws.onopen = () => resolve()
+      ws.onerror = () => reject(new Error("websocket error"))
+    })
+    ws.onmessage = (event) => {
+      received.push(parseServerMessage(typeof event.data === "string" ? event.data : null))
+    }
+    await opened
+    await waitFor(() => received.some((message) => isSnapshot(message)))
+
+    await app.request("/api/match/reset", { method: "POST" })
+    await waitFor(() => received.some((message) => isMatchReset(message)))
+    ws.close()
+
+    const reconnect = await collectWsMessages(`ws://127.0.0.1:${server.port}/ws`, 4)
+    expect(reconnect.map((message) => message.type)).toEqual([
+      "connection",
+      "theme",
+      "presentation",
+      "broadcast-config",
+    ])
+    expect(reconnect.some((message) => message.type === "snapshot")).toBe(false)
+    expect(reconnect[0]).toEqual({ type: "connection", data: { connected: false } })
+  })
+
+  test("first snapshot after reset does not emit leftover match events", async () => {
+    const { app } = testApp(await tempDir())
+    const server = Bun.serve({
+      port: 0,
+      fetch: (req, server) => app.fetch(req, server),
+      websocket,
+    })
+    servers.push(server)
+
+    await app.request("/api/gsi", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(await loadGsiFixture("live")),
+    })
+    await app.request("/api/gsi", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(await loadGsiFixture("round-ct-win")),
+    })
+
+    const received: unknown[] = []
+    const ws = new WebSocket(`ws://127.0.0.1:${server.port}/ws`)
+    await new Promise<void>((resolve, reject) => {
+      ws.onopen = () => resolve()
+      ws.onerror = () => reject(new Error("websocket error"))
+    })
+    ws.onmessage = (event) => {
+      received.push(parseServerMessage(typeof event.data === "string" ? event.data : null))
+    }
+    await waitFor(() => received.some((message) => isSnapshot(message)))
+    const before = received.length
+
+    await app.request("/api/match/reset", { method: "POST" })
+    await waitFor(() => received.some((message) => isMatchReset(message)))
+
+    await app.request("/api/gsi", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(await loadGsiFixture("bomb-planted")),
+    })
+    await waitFor(() => received.slice(before).filter(isSnapshot).length >= 1)
+
+    const afterReset = received.slice(before)
+    expect(afterReset.some((message) => isMatchReset(message))).toBe(true)
+    expect(
+      afterReset.some(
+        (message) =>
+          typeof message === "object" &&
+          message !== null &&
+          "type" in message &&
+          message.type === "event"
+      )
+    ).toBe(false)
+    ws.close()
+  })
+})
+
 function isPresentation(
   message: unknown
 ): message is { type: "presentation"; data: Record<string, { portrait?: { value: string } }> } {
@@ -1033,6 +1240,80 @@ function isBroadcastConfig(
     "type" in message &&
     message.type === "broadcast-config"
   )
+}
+
+function isSnapshot(message: unknown): message is { type: "snapshot" } {
+  return typeof message === "object" && message !== null && "type" in message && message.type === "snapshot"
+}
+
+function isMatchReset(message: unknown): message is { type: "match-reset" } {
+  return typeof message === "object" && message !== null && "type" in message && message.type === "match-reset"
+}
+
+function gsiLooksEmpty(value: unknown): boolean {
+  if (value === null || value === undefined) {
+    return true
+  }
+  if (typeof value !== "object" || Array.isArray(value)) {
+    return false
+  }
+  const record = value as Record<string, unknown>
+  return record.map === undefined && record.allplayers === undefined && record.player === undefined
+}
+
+async function tempSteamLayout(): Promise<{ io: SetupIo; cfgDir: string }> {
+  const root = await mkdtemp(join(tmpdir(), "matchframe-setup-"))
+  const linux = process.platform !== "win32"
+  const steam = linux ? join(root, ".local", "share", "Steam") : join(root, "Steam")
+  const cfgDir = join(
+    steam,
+    "steamapps",
+    "common",
+    "Counter-Strike Global Offensive",
+    "game",
+    "csgo",
+    "cfg"
+  )
+  await mkdir(cfgDir, { recursive: true })
+  await writeFile(
+    join(steam, "steamapps", "libraryfolders.vdf"),
+    `"libraryfolders"\n{\n\t"0"\n\t{\n\t\t"path"\t\t"${steam.replaceAll("\\", "\\\\")}"\n\t\t"apps"\n\t\t{\n\t\t\t"730"\t\t"1"\n\t\t}\n\t}\n}\n`,
+    "utf8"
+  )
+  const io: SetupIo = {
+    platform: linux ? "linux" : "win32",
+    homedir: linux ? root : join(root, "Users"),
+    env: {},
+    path: pathApiFor(linux ? "linux" : "win32"),
+    fs: {
+      async isDir(target) {
+        try {
+          return (await stat(target)).isDirectory()
+        } catch {
+          return false
+        }
+      },
+      async isFile(target) {
+        try {
+          return (await stat(target)).isFile()
+        } catch {
+          return false
+        }
+      },
+      async readFile(target) {
+        try {
+          return await readFile(target, "utf8")
+        } catch {
+          return null
+        }
+      },
+    },
+    writeFile: async (target, contents) => {
+      await writeFile(target, contents, "utf8")
+    },
+    ...(linux ? {} : { windowsSteamRoots: async () => [steam] }),
+  }
+  return { io, cfgDir }
 }
 
 function isActiveInterstitial(

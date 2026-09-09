@@ -928,3 +928,40 @@ describe("bomb progress capture", () => {
     expect(planted.state.bomb?.countdownDuration).toBeUndefined()
   })
 })
+
+describe("match reset", () => {
+  test("the first snapshot after reset emits no leftover transitions", () => {
+    const engine = createGameStateEngine()
+    engine.apply(snapshot({ round: 12, bomb: { state: "planted", countdown: 30 } }))
+    const death = engine.apply(
+      snapshot({
+        timestamp: 2,
+        players: [
+          player("A", "ct", "CT", { alive: false, health: 0 }),
+          ...roster(CT_ROSTER.slice(1), "ct", "CT"),
+          ...roster(T_ROSTER, "t", "T"),
+        ],
+      })
+    )
+    expect(death.events).toContainEqual({ type: "player_died", steamId: "A" })
+    engine.seedSeriesWins(1, 0)
+    engine.reset()
+
+    const first = engine.apply(
+      snapshot({
+        timestamp: 10,
+        round: 12,
+        bomb: { state: "planted", countdown: 30 },
+        players: [
+          player("A", "ct", "CT", { alive: false, health: 0 }),
+          ...roster(CT_ROSTER.slice(1), "ct", "CT"),
+          ...roster(T_ROSTER, "t", "T"),
+        ],
+      })
+    )
+    expect(first.events).toEqual([])
+    expect(first.state.bomb?.state).toBe("planted")
+    expect(first.state.players.some((entry) => !entry.alive)).toBe(true)
+    expect(first.state.teams.map((team) => team.seriesWins)).toEqual([0, 0])
+  })
+})

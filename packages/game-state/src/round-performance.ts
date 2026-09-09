@@ -52,6 +52,7 @@ export type RoundPerformanceState = {
 export type RoundPerformanceTracker = {
   apply(previous: GameState | null, next: GameState, events: readonly GameEvent[]): RoundPerformanceState
   snapshot(): RoundPerformanceState
+  reset(): void
 }
 
 const ACE_ROSTER = 5
@@ -78,6 +79,9 @@ export function createRoundPerformanceTracker(): RoundPerformanceTracker {
     },
     snapshot() {
       return current
+    },
+    reset() {
+      current = emptyRoundPerformance()
     },
   }
 }

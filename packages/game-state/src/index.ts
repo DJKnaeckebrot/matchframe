@@ -94,6 +94,7 @@ export type {
 
 export {
   GSI_FRESH_MS,
+  GSI_HEARTBEAT_MS,
   GSI_STALE_MS,
   buildBroadcastStatus,
   formatCompactAge,

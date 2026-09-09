@@ -18,6 +18,8 @@ import {
 } from "@workspace/theme"
 import type { MatchframeTheme, ThemeToken } from "@workspace/theme"
 
+import { parseSetupStatus, type SetupStatus } from "@/lib/setup.ts"
+
 /** Empty in Vite so `/api` is same-origin and proxied. Set VITE_API_URL to call the server directly. */
 const API_BASE = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "")
 
@@ -38,6 +40,10 @@ function api(path: string): string {
   return `${API_BASE}${path}`
 }
 
+export function setupCfgDownloadUrl(): string {
+  return api("/api/setup/gsi.cfg")
+}
+
 export async function fetchBroadcastStatus(): Promise<BroadcastStatus> {
   const response = await fetch(api("/api/status"))
   if (!response.ok) {
@@ -48,6 +54,53 @@ export async function fetchBroadcastStatus(): Promise<BroadcastStatus> {
     throw new Error("Server returned invalid broadcast status")
   }
   return parsed
+}
+
+export async function fetchSetupStatus(): Promise<SetupStatus> {
+  const response = await fetch(api("/api/setup"))
+  if (!response.ok) {
+    throw new Error("Could not load setup status")
+  }
+  const parsed = parseSetupStatus(await response.json())
+  if (!parsed) {
+    throw new Error("Server returned invalid setup status")
+  }
+  return parsed
+}
+
+export async function installGsiConfig(): Promise<{ setup: SetupStatus; restartRequired: boolean }> {
+  const response = await fetch(api("/api/setup/gsi/install"), { method: "POST" })
+  const raw: unknown = await response.json().catch(() => null)
+  const setup = isRecord(raw) ? parseSetupStatus(raw.setup) : null
+  if (response.status === 409 && setup) {
+    throw new InstallGsiError(setup)
+  }
+  if (!response.ok || !setup || !isRecord(raw)) {
+    throw new Error("Could not install the GSI configuration")
+  }
+  return { setup, restartRequired: raw.restartRequired === true }
+}
+
+export class InstallGsiError extends Error {
+  setup: SetupStatus
+  constructor(setup: SetupStatus) {
+    super("Could not install the GSI configuration")
+    this.setup = setup
+  }
+}
+
+export async function openGsiFolder(): Promise<void> {
+  const response = await fetch(api("/api/setup/gsi/open-folder"), { method: "POST" })
+  if (!response.ok) {
+    throw new Error("Could not open the CS2 cfg folder")
+  }
+}
+
+export async function resetMatchState(): Promise<void> {
+  const response = await fetch(api("/api/match/reset"), { method: "POST" })
+  if (!response.ok) {
+    throw new Error("Could not reset match state")
+  }
 }
 
 export async function fetchTheme(): Promise<MatchframeTheme> {
@@ -230,6 +283,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 export { defaultTheme, THEME_TOKEN_LABELS, THEME_TOKENS }
+export type { SetupStatus } from "@/lib/setup.ts"
 export type {
   BroadcastConfig,
   BroadcastStatus,

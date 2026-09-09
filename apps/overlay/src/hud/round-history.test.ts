@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import type { GameState, RoundHistoryEntry } from "@workspace/game-state"
 
-import { roundHistoryTrack } from "./round-history"
+import { overtimePeriod, roundHistoryTrack } from "./round-history"
 
 function state(
   round: number,
@@ -79,5 +79,15 @@ describe("roundHistoryTrack", () => {
     expect(track.overtime).toBe(2)
     expect(track.halves[0][0]?.round).toBe(31)
     expect(track.labels).toEqual([33, 36])
+  })
+
+  test("overtimePeriod is null in regulation and 1 at round 25", () => {
+    expect(overtimePeriod(state(0))).toBeNull()
+    const history: RoundHistoryEntry[] = Array.from({ length: 24 }, (_, index) => ({
+      round: index + 1,
+      winner: index % 2 === 0 ? "CT" : "T",
+      reason: "elimination" as const,
+    }))
+    expect(overtimePeriod(state(24, history))).toBe(1)
   })
 })

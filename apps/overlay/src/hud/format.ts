@@ -65,30 +65,31 @@ export function formatRemaining(seconds: number): string {
   return Math.max(0, seconds).toFixed(1)
 }
 
+export function withOvertimeMark(label: string, overtime: number | null | undefined): string {
+  return overtime ? `OT${overtime} · ${label}` : label
+}
+
 export function formatRoundHeadline(
   kind: RoundDisplayKind,
   round: number,
-  timeoutSide?: string
+  timeoutSide?: string,
+  overtime?: number | null
 ): string {
+  let label = `R${round}`
   if (kind === "freezetime") {
-    return `R${round} · FREEZE`
+    label = `R${round} · FREEZE`
+  } else if (kind === "live") {
+    label = `R${round} · LIVE`
+  } else if (kind === "bomb") {
+    label = "PLANTED"
+  } else if (kind === "over") {
+    label = `ROUND ${round}`
+  } else if (kind === "paused") {
+    label = "PAUSED"
+  } else if (kind === "timeout") {
+    label = timeoutSide ? `${timeoutSide} TIMEOUT` : "TIMEOUT"
   }
-  if (kind === "live") {
-    return `R${round} · LIVE`
-  }
-  if (kind === "bomb") {
-    return "PLANTED"
-  }
-  if (kind === "over") {
-    return `ROUND ${round}`
-  }
-  if (kind === "paused") {
-    return "PAUSED"
-  }
-  if (kind === "timeout") {
-    return timeoutSide ? `${timeoutSide} TIMEOUT` : "TIMEOUT"
-  }
-  return `R${round}`
+  return withOvertimeMark(label, overtime)
 }
 
 export function formatMoney(value: number): string {

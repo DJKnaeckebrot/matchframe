@@ -64,6 +64,7 @@ describe("server messages", () => {
         },
       },
       { type: "interstitial" as const, data: null },
+      { type: "match-reset" as const },
     ]
 
     for (const message of messages) {
@@ -86,6 +87,7 @@ describe("server messages", () => {
       type: "interstitial",
       data: null,
     })
+    expect(parseServerMessage({ type: "match-reset" })).toEqual({ type: "match-reset" })
     expect(parseServerMessage({ type: "overlay", data: { series: "BO3" } })).toEqual({
       type: "broadcast-config",
       data: {

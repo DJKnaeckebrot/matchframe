@@ -12,6 +12,7 @@ import {
   assessAce,
   clutchIfWon,
   createRoundPerformanceTracker,
+  emptyRoundPerformance,
   selectMvp,
 } from "./round-performance"
 import { aliveCountsBySide } from "./selectors"
@@ -718,5 +719,28 @@ describe("interstitial director", () => {
     expect(both.action.payload.card.type).toBe("round-winner")
     const aceAt = 30_000 + INTERSTITIAL_DURATION_MS["round-winner"]
     expect(director.peek(aceAt)?.card.type).toBe("ace")
+  })
+
+  test("reset clears interstitial and round-performance tracking", () => {
+    const tracker = createRoundPerformanceTracker()
+    const director = createInterstitialDirector(tracker)
+    const engine = createGameStateEngine()
+    let previous: GameState | null = null
+    function apply(next: GameState, now: number) {
+      const result = engine.apply(next)
+      const action = director.apply(previous, result, now)
+      previous = result.state
+      return action
+    }
+    apply(snapshot({ roundPhase: "live" }), 1000)
+    apply(
+      snapshot({ roundPhase: "over", winTeam: "CT", winReason: "elimination", timestamp: 2 }),
+      10_000
+    )
+    expect(director.peek(10_000)).not.toBeNull()
+    expect(tracker.snapshot().round).toBeGreaterThan(0)
+    director.reset()
+    expect(director.peek(10_001)).toBeNull()
+    expect(tracker.snapshot()).toEqual(emptyRoundPerformance())
   })
 })

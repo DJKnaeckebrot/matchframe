@@ -25,20 +25,29 @@ export type RoundHistoryTrack = {
   labels: readonly number[]
 }
 
-export function roundHistoryTrack(state: GameState): RoundHistoryTrack {
+/** 1-based overtime period, or null during regulation. */
+export function overtimePeriod(state: GameState): number | null {
   // ponytail: WS snapshot parse is structural, not a full GameState schema
   const history = state.map.roundHistory ?? []
   const displayRound = getDisplayRoundNumber(state)
-  const byRound = new Map(history.map((entry) => [entry.round, entry]))
   const lastPlayed = history.reduce((max, entry) => Math.max(max, entry.round), 0)
-  const inOvertime = displayRound > REGULATION || lastPlayed > REGULATION
+  if (displayRound <= REGULATION && lastPlayed <= REGULATION) {
+    return null
+  }
+  const latest = Math.max(displayRound, lastPlayed, REGULATION + 1)
+  return Math.floor((latest - REGULATION - 1) / OVERTIME) + 1
+}
 
-  if (inOvertime) {
-    const latest = Math.max(displayRound, lastPlayed, REGULATION + 1)
-    const period = Math.floor((latest - REGULATION - 1) / OVERTIME)
-    const start = REGULATION + 1 + period * OVERTIME
+export function roundHistoryTrack(state: GameState): RoundHistoryTrack {
+  const history = state.map.roundHistory ?? []
+  const displayRound = getDisplayRoundNumber(state)
+  const byRound = new Map(history.map((entry) => [entry.round, entry]))
+  const period = overtimePeriod(state)
+
+  if (period) {
+    const start = REGULATION + 1 + (period - 1) * OVERTIME
     return {
-      overtime: period + 1,
+      overtime: period,
       halves: [
         slots(byRound, displayRound, start, OVERTIME_HALF),
         slots(byRound, displayRound, start + OVERTIME_HALF, OVERTIME_HALF),

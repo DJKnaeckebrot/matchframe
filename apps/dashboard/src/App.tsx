@@ -5,10 +5,11 @@ import { resolvedBroadcastStatus, useBroadcastStatus } from "@/components/broadc
 import { AppearancePage } from "@/pages/Appearance.tsx"
 import { OverlayPage } from "@/pages/Overlay.tsx"
 import { PlayersPage } from "@/pages/Players.tsx"
+import { SetupPage } from "@/pages/Setup.tsx"
 
-type Page = "overlay" | "players" | "appearance"
+type Page = "overlay" | "players" | "appearance" | "setup"
 
-const PAGES: readonly Page[] = ["overlay", "players", "appearance"]
+const PAGES: readonly Page[] = ["overlay", "players", "appearance", "setup"]
 
 function pageFromSearch(): Page {
   const value = new URLSearchParams(window.location.search).get("page")
@@ -61,8 +62,10 @@ export function App() {
             <OverlayPage />
           ) : page === "players" ? (
             <PlayersPage />
-          ) : (
+          ) : page === "appearance" ? (
             <AppearancePage />
+          ) : (
+            <SetupPage />
           )}
         </main>
       </div>
@@ -108,6 +111,13 @@ function Nav({
         onClick={() => onOpen("appearance")}
       >
         Appearance
+      </NavItem>
+      <NavItem
+        active={page === "setup"}
+        layout={layout}
+        onClick={() => onOpen("setup")}
+      >
+        Setup
       </NavItem>
     </nav>
   )

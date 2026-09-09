@@ -4,6 +4,7 @@ import { defaultBroadcastConfig, type BroadcastConfig } from "@workspace/present
 import type { GameState } from "./types"
 import {
   GSI_FRESH_MS,
+  GSI_HEARTBEAT_MS,
   GSI_STALE_MS,
   buildBroadcastStatus,
   getGsiConnectionStatus,
@@ -121,9 +122,13 @@ describe("gsiOperatorLabel", () => {
   test("uses operator language, not ingest jargon", () => {
     expect(gsiOperatorLabel(getGsiConnectionStatus(undefined, NOW), NOW)).toBe("Waiting")
     expect(gsiOperatorLabel(getGsiConnectionStatus(NOW - 200, NOW), NOW, NOW - 200)).toBe("Live")
-    expect(gsiOperatorLabel(getGsiConnectionStatus(NOW - 21_000, NOW), NOW, NOW - 21_000)).toBe(
-      "Stale · 21s"
-    )
+    expect(
+      gsiOperatorLabel(
+        getGsiConnectionStatus(NOW - (GSI_FRESH_MS + 1_000), NOW),
+        NOW,
+        NOW - (GSI_FRESH_MS + 1_000)
+      )
+    ).toBe(`Stale · ${Math.floor((GSI_FRESH_MS + 1_000) / 1000)}s`)
     expect(
       gsiOperatorLabel(getGsiConnectionStatus(NOW - 120_000, NOW), NOW, NOW - 120_000)
     ).toBe("Last update 2m ago")
@@ -174,7 +179,7 @@ describe("buildBroadcastStatus", () => {
   })
 
   test("stale GSI is a warning with elapsed time", () => {
-    const lastUpdateAt = NOW - 21_000
+    const lastUpdateAt = NOW - (GSI_FRESH_MS + 1_000)
     const built = status({ lastGsiUpdateAt: lastUpdateAt })
     expect(built.gsi.connected).toBe(true)
     expect(built.gsi.stale).toBe(true)
@@ -182,8 +187,14 @@ describe("buildBroadcastStatus", () => {
     expect(built.readiness.issues[0]).toEqual({
       code: "gsi_stale",
       title: "CS2 data is stale",
-      detail: "No GSI update for 21 seconds.",
+      detail: `No GSI update for ${Math.floor((GSI_FRESH_MS + 1_000) / 1000)} seconds.`,
     })
+  })
+
+  test("one delayed heartbeat stays live", () => {
+    const built = status({ lastGsiUpdateAt: NOW - (GSI_HEARTBEAT_MS + 1_000) })
+    expect(built.gsi.freshness).toBe("live")
+    expect(built.gsi.stale).toBe(false)
   })
 
   test("offline GSI that once arrived stays a warning", () => {

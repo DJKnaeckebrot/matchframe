@@ -15,7 +15,7 @@ export function RoundHistory({ state, visible }: { state: GameState; visible: bo
       <nav aria-label={label} aria-hidden={!visible} className="min-h-0 overflow-hidden">
         <div className="border-t border-(--mf-text)/10 bg-(--mf-background)/55 px-3 pt-1.5 pb-2">
           {track.overtime ? (
-            <div className="mb-1 text-[9px] font-semibold tracking-[0.2em] text-(--mf-text-muted) uppercase">
+            <div className="mb-1 text-[9px] font-semibold tracking-[0.2em] text-(--mf-accent) uppercase">
               OT{track.overtime}
             </div>
           ) : null}
