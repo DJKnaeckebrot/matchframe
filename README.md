@@ -13,7 +13,8 @@ OBS.
 
 ## Overlay
 
-Point an OBS Browser Source at http://localhost:5174. Keep it at 1920×1080 with
+Point an OBS Browser Source at http://127.0.0.1:3131/overlay (or
+http://localhost:5174 while `bun run dev` is running). Keep it at 1920×1080 with
 a transparent background.
 
 The HUD shows score, round clock, player rows, loadouts, bomb timers, and a
@@ -24,7 +25,8 @@ plate outside OBS.
 
 ## Dashboard
 
-Open http://localhost:5173 when the stack is running.
+Open http://127.0.0.1:3131/ when Matchframe is running, or
+http://localhost:5173 during `bun run dev`.
 
 **Overlay** — Best of and team names for tonight. Left and right stay put at
 half-time.
@@ -43,7 +45,31 @@ CS2 does not drop the override.
 **Setup** — Install the CS2 GSI cfg, copy the OBS Browser Source URL, and reset
 match state without touching broadcast config.
 
-## Quick start
+## Download
+
+Ordinary operators do not need Bun, Node.js, Git, or a terminal.
+
+Get a Windows build from [GitHub Releases](https://github.com/DJKnaeckebrot/matchframe/releases)
+when published:
+
+| Artifact | Use |
+| --- | --- |
+| `Matchframe-Setup-<version>-win-x64.exe` | Per-user installer (Start Menu, no admin) |
+| `Matchframe-Portable-<version>-win-x64.zip` | Run `Matchframe.exe` from any folder |
+
+After launch, the dashboard opens at http://127.0.0.1:3131/. Add
+http://127.0.0.1:3131/overlay as an OBS Browser Source at 1920×1080 with a
+transparent background. Use **Setup** in the dashboard to install or update the
+CS2 GSI config, then restart CS2.
+
+Installed builds store broadcast data in `%LOCALAPPDATA%\Matchframe\`. Portable
+builds store data in `./data` next to `Matchframe.exe`. Uninstalling Matchframe
+does not delete that data, and it does not remove the CS2 GSI file.
+
+Closing the dashboard browser does not stop Matchframe. Exit the `Matchframe.exe`
+process to stop the runtime.
+
+## Development
 
 ```bash
 bun install
@@ -151,6 +177,20 @@ bun test
 bun run typecheck
 bun run build
 ```
+
+Windows release artifacts (`dist/release/`):
+
+```bash
+bun run release:windows
+```
+
+`bun run build:exe`, `bun run build:portable`, and `bun run build:installer`
+are the split forms. The installer needs [Inno Setup 6](https://jrsoftware.org/isinfo.php)
+on the release machine. See `packaging/windows/README.md`.
+
+Installed data lives under `%LOCALAPPDATA%\Matchframe\`. Override with
+`MATCHFRAME_DATA_DIR`. Portable mode (`portable.flag` beside the exe, or
+`--portable`) uses `./data`.
 
 Dashboard components:
 

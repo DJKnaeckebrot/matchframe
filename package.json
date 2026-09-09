@@ -1,6 +1,6 @@
 {
   "name": "matchframe",
-  "version": "0.0.1",
+  "version": "0.1.0-alpha.1",
   "private": true,
   "license": "MPL-2.0",
   "scripts": {
@@ -10,6 +10,10 @@
     "format": "turbo format",
     "typecheck": "turbo typecheck",
     "test": "bun test",
+    "build:exe": "bun run scripts/release-windows.ts --exe",
+    "build:portable": "bun run scripts/release-windows.ts --portable",
+    "build:installer": "bun run scripts/release-windows.ts --installer",
+    "release:windows": "bun run scripts/release-windows.ts",
     "fixture:gsi": "bun run scripts/fixture-gsi.ts",
     "portraits:import": "bun run scripts/import-portraits.ts",
     "capture:gsi": "bun run scripts/capture-gsi.ts",

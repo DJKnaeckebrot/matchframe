@@ -1,7 +1,9 @@
 import { localAssetIdSchema } from "@workspace/presentation"
 
+import { broadcastOrigin } from "../lib/server-origin"
+
 function apiBase(): string {
-  return (import.meta.env.VITE_API_URL || "http://localhost:3131").replace(/\/$/, "")
+  return broadcastOrigin()
 }
 
 export function getBroadcastAsset(id: string): string | undefined {

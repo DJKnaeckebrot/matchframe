@@ -19,21 +19,19 @@ import {
 import type { MatchframeTheme, ThemeToken } from "@workspace/theme"
 
 import { parseSetupStatus, type SetupStatus } from "@/lib/setup.ts"
+import { resolveOverlayPublicUrl } from "@/lib/overlay-url.ts"
 
 /** Empty in Vite so `/api` is same-origin and proxied. Set VITE_API_URL to call the server directly. */
 const API_BASE = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "")
 
-/** OBS browser source. VITE_OVERLAY_URL wins; otherwise this host on the overlay port. */
+/** OBS browser source. Dev uses Vite :5174; production uses same-origin `/overlay`. */
 export function overlayPublicUrl(): string {
-  const explicit = import.meta.env.VITE_OVERLAY_URL?.replace(/\/$/, "")
-  if (explicit) {
-    return explicit
-  }
-  const port = import.meta.env.VITE_OVERLAY_PORT || "5174"
-  if (typeof window === "undefined") {
-    return `http://localhost:${port}`
-  }
-  return `${window.location.protocol}//${window.location.hostname}:${port}`
+  return resolveOverlayPublicUrl({
+    explicit: import.meta.env.VITE_OVERLAY_URL,
+    production: import.meta.env.PROD,
+    overlayPort: import.meta.env.VITE_OVERLAY_PORT,
+    location: typeof window === "undefined" ? undefined : window.location,
+  })
 }
 
 function api(path: string): string {

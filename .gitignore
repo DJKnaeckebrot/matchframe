@@ -32,6 +32,9 @@ dist-ssr
 # runtime config
 data/
 
+# generated Windows icon used by compile/installer
+packaging/windows/matchframe.ico
+
 # optional local Valve operator extracts — not redistributable Matchframe art
 apps/overlay/src/assets/portraits/cs2-reference/**
 !apps/overlay/src/assets/portraits/cs2-reference/README.md

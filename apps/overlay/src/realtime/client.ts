@@ -1,12 +1,9 @@
 import { parseServerMessage } from "@workspace/game-state"
 
+import { realtimeUrl } from "../lib/server-origin"
 import { useRealtimeStore } from "./store"
 
 const RECONNECT_MS = 2000
-
-function realtimeUrl(): string {
-  return import.meta.env.VITE_REALTIME_URL || "ws://localhost:3131/ws"
-}
 
 export function startRealtimeClient(): void {
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null
