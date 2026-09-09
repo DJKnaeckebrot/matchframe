@@ -19,6 +19,15 @@ const T_IDS = [
   "76561198000000010",
 ] as const
 
+const FIRE_DEMO = [
+  { variant: "radar-anubis", holdMs: 800 },
+  { variant: "radar-anubis-molotov-flight", holdMs: 900 },
+  { variant: "radar-anubis-molotov-active", holdMs: 2200 },
+  { variant: "radar-anubis-incendiary-active", holdMs: 1600 },
+  { variant: "radar-anubis-molotov-two-areas", holdMs: 1800 },
+  { variant: "radar-anubis-molotov-removed", holdMs: 0 },
+] as const
+
 const FIXTURE_DEMOS = {
   "demo:defuse": [
     { variant: "bomb-planted", holdMs: 1000 },
@@ -41,6 +50,8 @@ const FIXTURE_DEMOS = {
     { variant: "radar-grenades-mixed", holdMs: 2200 },
     { variant: "radar-grenades-cleared", holdMs: 0 },
   ],
+  "demo:fire": FIRE_DEMO,
+  "demo:moly": FIRE_DEMO,
 } as const satisfies Record<
   string,
   readonly { variant: GsiFixtureVariant; holdMs: number }[]

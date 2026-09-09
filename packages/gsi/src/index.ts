@@ -7,6 +7,12 @@ export { createGsiStateManager } from "./manager"
 export type { GsiStateManager } from "./manager"
 export { sanitizeGsiCapture } from "./capture"
 export {
+  buildGrenadePipelineDebug,
+  debugHasFireGrenade,
+  summarizeGrenadeMap,
+} from "./grenade-debug"
+export type { GrenadePipelineDebug } from "./grenade-debug"
+export {
   GSI_FIXTURE_VARIANTS,
   loadGsiFixture,
 } from "./fixtures"

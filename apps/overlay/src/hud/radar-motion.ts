@@ -295,7 +295,8 @@ function sameView(a: RadarMotionView, b: RadarMotionView): boolean {
       left.radius !== right.radius ||
       left.ownerSide !== right.ownerSide ||
       left.onLevel !== right.onLevel ||
-      !sameFlamePoints(left.flamePoints, right.flamePoints)
+      !sameFlamePoints(left.flamePoints, right.flamePoints) ||
+      !sameFlamePoints(left.flameArea, right.flameArea)
     ) {
       return false
     }

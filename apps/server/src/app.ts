@@ -1,9 +1,11 @@
 import type { GameState, GameStateEngine } from "@workspace/game-state"
 import { createInterstitialDirector } from "@workspace/game-state"
 import {
+  buildGrenadePipelineDebug,
   normalizeGsiPayload,
   parseGsiPayload,
   type GsiStateManager,
+  type GrenadePipelineDebug,
 } from "@workspace/gsi"
 import {
   compactBroadcastConfig,
@@ -46,12 +48,14 @@ export type ServerAppDeps = {
   assetStore: AssetStore
   hub: RealtimeHub
   onGsiCapture?: (merged: unknown) => void
+  onGrenadeDebug?: (debug: GrenadePipelineDebug) => void
 }
 
 export function createApp(deps: ServerAppDeps): Hono {
   const app = new Hono()
   const interstitials = createInterstitialDirector()
   let interstitialTimer: ReturnType<typeof setTimeout> | null = null
+  let lastGrenadeDebug: GrenadePipelineDebug | null = null
   seedStoredSeriesWins(deps)
 
   function publishInterstitial(
@@ -139,6 +143,15 @@ export function createApp(deps: ServerAppDeps): Hono {
 
     const previous = deps.getState()
     const result = deps.engine.apply(normalizeGsiPayload(parsed.data))
+    if (deps.onGrenadeDebug) {
+      const debug = buildGrenadePipelineDebug(
+        body as Record<string, unknown>,
+        deps.gsi.getState(),
+        result.state.worldGrenades
+      )
+      lastGrenadeDebug = debug
+      deps.onGrenadeDebug(debug)
+    }
     deps.setState(result.state)
     deps.hub.broadcast({ type: "snapshot", data: result.state })
     for (const event of result.events) {
@@ -154,6 +167,23 @@ export function createApp(deps: ServerAppDeps): Hono {
       return c.json({ connected: false })
     }
     return c.json({ connected: true, state })
+  })
+
+  app.get("/api/debug/grenades", (c) => {
+    if (process.env.MATCHFRAME_DEBUG_GRENADES !== "1") {
+      return c.json({ error: "grenade debug is off" }, 404)
+    }
+    const merged = deps.gsi.getState()
+    const mergedRecord =
+      typeof merged === "object" && merged !== null && !Array.isArray(merged)
+        ? (merged as Record<string, unknown>)
+        : {}
+    return c.json({
+      last: lastGrenadeDebug,
+      mergedGrenades: mergedRecord.grenades ?? null,
+      mergedAllgrenades: mergedRecord.allgrenades ?? null,
+      normalized: deps.getState()?.worldGrenades ?? null,
+    })
   })
 
   app.get("/api/config/theme", (c) => c.json(deps.themeStore.get()))

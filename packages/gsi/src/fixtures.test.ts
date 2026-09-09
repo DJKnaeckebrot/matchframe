@@ -325,6 +325,37 @@ describe("GSI fixture variants", () => {
     expect(inferno.worldGrenades[0]?.type).toBe("molotov")
     expect(inferno.worldGrenades[0]?.flames?.length).toBe(4)
 
+    const molotov = await normalized("radar-anubis-molotov-active")
+    expect(molotov.worldGrenades[0]?.type).toBe("molotov")
+    expect(molotov.worldGrenades[0]?.flames?.length).toBe(10)
+    expect(molotov.worldGrenades[0]?.flames).toEqual(
+      (await normalized("radar-inferno-multi-flame")).worldGrenades[0]?.flames
+    )
+
+    const flight = await normalized("radar-anubis-molotov-flight")
+    expect(flight.worldGrenades[0]).toMatchObject({
+      id: "504",
+      type: "molotov",
+    })
+    expect(flight.worldGrenades[0]?.flames).toBeUndefined()
+
+    const incendiary = await normalized("radar-anubis-incendiary-active")
+    expect(incendiary.worldGrenades[0]).toMatchObject({
+      id: "506",
+      type: "incendiary",
+      ownerSteamId: "76561198000000001",
+    })
+    expect(incendiary.worldGrenades[0]?.flames?.length).toBe(7)
+
+    const two = await normalized("radar-anubis-molotov-two-areas")
+    expect(two.worldGrenades.map((grenade) => grenade.id)).toEqual(["505", "506"])
+    expect(two.worldGrenades[0]?.flames?.length).toBe(10)
+    expect(two.worldGrenades[1]?.type).toBe("incendiary")
+    expect(two.worldGrenades[0]?.position).not.toEqual(two.worldGrenades[1]?.position)
+
+    const removed = await normalized("radar-anubis-molotov-removed")
+    expect(removed.worldGrenades).toEqual([])
+
     const multi = await normalized("radar-inferno-multi-flame")
     expect(multi.worldGrenades[0]?.flames?.length).toBe(10)
     expect(multi.worldGrenades[0]?.flames?.[0]).not.toEqual(multi.worldGrenades[0]?.flames?.[9])

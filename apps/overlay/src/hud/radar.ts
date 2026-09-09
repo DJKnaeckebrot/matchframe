@@ -11,6 +11,7 @@ import {
 } from "@workspace/maps"
 
 import { rosterNumber } from "./format"
+import { radarFireArea } from "./radar-fire-area"
 
 export type RadarPlayerView = {
   steamId: string
@@ -50,6 +51,8 @@ export type RadarGrenadeView = {
   radius?: number
   /** Inferno flame anchors already in radar image space. */
   flamePoints?: readonly RadarPoint[]
+  /** Padded convex hull of flamePoints. Present only for active fire. */
+  flameArea?: readonly RadarPoint[]
   onLevel: boolean
 }
 
@@ -179,56 +182,8 @@ export function getRadarBomb(
   }
 }
 
-/**
- * World grenades in radar image space. React must not call worldToRadar.
- * Owner side is resolved from current PlayerState, not stored on the grenade.
- *
- * Smoke `active` is effectTime > 0. Inferno `active` is transformed flame
- * points. Disappearance is the entity leaving `worldGrenades`.
- */
-export function getRadarGrenades(
-  state: GameState,
-  metadata: MapMetadata
-): RadarGrenadeView[] {
-  const grenades: RadarGrenadeView[] = []
-  for (const grenade of state.worldGrenades ?? []) {
-    const point = worldToRadar(grenade.position, metadata)
-    if (!point) {
-      continue
-    }
-    const flamePoints = radarFlamePoints(grenade.flames, metadata)
-    const smokeActive = grenade.type === "smoke" && (grenade.effectTime ?? 0) > 0
-    const fireActive = flamePoints.length > 0
-    const view: RadarGrenadeView = {
-      id: grenade.id,
-      type: grenade.type,
-      x: point.x,
-      y: point.y,
-      state: smokeActive || fireActive ? "active" : "projectile",
-      onLevel: entityOnLevel(grenade.position.z, getRadarFloor(state, metadata), metadata),
-    }
-    if (grenade.ownerSteamId) {
-      view.ownerSteamId = grenade.ownerSteamId
-      const owner = state.players.find((player) => player.steamId === grenade.ownerSteamId)
-      if (owner) {
-        view.ownerSide = owner.side
-      }
-    }
-    if (fireActive) {
-      view.flamePoints = flamePoints
-      const radius = worldRadiusToRadar(RADAR_FLAME_PRESENTATION_RADIUS, metadata)
-      if (radius !== undefined) {
-        view.radius = radius
-      }
-    } else if (smokeActive) {
-      const radius = worldRadiusToRadar(RADAR_SMOKE_PRESENTATION_RADIUS, metadata)
-      if (radius !== undefined) {
-        view.radius = radius
-      }
-    }
-    grenades.push(view)
-  }
-  return grenades
+function isFireGrenade(type: WorldGrenadeType): boolean {
+  return type === "molotov" || type === "incendiary"
 }
 
 function radarFlamePoints(
@@ -246,6 +201,90 @@ function radarFlamePoints(
     }
   }
   return points
+}
+
+function radarGrenadeOrigin(
+  grenade: { position?: Vector3 },
+  flamePoints: readonly RadarPoint[],
+  metadata: MapMetadata
+): RadarPoint | undefined {
+  if (grenade.position) {
+    return worldToRadar(grenade.position, metadata)
+  }
+  if (flamePoints.length === 0) {
+    return undefined
+  }
+  let x = 0
+  let y = 0
+  for (const point of flamePoints) {
+    x += point.x
+    y += point.y
+  }
+  return { x: x / flamePoints.length, y: y / flamePoints.length }
+}
+
+/**
+ * World grenades in radar image space. React must not call worldToRadar.
+ * Owner side is resolved from current PlayerState, not stored on the grenade.
+ *
+ * Smoke `active` is effectTime > 0. Fire `active` is transformed flame
+ * points on molotov/incendiary. Disappearance is the entity leaving
+ * `worldGrenades`. Live CS2 infernos omit root position; origin is then
+ * the flame centroid.
+ */
+export function getRadarGrenades(
+  state: GameState,
+  metadata: MapMetadata
+): RadarGrenadeView[] {
+  const grenades: RadarGrenadeView[] = []
+  for (const grenade of state.worldGrenades ?? []) {
+    const flamePoints = isFireGrenade(grenade.type)
+      ? radarFlamePoints(grenade.flames, metadata)
+      : []
+    const point = radarGrenadeOrigin(grenade, flamePoints, metadata)
+    if (!point) {
+      continue
+    }
+    const smokeActive = grenade.type === "smoke" && (grenade.effectTime ?? 0) > 0
+    const fireActive = flamePoints.length > 0
+    const view: RadarGrenadeView = {
+      id: grenade.id,
+      type: grenade.type,
+      x: point.x,
+      y: point.y,
+      state: smokeActive || fireActive ? "active" : "projectile",
+      onLevel: entityOnLevel(
+        grenade.position?.z ?? grenade.flames?.[0]?.z,
+        getRadarFloor(state, metadata),
+        metadata
+      ),
+    }
+    if (grenade.ownerSteamId) {
+      view.ownerSteamId = grenade.ownerSteamId
+      const owner = state.players.find((player) => player.steamId === grenade.ownerSteamId)
+      if (owner) {
+        view.ownerSide = owner.side
+      }
+    }
+    if (fireActive) {
+      view.flamePoints = flamePoints
+      const radius = worldRadiusToRadar(RADAR_FLAME_PRESENTATION_RADIUS, metadata)
+      if (radius !== undefined) {
+        view.radius = radius
+      }
+      const area = radarFireArea(flamePoints, radius ?? 0)
+      if (area) {
+        view.flameArea = area
+      }
+    } else if (smokeActive) {
+      const radius = worldRadiusToRadar(RADAR_SMOKE_PRESENTATION_RADIUS, metadata)
+      if (radius !== undefined) {
+        view.radius = radius
+      }
+    }
+    grenades.push(view)
+  }
+  return grenades
 }
 
 function entityOnLevel(

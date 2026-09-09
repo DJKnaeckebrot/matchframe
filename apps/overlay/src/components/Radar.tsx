@@ -17,6 +17,7 @@ import {
 import { useRadarMotion } from "../hud/radar-motion"
 import { iconLabel, ObjectiveIcon, resolveUtilityIcon } from "../icons"
 import { PackImage } from "../icons/pack-icon"
+import { RadarFireArea } from "./RadarFireArea"
 
 const RADAR_PX = 400
 
@@ -81,8 +82,8 @@ function RadarGrenade({ grenade }: { grenade: RadarGrenadeView }) {
   if (!grenade.onLevel) {
     return null
   }
-  if (grenade.flamePoints && grenade.flamePoints.length > 0) {
-    return <FireRadarEffect grenade={grenade} />
+  if (grenade.state === "active" && grenade.flameArea && grenade.flameArea.length > 0) {
+    return <RadarFireArea grenade={grenade} />
   }
   if (grenade.type === "smoke" && grenade.state === "active") {
     return <SmokeRadarEffect grenade={grenade} />
@@ -215,34 +216,6 @@ function SmokeRadarEffect({ grenade }: { grenade: RadarGrenadeView }) {
           <GrenadeIcon id="smoke" className="h-3.5 w-3.5" />
         </span>
       </div>
-    </div>
-  )
-}
-
-function FireRadarEffect({ grenade }: { grenade: RadarGrenadeView }) {
-  const points = grenade.flamePoints
-  const radius = grenade.radius
-  if (!points?.length || radius === undefined || radius <= 0) {
-    return null
-  }
-  const size = radius * 2 * RADAR_PX
-  return (
-    <div className="pointer-events-none absolute inset-0" style={{ zIndex: RADAR_LAYER.fireArea }}>
-      {points.map((point, index) => (
-        <div
-          key={`${grenade.id}-${index}`}
-          className="absolute"
-          style={{
-            left: 0,
-            top: 0,
-            width: size,
-            height: size,
-            transform: `${radarTranslate(point.x, point.y)} translate(-50%, -50%)`,
-          }}
-        >
-          <div className="mf-fire-cell h-full w-full" />
-        </div>
-      ))}
     </div>
   )
 }

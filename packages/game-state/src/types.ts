@@ -117,7 +117,11 @@ export type WorldGrenadeState = {
   id: string
   type: WorldGrenadeType
   ownerSteamId?: string
-  position: Vector3
+  /**
+   * Projectile origin. Omitted for live CS2 infernos, which send flame
+   * anchors and no root position.
+   */
+  position?: Vector3
   velocity?: Vector3
   lifetime?: number
   effectTime?: number

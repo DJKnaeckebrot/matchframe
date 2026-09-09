@@ -6,6 +6,7 @@ const CAPTURE_KEEP = new Set([
   "allplayers",
   "bomb",
   "grenades",
+  "allgrenades",
   "phase_countdowns",
 ])
 

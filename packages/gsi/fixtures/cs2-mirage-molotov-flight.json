@@ -1,0 +1,16 @@
+{
+  "map": {
+    "name": "de_mirage",
+    "phase": "live",
+    "round": 2
+  },
+  "grenades": {
+    "140": {
+      "owner": "76561198000000004",
+      "position": "-1104.2, 188.6, -96.4",
+      "velocity": "42.5, 186.0, 28.0",
+      "lifetime": "0.812",
+      "type": "firebomb"
+    }
+  }
+}

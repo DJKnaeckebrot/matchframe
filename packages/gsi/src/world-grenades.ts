@@ -12,10 +12,11 @@ import { parseGsiNumber, parseVector3 } from "./values"
  * Types seen: `smoke`, `flashbang`, `frag`. Smokes send `effecttime`
  * (0 in flight, counting once the cloud exists). Flash/HE omitted it.
  *
- * `firebomb` (projectile) and `inferno` (active fire with `flames`) are
- * documented Valve names. No molotov/incendiary capture is in-repo;
- * mapping below is conservative. Owner side is not encoded into type —
- * presentation picks molotov vs incendiary icon from PlayerState.
+ * Live CS2 spectator `grenades` (2026-09-09, de_mirage):
+ * `inferno` burning patches send `owner`, `lifetime`, `flames` and no
+ * root `position`. Flame keys look like `flame_n1247_p399_n168`, values
+ * are `"x, y, z"` strings. Mapping firebomb/inferno → molotov is
+ * conservative. Owner side is presentation, not weapon identity.
  */
 export function asWorldGrenadeType(raw: string | undefined): WorldGrenadeType {
   const id = raw?.trim().toLowerCase()
@@ -67,15 +68,21 @@ export function normalizeWorldGrenades(payload: GsiPayload): WorldGrenadeState[]
 
 function normalizeWorldGrenade(id: string, raw: GsiGrenade): WorldGrenadeState | null {
   const position = parseVector3(raw.position)
+  const flames = parseGrenadeFlames(raw.flames)
+  const type = asWorldGrenadeType(raw.type)
   if (!position) {
-    return null
+    if (!flames || (type !== "molotov" && type !== "incendiary")) {
+      return null
+    }
   }
 
   const ownerSteamId = raw.owner?.trim() || undefined
   const grenade: WorldGrenadeState = {
     id,
-    type: asWorldGrenadeType(raw.type),
-    position,
+    type,
+  }
+  if (position) {
+    grenade.position = position
   }
   if (ownerSteamId) {
     grenade.ownerSteamId = ownerSteamId
@@ -92,7 +99,6 @@ function normalizeWorldGrenade(id: string, raw: GsiGrenade): WorldGrenadeState |
   if (effectTime !== undefined) {
     grenade.effectTime = effectTime
   }
-  const flames = parseGrenadeFlames(raw.flames)
   if (flames) {
     grenade.flames = flames
   }
@@ -100,8 +106,10 @@ function normalizeWorldGrenade(id: string, raw: GsiGrenade): WorldGrenadeState |
 }
 
 /**
- * Inferno `flames` is a map of flame_N → "x, y, z". Skip bad entries;
- * a broken flame must not drop the grenade or the payload.
+ * Live inferno `flames` is an object of encoded keys → `"x, y, z"`.
+ * Keys look like `flame_n1247_p399_n168`, not `flame_0`. Values are
+ * position strings. Skip bad entries; a broken flame must not drop
+ * the grenade or the payload.
  */
 function parseGrenadeFlames(raw: unknown): readonly Vector3[] | undefined {
   if (raw === null || raw === undefined || typeof raw !== "object") {

@@ -92,6 +92,7 @@ bun run fixture:gsi radar-anubis-bomb-planted
 bun run fixture:gsi demo:defuse
 bun run fixture:gsi demo:smoke
 bun run fixture:gsi demo:grenades
+bun run fixture:gsi demo:fire
 bun run fixture:gsi demo:round-win
 bun run fixture:gsi demo:ace
 bun run fixture:gsi demo:clutch

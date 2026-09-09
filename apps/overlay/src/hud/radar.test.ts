@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { DE_ANUBIS, DE_ANUBIS_OVERVIEW_SPAWNS, DE_NUKE, radarToWorld } from "@workspace/maps"
+import { DE_ANUBIS, DE_ANUBIS_OVERVIEW_SPAWNS, DE_MIRAGE, DE_NUKE, radarToWorld } from "@workspace/maps"
 import type { GameState, PlayerState } from "@workspace/game-state"
 
 import {
@@ -281,6 +281,39 @@ describe("radar selectors", () => {
     expect(grenades[2]?.x).toBeCloseTo(0.4, 10)
   })
 
+  test("inferno with flame points and no root position still builds a fire area", () => {
+    const grenades = getRadarGrenades(
+      state(
+        [],
+        null,
+        [
+          {
+            id: "155",
+            type: "molotov",
+            ownerSteamId: "t1",
+            flames: [
+              { x: -1247, y: 399, z: -168 },
+              { x: -1254, y: 469, z: -165 },
+              { x: -1281, y: 533, z: -162 },
+            ],
+          },
+        ],
+        "de_mirage"
+      ),
+      DE_MIRAGE
+    )
+    expect(grenades).toHaveLength(1)
+    expect(grenades[0]?.state).toBe("active")
+    expect(grenades[0]?.flamePoints).toHaveLength(3)
+    expect(grenades[0]?.flameArea?.length).toBeGreaterThanOrEqual(3)
+    expect(Number.isFinite(grenades[0]?.x ?? Number.NaN)).toBe(true)
+    expect(Number.isFinite(grenades[0]?.y ?? Number.NaN)).toBe(true)
+    expect(grenades[0]?.x).toBeGreaterThan(0)
+    expect(grenades[0]?.x).toBeLessThan(1)
+    expect(grenades[0]?.y).toBeGreaterThan(0)
+    expect(grenades[0]?.y).toBeLessThan(1)
+  })
+
   test("firebomb projectile has no flame area until flames exist", () => {
     const pos = radarToWorld({ x: 0.58, y: 0.72 }, DE_ANUBIS)
     const grenades = getRadarGrenades(
@@ -298,6 +331,7 @@ describe("radar selectors", () => {
       ownerSide: "CT",
     })
     expect(grenades[0]?.flamePoints).toBeUndefined()
+    expect(grenades[0]?.flameArea).toBeUndefined()
     expect(grenades[0]?.radius).toBeUndefined()
   })
 
@@ -330,6 +364,7 @@ describe("radar selectors", () => {
     expect(grenades[0]?.flamePoints?.[0]?.x).toBeCloseTo(0.5, 10)
     expect(grenades[0]?.flamePoints?.[0]?.y).toBeCloseTo(0.45, 10)
     expect(grenades[0]?.flamePoints?.[1]?.x).toBeCloseTo(0.52, 10)
+    expect(grenades[0]?.flameArea?.length).toBeGreaterThanOrEqual(3)
     expect(grenades[0]?.radius).toBeCloseTo(
       RADAR_FLAME_PRESENTATION_RADIUS / (DE_ANUBIS.radar.scale * DE_ANUBIS.radar.width),
       10
@@ -356,6 +391,64 @@ describe("radar selectors", () => {
     )
     expect(grenades[0]?.flamePoints).toHaveLength(1)
     expect(grenades[0]?.flamePoints?.[0]?.x).toBeCloseTo(0.51, 10)
+    expect(grenades[0]?.flameArea?.length).toBeGreaterThanOrEqual(3)
+  })
+
+  test("incendiary flames use the same fire area path as molotov", () => {
+    const pos = radarToWorld({ x: 0.48, y: 0.32 }, DE_ANUBIS)
+    const a = radarToWorld({ x: 0.48, y: 0.32 }, DE_ANUBIS)
+    const b = radarToWorld({ x: 0.495, y: 0.33 }, DE_ANUBIS)
+    const grenades = getRadarGrenades(
+      state(
+        [player({ steamId: "ct1", side: "CT" })],
+        null,
+        [
+          {
+            id: "inc1",
+            type: "incendiary",
+            ownerSteamId: "ct1",
+            position: { ...pos, z: 0 },
+            flames: [
+              { ...a, z: 0 },
+              { ...b, z: 0 },
+            ],
+          },
+        ]
+      ),
+      DE_ANUBIS
+    )
+    expect(grenades[0]).toMatchObject({
+      id: "inc1",
+      type: "incendiary",
+      state: "active",
+      ownerSide: "CT",
+    })
+    expect(grenades[0]?.flamePoints).toHaveLength(2)
+    expect(grenades[0]?.flameArea?.length).toBeGreaterThanOrEqual(3)
+  })
+
+  test("smoke flames are ignored so smoke stays a circle, not a fire patch", () => {
+    const pos = radarToWorld({ x: 0.47, y: 0.48 }, DE_ANUBIS)
+    const flame = radarToWorld({ x: 0.48, y: 0.48 }, DE_ANUBIS)
+    const grenades = getRadarGrenades(
+      state([], null, [
+        {
+          id: "401",
+          type: "smoke",
+          position: { ...pos, z: 0 },
+          effectTime: 2,
+          flames: [{ ...flame, z: 0 }],
+        },
+      ]),
+      DE_ANUBIS
+    )
+    expect(grenades[0]?.state).toBe("active")
+    expect(grenades[0]?.flamePoints).toBeUndefined()
+    expect(grenades[0]?.flameArea).toBeUndefined()
+    expect(grenades[0]?.radius).toBeCloseTo(
+      RADAR_SMOKE_PRESENTATION_RADIUS / (DE_ANUBIS.radar.scale * DE_ANUBIS.radar.width),
+      10
+    )
   })
 
   test("mixed smoke, fire, projectile, and players stay independent layer data", () => {
@@ -390,6 +483,42 @@ describe("radar selectors", () => {
     ])
     expect(grenades[0]?.flamePoints).toBeUndefined()
     expect(grenades[1]?.flamePoints).toHaveLength(1)
+    expect(grenades[1]?.flameArea?.length).toBeGreaterThanOrEqual(3)
+  })
+
+  test("two fire areas stay independent hulls", () => {
+    const mid = radarToWorld({ x: 0.5, y: 0.45 }, DE_ANUBIS)
+    const site = radarToWorld({ x: 0.72, y: 0.28 }, DE_ANUBIS)
+    const grenades = getRadarGrenades(
+      state([], null, [
+        {
+          id: "505",
+          type: "molotov",
+          position: { ...mid, z: 0 },
+          flames: [
+            { ...mid, z: 0 },
+            { ...radarToWorld({ x: 0.52, y: 0.46 }, DE_ANUBIS), z: 0 },
+          ],
+        },
+        {
+          id: "506",
+          type: "incendiary",
+          position: { ...site, z: 0 },
+          flames: [
+            { ...site, z: 0 },
+            { ...radarToWorld({ x: 0.74, y: 0.29 }, DE_ANUBIS), z: 0 },
+          ],
+        },
+      ]),
+      DE_ANUBIS
+    )
+    expect(grenades.map((entry) => [entry.id, entry.type, entry.state])).toEqual([
+      ["505", "molotov", "active"],
+      ["506", "incendiary", "active"],
+    ])
+    expect(grenades[0]?.flameArea).not.toEqual(grenades[1]?.flameArea)
+    expect(grenades[0]?.x).toBeCloseTo(0.5, 10)
+    expect(grenades[1]?.x).toBeCloseTo(0.72, 10)
   })
 
   test("Anubis markers are always on-level", () => {

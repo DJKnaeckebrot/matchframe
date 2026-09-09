@@ -143,6 +143,40 @@ describe("normalizeWorldGrenades", () => {
     ).toEqual([])
   })
 
+  test("keeps live inferno flame maps that have no root position", () => {
+    const parsed = parseGsiPayload({
+      grenades: {
+        "155": {
+          owner: T,
+          type: "inferno",
+          lifetime: "3.029",
+          flames: {
+            flame_n1247_p399_n168: "-1247.0, 399.0, -168.0",
+            flame_n1254_p469_n165: "-1254.0, 469.0, -165.0",
+          },
+        },
+      },
+    })
+    expect(parsed.success).toBe(true)
+    if (!parsed.success) {
+      return
+    }
+    const grenades = normalizeWorldGrenades(parsed.data)
+    expect(grenades).toEqual([
+      {
+        id: "155",
+        type: "molotov",
+        ownerSteamId: T,
+        lifetime: 3.029,
+        flames: [
+          { x: -1247, y: 399, z: -168 },
+          { x: -1254, y: 469, z: -165 },
+        ],
+      },
+    ])
+    expect(grenades[0]?.position).toBeUndefined()
+  })
+
   test("firebomb and inferno stay conservative molotov, not owner-side weapon identity", () => {
     const parsed = parseGsiPayload({
       allplayers: {
@@ -239,6 +273,35 @@ describe("normalizeWorldGrenades", () => {
       },
     ])
     expect(JSON.stringify(state.worldGrenades)).not.toContain("flame_0")
+  })
+
+  test("incgrenade flames normalize to incendiary without Valve keys", () => {
+    const parsed = parseGsiPayload({
+      grenades: {
+        "8": {
+          owner: CT,
+          type: "incgrenade",
+          position: "20, 21, 22",
+          flames: { flame_0: "20, 21, 22", flame_1: "24, 23, 22" },
+        },
+      },
+    })
+    expect(parsed.success).toBe(true)
+    if (!parsed.success) {
+      return
+    }
+    expect(normalizeGsiPayload(parsed.data).worldGrenades).toEqual([
+      {
+        id: "8",
+        type: "incendiary",
+        ownerSteamId: CT,
+        position: { x: 20, y: 21, z: 22 },
+        flames: [
+          { x: 20, y: 21, z: 22 },
+          { x: 24, y: 23, z: 22 },
+        ],
+      },
+    ])
   })
 
   test("keeps flash, he, decoy, and firebomb in one collection", () => {

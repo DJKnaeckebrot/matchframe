@@ -38,6 +38,11 @@ export const GSI_FIXTURE_VARIANTS = [
   "radar-inferno-multi-flame",
   "radar-grenades-mixed",
   "radar-grenades-cleared",
+  "radar-anubis-molotov-flight",
+  "radar-anubis-molotov-active",
+  "radar-anubis-molotov-removed",
+  "radar-anubis-incendiary-active",
+  "radar-anubis-molotov-two-areas",
   "series",
 ] as const
 
@@ -192,7 +197,7 @@ function applyVariant(payload: GsiDemo, variant: GsiFixtureVariant): void {
     payload.grenades = { "503": anubisNade(DECOY_ACTIVE) }
     return
   }
-  if (variant === "radar-fire-flight") {
+  if (variant === "radar-fire-flight" || variant === "radar-anubis-molotov-flight") {
     applyAnubisRadar(payload)
     payload.grenades = { "504": anubisNade(FIRE_FLIGHT) }
     return
@@ -202,9 +207,22 @@ function applyVariant(payload: GsiDemo, variant: GsiFixtureVariant): void {
     payload.grenades = { "505": anubisInferno(INFERNO_ACTIVE) }
     return
   }
-  if (variant === "radar-inferno-multi-flame") {
+  if (variant === "radar-inferno-multi-flame" || variant === "radar-anubis-molotov-active") {
     applyAnubisRadar(payload)
     payload.grenades = { "505": anubisInferno(INFERNO_MULTI) }
+    return
+  }
+  if (variant === "radar-anubis-incendiary-active") {
+    applyAnubisRadar(payload)
+    payload.grenades = { "506": anubisInferno(INCENDIARY_ACTIVE) }
+    return
+  }
+  if (variant === "radar-anubis-molotov-two-areas") {
+    applyAnubisRadar(payload)
+    payload.grenades = {
+      "505": anubisInferno(INFERNO_MULTI),
+      "506": anubisInferno(INCENDIARY_ACTIVE),
+    }
     return
   }
   if (variant === "radar-grenades-mixed") {
@@ -218,7 +236,7 @@ function applyVariant(payload: GsiDemo, variant: GsiFixtureVariant): void {
     }
     return
   }
-  if (variant === "radar-grenades-cleared") {
+  if (variant === "radar-grenades-cleared" || variant === "radar-anubis-molotov-removed") {
     applyAnubisRadar(payload)
     payload.grenades = {}
     return
@@ -895,6 +913,22 @@ const INFERNO_MULTI = {
   ],
 } as const
 
+const INCENDIARY_ACTIVE = {
+  owner: CT_OWNER,
+  type: "incgrenade",
+  radarX: 0.72,
+  radarY: 0.28,
+  flames: [
+    [0.72, 0.28],
+    [0.732, 0.276],
+    [0.71, 0.292],
+    [0.738, 0.288],
+    [0.708, 0.268],
+    [0.744, 0.27],
+    [0.726, 0.304],
+  ],
+} as const
+
 function anubisNade(nade: {
   owner: string
   type: string
@@ -917,6 +951,7 @@ function anubisInferno(inferno: {
   radarX: number
   radarY: number
   flames: readonly (readonly [number, number])[]
+  type?: string
 }): GsiDemoGrenade {
   const flames: Record<string, string> = {}
   inferno.flames.forEach((point, index) => {
@@ -929,7 +964,7 @@ function anubisInferno(inferno: {
   })
   return {
     owner: inferno.owner,
-    type: "inferno",
+    type: inferno.type ?? "inferno",
     position: anubisWorld(inferno.radarX, inferno.radarY),
     velocity: "0, 0, 0",
     lifetime: "3.4",

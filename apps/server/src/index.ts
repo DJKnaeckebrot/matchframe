@@ -1,6 +1,7 @@
+import { appendFile, mkdir } from "node:fs/promises"
 import { join } from "node:path"
 import { createGameStateEngine } from "@workspace/game-state"
-import { createGsiStateManager, sanitizeGsiCapture } from "@workspace/gsi"
+import { createGsiStateManager, sanitizeGsiCapture, debugHasFireGrenade, type GrenadePipelineDebug } from "@workspace/gsi"
 import { websocket } from "hono/bun"
 
 import { createApp } from "./app"
@@ -48,7 +49,35 @@ const overlayStore = createFileOverlayStore(dataDir())
 const playerStore = createFilePlayerStore(dataDir())
 const portraitDir = join(dataDir(), "portraits")
 const assetStore = createFileAssetStore(join(dataDir(), "assets"))
+
+function grenadeDebugWriter(): ((debug: GrenadePipelineDebug) => void) | undefined {
+  if (process.env.MATCHFRAME_DEBUG_GRENADES !== "1") {
+    return undefined
+  }
+  const dir = join(dataDir(), "gsi-capture")
+  const jsonl = join(dir, "grenades.jsonl")
+  const latest = join(dir, "grenades-latest.json")
+  void mkdir(dir, { recursive: true })
+  return (debug) => {
+    if (!debugHasFireGrenade(debug)) {
+      return
+    }
+    console.log(
+      `[grenades] ${debug.incomingGrenadeBlock} in=${debug.incoming.length} all=${debug.incomingAllgrenades.length} merged=${debug.merged.length} mergedAll=${debug.mergedAllgrenades.length} norm=${debug.normalized.length}`
+    )
+    for (const grenade of [...debug.incoming, ...debug.incomingAllgrenades, ...debug.merged, ...debug.mergedAllgrenades]) {
+      console.log(
+        `  ${grenade.id} type=${String(grenade.type)} pos=${String(grenade.position)} flames=${grenade.flames.jsType}${grenade.flames.keys ? ` keys=${grenade.flames.keys.join(",")}` : ""} kinds=${grenade.flames.valueKinds?.join(",") ?? "-"}`
+      )
+    }
+    const line = JSON.stringify({ t: Date.now(), ...debug })
+    void Bun.write(latest, JSON.stringify(debug, null, 2))
+    void appendFile(jsonl, `${line}\n`)
+  }
+}
+
 const onGsiCapture = gsiCaptureWriter()
+const onGrenadeDebug = grenadeDebugWriter()
 
 const app = createApp({
   engine,
@@ -62,6 +91,7 @@ const app = createApp({
   assetStore,
   hub,
   ...(onGsiCapture ? { onGsiCapture } : {}),
+  ...(onGrenadeDebug ? { onGrenadeDebug } : {}),
 })
 
 const port = listenPort()
@@ -73,6 +103,7 @@ Bun.serve({
 })
 
 console.log(`Broadcast server running at http://localhost:${port}`)
+
 console.log(`GSI endpoint: http://localhost:${port}/api/gsi`)
 console.log(`WebSocket: ws://localhost:${port}/ws`)
 

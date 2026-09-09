@@ -91,6 +91,12 @@ export const gsiPayloadSchema = z.object({
   bomb: gsiBombSchema.optional(),
   /** Per-entity parse lives in normalizeWorldGrenades so one bad nade cannot drop the payload. */
   grenades: z.record(z.string(), z.unknown()).optional(),
+  /**
+   * Spectator cfg key `allgrenades` may arrive as this top-level block.
+   * Kept on the raw payload so diagnostics can see it; normalize decides
+   * whether to consume it.
+   */
+  allgrenades: z.record(z.string(), z.unknown()).optional(),
   phase_countdowns: gsiPhaseCountdownsSchema.optional(),
 })
 

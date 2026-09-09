@@ -16,6 +16,7 @@ describe("sanitizeGsiCapture", () => {
       },
       bomb: { state: "carried", player: "76561198000000001" },
       grenades: { "1": { type: "smoke" } },
+      allgrenades: { "2": { type: "inferno" } },
     })
 
     expect(sanitized).not.toHaveProperty("auth")
@@ -28,6 +29,7 @@ describe("sanitizeGsiCapture", () => {
       "76561198000000001": { name: "Nova", position: "1, 2, 3" },
     })
     expect(sanitized?.grenades).toEqual({ "1": { type: "smoke" } })
+    expect(sanitized?.allgrenades).toEqual({ "2": { type: "inferno" } })
   })
 
   test("rejects non-objects", () => {
