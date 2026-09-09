@@ -48,7 +48,11 @@ export function Overlay() {
           ) : null}
           {show.chrome.interstitial ? <BroadcastInterstitial state={state} show={show} /> : null}
           {show.chrome.teams ? (
-            <div className="absolute inset-x-0 bottom-0">
+            <div
+              className={`mf-hud-rest absolute inset-x-0 bottom-0 ${
+                show.chrome.interstitial ? "mf-hud-rest-dim" : ""
+              }`}
+            >
               <TeamView state={state} show={show} />
             </div>
           ) : null}

@@ -58,6 +58,7 @@ describe("server messages", () => {
             teamId: "team-1",
             playerSteamId: "A",
             roundKills: 5,
+            side: "CT",
           },
           expiresAt: 4500,
         },

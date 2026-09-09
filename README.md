@@ -96,6 +96,7 @@ bun run fixture:gsi demo:round-win
 bun run fixture:gsi demo:ace
 bun run fixture:gsi demo:clutch
 bun run fixture:gsi demo:mvp
+bun run fixture:gsi demo:interstitials
 ```
 
 `live` is the default. `bun run fixture:gsi` with an unknown name prints the

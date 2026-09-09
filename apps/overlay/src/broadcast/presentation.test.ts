@@ -378,6 +378,20 @@ describe("overlayShow", () => {
     })
   })
 
+  test("does not invent a round-winner when the queue has expired", () => {
+    const show = overlayShow(
+      state({
+        round: { phase: "over", winTeam: "CT", winReason: "bomb_defused", alive: { ct: 2, t: 0 } },
+      }),
+      { eventName: "Matchframe" },
+      defaultBroadcastConfig,
+      null
+    )
+    expect(show.interstitial).toBeNull()
+    expect(show.chrome.interstitial).toBe(false)
+    expect(show.chrome.result).toBe(true)
+  })
+
   test("fills round over with a round-winner slate when nothing else is queued", () => {
     const show = overlayShow(
       state({
@@ -503,20 +517,46 @@ describe("formatWinReasonFull", () => {
 })
 
 describe("interstitial phase", () => {
-  test("does not keep a stale card once the round is live", () => {
+  test("keeps a queued card through a live flicker", () => {
     const show = overlayShow(
       state(),
       {},
       defaultBroadcastConfig,
       {
         type: "round-winner",
-        id: "stale",
+        id: "queued",
         createdAt: 1,
         teamId: "northwind",
       }
     )
+    expect(show.phase).toBe("live")
+    expect(show.chrome.interstitial).toBe(true)
+    expect(show.interstitial?.type).toBe("round-winner")
+  })
+
+  test("hides when the queue is empty during live play", () => {
+    const show = overlayShow(state(), {}, defaultBroadcastConfig, null)
     expect(show.chrome.interstitial).toBe(false)
     expect(show.interstitial).toBeNull()
+  })
+
+  test("keeps a queued card through freeze", () => {
+    const show = overlayShow(
+      state({ round: { phase: "freezetime", winTeam: null, alive: { ct: 5, t: 5 } } }),
+      {},
+      defaultBroadcastConfig,
+      {
+        type: "mvp",
+        id: "mvp:11:b",
+        createdAt: 1,
+        teamId: "northwind",
+        playerSteamId: "b",
+        roundKills: 2,
+      }
+    )
+    expect(show.phase).toBe("freeze")
+    expect(show.chrome.interstitial).toBe(true)
+    expect(show.interstitial?.type).toBe("mvp")
   })
 })
 

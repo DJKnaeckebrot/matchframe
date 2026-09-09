@@ -17,8 +17,8 @@ import { getBroadcastAsset } from "../assets/broadcast"
  * Overlay show states. Derived from GameState; not a protocol change.
  *
  * | phase        | header | radar | rows | focused | result | history | interstitial |
- * | live         | on     | on    | on   | on      | off    | off     | off          |
- * | freeze       | on     | on    | on   | on      | off    | on      | off          |
+ * | live         | on     | on    | on   | on      | off    | off     | if queued    |
+ * | freeze       | on     | on    | on   | on      | off    | on      | from server  |
  * | planted      | on     | on    | on   | on      | off    | off     | off          |
  * | defusing     | on     | on    | on   | on      | off    | off     | off          |
  * | round_over   | on     | on    | on   | on      | unless interstitial | on | from server |
@@ -26,7 +26,8 @@ import { getBroadcastAsset } from "../assets/broadcast"
  * | timeout      | on     | on    | on   | on      | off    | on      | off          |
  *
  * Result lives in the header center well — suppressed while a full interstitial is up.
- * Interstitial is a center overlay; focused player stays in the bottom slot.
+ * A queued card stays visible until its duration expires — including freeze and a
+ * brief live flicker CS2 sends between over and buy time.
  */
 export type OverlayPhase =
   | "live"
@@ -130,6 +131,7 @@ export function roundWinnerFromState(state: GameState): BroadcastInterstitial | 
     id: `round-winner:${state.map.round}:${team.id}`,
     createdAt: state.timestamp,
     teamId: team.id,
+    side: team.side,
     ...(state.round.winReason ? { winReason: state.round.winReason } : {}),
   }
 }
@@ -138,13 +140,14 @@ export function overlayShow(
   state: GameState,
   branding: OverlayBranding,
   broadcast: BroadcastConfig,
-  interstitial: BroadcastInterstitial | null = null
+  interstitial?: BroadcastInterstitial | null
 ): OverlayShow {
   const phase = getOverlayPhase(state)
   const series = parseSeriesFormat(branding.seriesLabel ?? broadcast.format)
   const sponsors = overlaySponsors(branding, broadcast)
-  const active =
-    phase === "round_over" ? interstitial ?? roundWinnerFromState(state) : null
+  const queued =
+    interstitial === undefined ? roundWinnerFromState(state) : interstitial
+  const active = queued ?? null
   return {
     phase,
     branding,

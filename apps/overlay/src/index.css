@@ -81,16 +81,24 @@ body,
 @keyframes mf-interstitial-in {
   from {
     opacity: 0;
-    transform: translate(-50%, 10px) scale(0.98);
+    transform: translateY(10px) scale(0.98);
   }
   to {
     opacity: 1;
-    transform: translate(-50%, 0) scale(1);
+    transform: translateY(0) scale(1);
   }
 }
 
 .mf-interstitial {
   animation: mf-interstitial-in 280ms var(--mf-ease) both;
+}
+
+.mf-hud-rest {
+  transition: opacity 280ms var(--mf-ease);
+}
+
+.mf-hud-rest-dim {
+  opacity: 0.82;
 }
 
 .mf-interstitial-portrait {
@@ -199,8 +207,10 @@ body,
   .mf-radar-bomb-halo,
   .mf-chrome-in,
   .mf-interstitial,
-  .mf-interstitial-portrait {
+  .mf-interstitial-portrait,
+  .mf-hud-rest {
     animation: none;
+    transition: none;
   }
 
   .mf-radar-bomb-halo {

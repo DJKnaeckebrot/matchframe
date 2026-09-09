@@ -73,10 +73,12 @@ export {
   INTERSTITIAL_PRIORITY,
   INTERSTITIAL_TYPES,
   composeBroadcastInterstitial,
+  composeInterstitialSequence,
   createInterstitialDirector,
   parseBroadcastInterstitial,
   parseInterstitialPayload,
   pickInterstitial,
+  sequenceInterstitials,
 } from "./interstitials"
 export type {
   AceInterstitial,

@@ -5,6 +5,7 @@ import {
   createInterstitialDirector,
   INTERSTITIAL_DURATION_MS,
   pickInterstitial,
+  sequenceInterstitials,
   type BroadcastInterstitial,
 } from "./interstitials"
 import {
@@ -115,7 +116,7 @@ function kill(
 function session() {
   const engine = createGameStateEngine()
   const tracker = createRoundPerformanceTracker()
-  const director = createInterstitialDirector(tracker)
+  const director = createInterstitialDirector()
   let previous: GameState | null = null
   let clock = 1000
 
@@ -206,6 +207,36 @@ describe("ACE detection", () => {
     expect(reset.result.events.some((event) => event.type === "round_started")).toBe(true)
     expect(reset.performance.kills).toEqual([])
     expect(assessAce(reset.performance).status).toBe("none")
+  })
+
+  test("same-tick round_ended still keeps ACE kills when the map round already incremented", () => {
+    const { apply } = session()
+    apply(snapshot({ roundPhase: "freezetime", round: 5 }))
+    let players: PlayerState[] = [...snapshot({ round: 5 }).players]
+    apply(snapshot({ players, round: 5, roundPhase: "live" }))
+    let kills = 1
+    for (const victim of T_ROSTER) {
+      players = kill(players, "A", victim, kills)
+      kills += 1
+      apply(snapshot({ players, round: 5, roundPhase: "live", timestamp: kills }))
+    }
+    const overAndStarted = apply(
+      snapshot({
+        players,
+        round: 6,
+        roundPhase: "over",
+        winTeam: "CT",
+        winReason: "elimination",
+        timestamp: 20,
+      })
+    )
+    expect(overAndStarted.result.events.some((event) => event.type === "round_ended")).toBe(true)
+    expect(overAndStarted.result.events.some((event) => event.type === "round_started")).toBe(true)
+    expect(assessAce(overAndStarted.performance)).toMatchObject({
+      status: "ace",
+      playerSteamId: "A",
+      roundKills: 5,
+    })
   })
 
   test("short opposing roster is unresolved, not an ACE", () => {
@@ -528,6 +559,7 @@ describe("interstitial director", () => {
       type: "round-winner",
       teamId: "northwind",
       winReason: "bomb_exploded",
+      side: "T",
     })
   })
 
@@ -551,6 +583,58 @@ describe("interstitial director", () => {
       { type: "ace", id: "a", createdAt: 1, teamId: "ct", playerSteamId: "A", roundKills: 5 },
     ]
     expect(pickInterstitial(cards)?.type).toBe("ace")
+    expect(sequenceInterstitials(cards).map((card) => card.type)).toEqual(["round-winner", "ace"])
+  })
+
+  test("sequences round winner then clutch, skipping MVP", () => {
+    expect(
+      sequenceInterstitials([
+        { type: "round-winner", id: "w", createdAt: 1, teamId: "ct" },
+        { type: "mvp", id: "m", createdAt: 1, teamId: "ct", playerSteamId: "A", roundKills: 2 },
+        {
+          type: "clutch",
+          id: "c",
+          createdAt: 1,
+          teamId: "ct",
+          playerSteamId: "A",
+          opponentsAtClutchStart: 4,
+        },
+      ]).map((card) => card.type)
+    ).toEqual(["round-winner", "clutch"])
+  })
+
+  test("plays round winner then ACE, then expires", () => {
+    const { apply, director } = session()
+    apply(snapshot({ roundPhase: "freezetime" }))
+    let players: PlayerState[] = [...snapshot({}).players]
+    apply(snapshot({ players, roundPhase: "live" }))
+    let kills = 1
+    for (const victim of T_ROSTER) {
+      players = kill(players, "A", victim, kills)
+      kills += 1
+      apply(snapshot({ players, roundPhase: "live", timestamp: kills }))
+    }
+    const over = apply(
+      snapshot({
+        players,
+        roundPhase: "over",
+        winTeam: "CT",
+        winReason: "elimination",
+        timestamp: 20,
+      }),
+      50_000
+    )
+    expect(over.action.type).toBe("set")
+    if (over.action.type !== "set") {
+      return
+    }
+    expect(over.action.payload.card.type).toBe("round-winner")
+    const aceAt = 50_000 + INTERSTITIAL_DURATION_MS["round-winner"]
+    expect(director.peek(aceAt - 1)?.card.type).toBe("round-winner")
+    expect(director.peek(aceAt)?.card.type).toBe("ace")
+    const doneAt = aceAt + INTERSTITIAL_DURATION_MS.ace
+    expect(director.peek(doneAt - 1)?.card.type).toBe("ace")
+    expect(director.peek(doneAt)).toBeNull()
   })
 
   test("duplicate round_ended does not retrigger", () => {
@@ -584,17 +668,55 @@ describe("interstitial director", () => {
     expect(director.peek(10_000 + duration + 1)).toBeNull()
   })
 
-  test("next freeze clears a stale card", () => {
-    const { apply } = session()
+  test("next freeze and a live flicker keep the card until duration expires", () => {
+    const { apply, director } = session()
     apply(snapshot({ roundPhase: "live", round: 3 }))
-    apply(
+    const over = apply(
       snapshot({ round: 3, roundPhase: "over", winTeam: "CT", timestamp: 2 }),
       20_000
     )
+    expect(over.action.type).toBe("set")
     const freeze = apply(
       snapshot({ round: 4, roundPhase: "freezetime", timestamp: 3 }),
       20_400
     )
-    expect(freeze.action.type).toBe("clear")
+    expect(freeze.action.type).toBe("hold")
+    const live = apply(
+      snapshot({ round: 4, roundPhase: "live", timestamp: 4 }),
+      20_800
+    )
+    expect(live.action.type).toBe("hold")
+    expect(director.peek(20_800)?.card.type).toBe("round-winner")
+  })
+
+  test("same-tick round_ended and round_started still queues ACE after the winner", () => {
+    const { apply, director } = session()
+    apply(snapshot({ roundPhase: "freezetime", round: 3 }))
+    let players: PlayerState[] = [...snapshot({ round: 3 }).players]
+    apply(snapshot({ players, round: 3, roundPhase: "live" }))
+    let kills = 1
+    for (const victim of T_ROSTER) {
+      players = kill(players, "A", victim, kills)
+      kills += 1
+      apply(snapshot({ players, round: 3, roundPhase: "live", timestamp: kills }))
+    }
+    const both = apply(
+      snapshot({
+        players,
+        round: 4,
+        roundPhase: "over",
+        winTeam: "CT",
+        winReason: "elimination",
+        timestamp: 20,
+      }),
+      30_000
+    )
+    expect(both.action.type).toBe("set")
+    if (both.action.type !== "set") {
+      return
+    }
+    expect(both.action.payload.card.type).toBe("round-winner")
+    const aceAt = 30_000 + INTERSTITIAL_DURATION_MS["round-winner"]
+    expect(director.peek(aceAt)?.card.type).toBe("ace")
   })
 })

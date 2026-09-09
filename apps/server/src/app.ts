@@ -69,13 +69,26 @@ export function createApp(deps: ServerAppDeps): Hono {
       return
     }
     deps.hub.broadcast({ type: "interstitial", data: action.payload })
-    const wait = action.payload.expiresAt - Date.now()
+    scheduleInterstitialAdvance(action.payload.expiresAt)
+  }
+
+  function scheduleInterstitialAdvance(expiresAt: number): void {
+    const wait = expiresAt - Date.now()
     if (wait <= 0) {
+      const next = interstitials.peek(Date.now())
+      if (next) {
+        publishInterstitial({ type: "set", payload: next })
+      } else {
+        deps.hub.broadcast({ type: "interstitial", data: null })
+      }
       return
     }
     interstitialTimer = setTimeout(() => {
       interstitialTimer = null
-      if (interstitials.peek(Date.now()) === null) {
+      const next = interstitials.peek(Date.now())
+      if (next) {
+        publishInterstitial({ type: "set", payload: next })
+      } else {
         deps.hub.broadcast({ type: "interstitial", data: null })
       }
     }, wait)

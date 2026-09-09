@@ -89,12 +89,15 @@ export function applyRoundPerformance(
   events: readonly GameEvent[]
 ): RoundPerformanceState {
   const started = events.some((event) => event.type === "round_started")
+  const ended = events.some((event) => event.type === "round_ended")
   const enteredFreeze =
     previous !== null &&
     previous.round.phase !== "freezetime" &&
     next.round.phase === "freezetime"
   let state = current
-  if (previous === null || started || enteredFreeze) {
+  // Keep this round's stats through round_ended even when CS2 also emits
+  // round_started (map.round already incremented on the over payload).
+  if ((previous === null || started || enteredFreeze) && !ended) {
     state = seedRound(next)
   }
 

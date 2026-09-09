@@ -3,6 +3,29 @@ import type { BroadcastInterstitial, GameState, Side } from "@workspace/game-sta
 
 import { useRealtimeStore } from "../realtime/store"
 
+export type InterstitialSize = "compact" | "medium" | "emphasis"
+export type InterstitialComposition = "team" | "player"
+export type InterstitialEmphasis = "none" | "label" | "ratio"
+
+export type InterstitialLayout = {
+  size: InterstitialSize
+  composition: InterstitialComposition
+  emphasis: InterstitialEmphasis
+}
+
+export function interstitialLayout(type: BroadcastInterstitial["type"]): InterstitialLayout {
+  if (type === "round-winner") {
+    return { size: "compact", composition: "team", emphasis: "none" }
+  }
+  if (type === "mvp") {
+    return { size: "medium", composition: "player", emphasis: "none" }
+  }
+  if (type === "ace") {
+    return { size: "emphasis", composition: "player", emphasis: "label" }
+  }
+  return { size: "emphasis", composition: "player", emphasis: "ratio" }
+}
+
 export function useActiveInterstitial(): BroadcastInterstitial | null {
   const payload = useRealtimeStore((store) => store.interstitial)
   const [now, setNow] = useState(() => Date.now())
@@ -20,7 +43,7 @@ export function useActiveInterstitial(): BroadcastInterstitial | null {
     return () => clearTimeout(timer)
   }, [payload])
 
-  if (!payload || payload.expiresAt <= now) {
+  if (!payload || payload.expiresAt + 80 <= now) {
     return null
   }
   return payload.card
@@ -30,10 +53,17 @@ export function interstitialSide(
   state: GameState,
   card: BroadcastInterstitial
 ): Side | undefined {
-  if (card.type !== "round-winner") {
-    return state.players.find((player) => player.steamId === card.playerSteamId)?.side
+  if (card.side === "CT" || card.side === "T") {
+    return card.side
   }
-  return state.teams.find((team) => team.id === card.teamId)?.side
+  const team = state.teams.find((entry) => entry.id === card.teamId)
+  if (team) {
+    return team.side
+  }
+  if (card.type === "round-winner") {
+    return undefined
+  }
+  return state.players.find((player) => player.steamId === card.playerSteamId)?.side
 }
 
 export function teamLogoUrl(

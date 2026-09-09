@@ -9,7 +9,7 @@ import {
   type RoundPerformanceTracker,
 } from "./round-performance"
 import { isRoundWinReason } from "./selectors"
-import type { GameState, RoundWinReason } from "./types"
+import type { GameState, RoundWinReason, Side } from "./types"
 
 export const INTERSTITIAL_TYPES = ["ace", "clutch", "mvp", "round-winner"] as const
 
@@ -18,6 +18,8 @@ export type InterstitialType = (typeof INTERSTITIAL_TYPES)[number]
 type BaseInterstitial = {
   id: string
   createdAt: number
+  /** Side at round end. Pinned so freeze/half/spec do not recolor the card. */
+  side?: Side
 }
 
 export type RoundWinnerInterstitial = BaseInterstitial & {
@@ -59,18 +61,17 @@ export type InterstitialPayload = {
 } | null
 
 export const INTERSTITIAL_DURATION_MS: Record<InterstitialType, number> = {
-  ace: 5500,
-  clutch: 5500,
-  mvp: 5500,
-  "round-winner": 5500,
+  ace: 3500,
+  clutch: 3500,
+  mvp: 3000,
+  "round-winner": 2500,
 }
 
-/** One card per round. Player achievements replace the round-winner slate. */
+/** Player-achievement pick: ACE over CLUTCH over MVP. Never ACE+CLUTCH together. */
 export const INTERSTITIAL_PRIORITY: readonly InterstitialType[] = [
   "ace",
   "clutch",
   "mvp",
-  "round-winner",
 ]
 
 export type InterstitialAction =
@@ -83,15 +84,33 @@ export type InterstitialDirector = {
   peek(now: number): InterstitialPayload
 }
 
+type InterstitialSession = {
+  payload: NonNullable<InterstitialPayload>
+  round: number
+  remaining: readonly BroadcastInterstitial[]
+}
+
 export function createInterstitialDirector(
   tracker: RoundPerformanceTracker = createRoundPerformanceTracker()
 ): InterstitialDirector {
-  let session: { payload: NonNullable<InterstitialPayload>; round: number } | null = null
+  let session: InterstitialSession | null = null
   let emittedRound: number | null = null
 
   function expire(now: number): void {
-    if (session && now >= session.payload.expiresAt) {
-      session = null
+    while (session && now >= session.payload.expiresAt) {
+      const next = session.remaining[0]
+      if (!next) {
+        session = null
+        return
+      }
+      session = {
+        payload: {
+          card: next,
+          expiresAt: now + INTERSTITIAL_DURATION_MS[next.type],
+        },
+        round: session.round,
+        remaining: session.remaining.slice(1),
+      }
     }
   }
 
@@ -100,33 +119,34 @@ export function createInterstitialDirector(
       const prior = session
       expire(now)
       const performance = tracker.apply(previous, result.state, result.events)
-      const started = result.events.some((event) => event.type === "round_started")
-      if (started) {
+      if (result.events.some((event) => event.type === "round_started")) {
         emittedRound = null
-        const had = prior !== null
-        session = null
-        return had ? { type: "clear" } : { type: "hold" }
       }
 
       const ended = roundEnded(result.events)
-      if (ended) {
-        if (emittedRound === ended.round) {
-          return { type: "hold" }
-        }
-        const card = composeBroadcastInterstitial(performance, result, now)
-        if (!card) {
+      if (ended && emittedRound !== ended.round) {
+        const queue = composeInterstitialSequence(performance, result, now)
+        if (queue.length === 0) {
           session = null
           return prior ? { type: "clear" } : { type: "hold" }
         }
         emittedRound = ended.round
+        const card = queue[0]
+        if (!card) {
+          session = null
+          return prior ? { type: "clear" } : { type: "hold" }
+        }
         const payload = {
           card,
           expiresAt: now + INTERSTITIAL_DURATION_MS[card.type],
         }
-        session = { payload, round: ended.round }
+        session = { payload, round: ended.round, remaining: queue.slice(1) }
         return { type: "set", payload }
       }
 
+      if (session && prior?.payload.card.id !== session.payload.card.id) {
+        return { type: "set", payload: session.payload }
+      }
       if (prior && session === null) {
         return { type: "clear" }
       }
@@ -150,7 +170,31 @@ export function composeBroadcastInterstitial(
   }
 
   const candidates = collectCandidates(performance, result.state, ended, createdAt)
-  return pickInterstitial(candidates)
+  return pickInterstitial(candidates) ?? candidates.find((card) => card.type === "round-winner") ?? null
+}
+
+export function composeInterstitialSequence(
+  performance: RoundPerformanceState,
+  result: ApplyResult,
+  createdAt: number
+): BroadcastInterstitial[] {
+  const ended = roundEnded(result.events)
+  if (!ended) {
+    return []
+  }
+  return sequenceInterstitials(collectCandidates(performance, result.state, ended, createdAt))
+}
+
+/**
+ * Round winner first, then at most one player achievement.
+ * ACE beats CLUTCH; MVP is omitted when either is present.
+ */
+export function sequenceInterstitials(
+  candidates: readonly BroadcastInterstitial[]
+): BroadcastInterstitial[] {
+  const winner = candidates.find((candidate) => candidate.type === "round-winner")
+  const achievement = pickInterstitial(candidates)
+  return [...(winner ? [winner] : []), ...(achievement ? [achievement] : [])]
 }
 
 export function pickInterstitial(
@@ -180,6 +224,7 @@ export function parseBroadcastInterstitial(value: unknown): BroadcastInterstitia
   if (!isRecord(value) || typeof value.id !== "string" || typeof value.createdAt !== "number") {
     return null
   }
+  const side = parseSide(value.side)
   if (value.type === "round-winner") {
     if (typeof value.teamId !== "string") {
       return null
@@ -189,6 +234,7 @@ export function parseBroadcastInterstitial(value: unknown): BroadcastInterstitia
       id: value.id,
       createdAt: value.createdAt,
       teamId: value.teamId,
+      ...(side ? { side } : {}),
       ...(isRoundWinReason(value.winReason) ? { winReason: value.winReason } : {}),
     }
   }
@@ -206,6 +252,7 @@ export function parseBroadcastInterstitial(value: unknown): BroadcastInterstitia
       teamId: value.teamId,
       playerSteamId: value.playerSteamId,
       roundKills: value.roundKills,
+      ...(side ? { side } : {}),
     }
   }
   if (value.type === "clutch") {
@@ -223,6 +270,7 @@ export function parseBroadcastInterstitial(value: unknown): BroadcastInterstitia
       teamId: value.teamId,
       playerSteamId: value.playerSteamId,
       opponentsAtClutchStart: value.opponentsAtClutchStart,
+      ...(side ? { side } : {}),
     }
   }
   return null
@@ -244,6 +292,7 @@ function collectCandidates(
       teamId: ace.teamId,
       playerSteamId: ace.playerSteamId,
       roundKills: ace.roundKills,
+      ...pinnedSide(state, ace.teamId, ace.playerSteamId),
     })
   }
 
@@ -257,6 +306,7 @@ function collectCandidates(
         teamId: clutch.teamId,
         playerSteamId: clutch.playerSteamId,
         opponentsAtClutchStart: clutch.opponentsAtClutchStart,
+        ...pinnedSide(state, clutch.teamId, clutch.playerSteamId),
       })
     }
 
@@ -269,6 +319,7 @@ function collectCandidates(
         teamId: mvp.teamId,
         playerSteamId: mvp.playerSteamId,
         roundKills: mvp.roundKills,
+        ...pinnedSide(state, mvp.teamId, mvp.playerSteamId),
       })
     }
 
@@ -278,6 +329,7 @@ function collectCandidates(
       createdAt,
       teamId: ended.teamId,
       ...(ended.winReason ? { winReason: ended.winReason } : {}),
+      ...pinnedSide(state, ended.teamId),
     })
   }
 
@@ -292,6 +344,21 @@ function roundEnded(
 
 function interstitialId(type: InterstitialType, round: number, key: string): string {
   return `${type}:${round}:${key}`
+}
+
+function pinnedSide(
+  state: GameState,
+  teamId: string,
+  steamId?: string
+): { side: Side } | Record<string, never> {
+  const side =
+    state.teams.find((team) => team.id === teamId)?.side ??
+    (steamId ? state.players.find((player) => player.steamId === steamId)?.side : undefined)
+  return side ? { side } : {}
+}
+
+function parseSide(value: unknown): Side | undefined {
+  return value === "CT" || value === "T" ? value : undefined
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

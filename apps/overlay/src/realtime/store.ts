@@ -46,11 +46,9 @@ export const useRealtimeStore = create<RealtimeStore>((set) => ({
       return
     }
     if (message.type === "snapshot") {
-      const stale = message.data.round.phase !== "over"
       set({
         state: message.data,
         gameConnected: true,
-        ...(stale ? { interstitial: null } : {}),
       })
       return
     }
@@ -70,10 +68,8 @@ export const useRealtimeStore = create<RealtimeStore>((set) => ({
       set({ interstitial: message.data })
       return
     }
-    const started = message.data.type === "round_started"
     set((current) => ({
       recentEvents: [...current.recentEvents, message.data].slice(-MAX_EVENTS),
-      ...(started ? { interstitial: null } : {}),
     }))
   },
 }))
